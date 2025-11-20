@@ -1,8 +1,8 @@
 // main.js
 
-import { BattleEngine } from "./battleengine.js";
-import { Optimizer } from "./optimizer.js";
-import { Calculator } from "./calculator.js";
+import { BattleEngine } from "./js/battleengine.js";
+import { Optimizer } from "./js/optimizer.js";
+import { Calculator } from "./js/calculator.js";
 import { machinesData } from "./data/machines.js";
 import { heroesData } from "./data/heroes.js";
 import { abilitiesData } from "./data/abilities.js";
