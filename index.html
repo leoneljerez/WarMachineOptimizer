@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimizer</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+</head>
+<body data-bs-theme="dark">
+
+    <div class="container py-4">
+
+        <h2 class="mb-4 text-center">War Machine Optimizer</h2>
+
+        <!-- NAV TABS -->
+        <ul class="nav nav-tabs" id="inputTabs" role="tablist">
+            <li><button class="nav-link active" id="machines-tab" data-bs-toggle="tab" data-bs-target="#machines" role="tab" type="button">Machines</button></li>
+            <li><button class="nav-link" id="heroes-tab" data-bs-toggle="tab" data-bs-target="#heroes" role="tab" type="button">Heroes</button></li>
+            <li><button class="nav-link" id="artifacts-tab" data-bs-toggle="tab" data-bs-target="#artifacts" role="tab" type="button">Artifacts</button></li>       
+        </ul>
+
+        <!-- TAB CONTENT -->
+        <div class="tab-content p-3 border border-top-0">
+
+            <!-- MACHINES TAB -->
+            <div class="tab-pane fade show active" id="machines" role="tabpanel">
+                <h5 class="mb-3">Machine Stats</h5>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Engineer Level</label>
+                        <input type="number" min="0" class="form-control" id="engineer-level">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Scarab Level</label>
+                        <input type="number" min="0" class="form-control" id="scarab-level">
+                    </div>
+                </div>
+                <div class="mt-3" id="machineContainer"></div>
+            </div>
+
+            <!-- HEROES TAB -->
+            <div class="tab-pane fade" id="heroes" role="tabpanel">
+                <h5 class="mb-3">Crew Bonus Percentage</h5>
+                <div id="heroContainer"></div>
+            </div>
+
+            <!-- ARTIFACTS TAB -->
+            <div class="tab-pane fade" id="artifacts" role="tabpanel">
+                <h5 class="mb-3">Artifact Amount</h5>
+                <div id="artifactContainer"></div>
+            </div>
+
+        </div>
+
+        <!-- OPTIMIZE BUTTON -->
+        <div class="text-center mt-4">
+            <button class="btn btn-primary btn-lg" id="optimizeBtn">Optimize</button>
+        </div>
+
+        <!-- Save/Load Section -->
+        <p class="text-center mt-4">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#saveLoadPanel">
+                Show Save / Load Setup
+            </button>
+        </p>
+
+        <div class="collapse" id="saveLoadPanel">
+            <div class="card">
+                <div class="card-header">
+                    Save / Load Setup
+                </div>
+                <div class="card-body">
+                    <textarea id="setupCode" class="form-control" rows="4"
+                              placeholder="Load a setup or wait for one to be generated after pressing Optimize to save."></textarea>
+
+                    <div class="text-end mt-2">
+                        <button id="loadSetupBtn" class="btn btn-secondary btn-sm">Load Setup</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="container mt-4" id="optimizerOutput">
+            <!-- Optimized machines and squad power will appear here -->
+        </div>
+
+    </div>
+
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/decimal.js"></script>
+    <script type="module" src="main.js"></script>
+
+</body>
+</html>
