@@ -1,4 +1,7 @@
 // battleEngine.js
+import { machinesData } from "./data/machines.js";
+import { heroesData } from "./data/heroes.js";
+import { abilitiesData } from "./data/abilities.js";
 
 export class BattleEngine {
     constructor({ machines = [], heroes = [], abilities = {}, playerOrder = [0, 1, 2, 3, 4], verbose = false } = {}) {

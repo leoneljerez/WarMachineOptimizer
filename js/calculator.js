@@ -1,5 +1,8 @@
 // calculator.js
 import Decimal from "./decimal.mjs";
+import { machinesData } from "./data/machines.js";
+import { heroesData } from "./data/heroes.js";
+import { abilitiesData } from "./data/abilities.js";
 
 export class Calculator {
 
