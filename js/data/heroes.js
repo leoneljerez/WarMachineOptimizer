@@ -51,7 +51,7 @@ export const heroesData = [
         "id": 9,
         "name": "Luana",
         "role": "healer",
-        "image": "img/heroes/Luana.webp"
+        "image": "img/heroes/luana.webp"
     },
     {
         "id": 10,
