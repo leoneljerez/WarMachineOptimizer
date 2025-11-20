@@ -1,5 +1,5 @@
 // calculator.js
-import Decimal from 'decimal.js';
+import Decimal from "./decimal.mjs";
 
 export class Calculator {
 
