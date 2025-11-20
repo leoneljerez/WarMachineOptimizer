@@ -1,6 +1,6 @@
 // Optimizer.js
 import { Calculator } from './calculator.js';
-import { BattleEngine } from './BattleEngine.js';
+import { BattleEngine } from './battleengine.js';
 
 export class Optimizer {
     constructor({ ownedMachines, heroes, engineerLevel, scarabLevel, artifactArray, globalRarityLevels }) {
