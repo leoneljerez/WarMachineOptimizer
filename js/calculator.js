@@ -230,9 +230,11 @@ export class Calculator {
   static calculateArenaAttributes(
     machine,
     globalRarityLevels = 0,
-    scarabLevel = 0
+    scarabLevel = 0,
+    riftRank = ""
   ) {
     const base105 = new Decimal(1.05);
+    console.log("Rift rank is: ", riftRank);
 
     const scarabBonus = Decimal.min(
       Decimal.max(new Decimal(scarabLevel).sub(3).div(2).floor().add(1), 0).mul(
@@ -240,6 +242,29 @@ export class Calculator {
       ),
       1
     );
+
+    let riftBonus = new Decimal(0);
+    switch (String(riftRank).toLowerCase()) {
+      case "sapphire":
+        riftBonus = new Decimal(0.01);
+        break;
+      case "emerald":
+        riftBonus = new Decimal(0.02);
+        break;
+      case "ruby":
+        riftBonus = new Decimal(0.03);
+        break;
+      case "platinum":
+        riftBonus = new Decimal(0.04);
+        break;
+      case "diamond":
+        riftBonus = new Decimal(0.05);
+        break;
+      default:
+        riftBonus = new Decimal(0);
+    }
+
+    console.log("Rift Bonus is: ", riftBonus);
 
     const mechFuryBonus = base105.pow(globalRarityLevels).sub(1);
 
@@ -258,15 +283,18 @@ export class Calculator {
     const arenaDmg = baseDamage
       .mul(Decimal.log10(divDmg).add(1).pow(2))
       .mul(mechFuryBonus.add(1))
-      .mul(scarabBonus.add(1));
+      .mul(scarabBonus.add(1))
+      .mul(riftBonus.add(1));
     const arenaHp = baseHealth
       .mul(Decimal.log10(divHp).add(1).pow(2))
       .mul(mechFuryBonus.add(1))
-      .mul(scarabBonus.add(1));
+      .mul(scarabBonus.add(1))
+      .mul(riftBonus.add(1));
     const arenaArm = baseArmor
       .mul(Decimal.log10(divArm).add(1).pow(2))
       .mul(mechFuryBonus.add(1))
-      .mul(scarabBonus.add(1));
+      .mul(scarabBonus.add(1))
+      .mul(riftBonus.add(1));
 
     return {
       damage: arenaDmg,

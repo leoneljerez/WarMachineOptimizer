@@ -56,6 +56,7 @@ function createInitialStore() {
     },
     engineerLevel: 0,
     scarabLevel: 0,
+    riftRank: "bronze",
     optimizeMode: "campaign", // Default mode
   };
 }
@@ -160,6 +161,7 @@ function runOptimization() {
     engineerLevel: store.engineerLevel,
     scarabLevel: store.scarabLevel,
     artifactArray,
+    riftRank: store.riftRank,
   });
 
   worker.onmessage = function (e) {
@@ -206,6 +208,15 @@ function setupEventListeners() {
     scarabInput.value = store.scarabLevel;
     scarabInput.addEventListener("input", (e) => {
       store.scarabLevel = parseInt(e.target.value) || 0;
+    });
+  }
+
+  // Chaos Rift Rank
+  const riftInput = document.getElementById("riftRank");
+  if (riftInput) {
+    riftInput.value = store.riftRank;
+    riftInput.addEventListener("change", (e) => {
+      store.riftRank = e.target.value;
     });
   }
 

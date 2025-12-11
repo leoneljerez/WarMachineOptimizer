@@ -11,6 +11,7 @@ export class Optimizer {
     scarabLevel,
     artifactArray,
     globalRarityLevels,
+    riftRank
   }) {
     this.ownedMachines = ownedMachines;
     this.heroes = heroes;
@@ -18,6 +19,7 @@ export class Optimizer {
     this.scarabLevel = scarabLevel;
     this.artifactArray = artifactArray;
     this.globalRarityLevels = globalRarityLevels;
+    this.riftRank = riftRank;
     this.battleEngine = new BattleEngine({ verbose: false });
     this.maxSlots = Calculator.maxCrewSlots(engineerLevel);
   }
@@ -90,7 +92,8 @@ export class Optimizer {
     const arenaStats = Calculator.calculateArenaAttributes(
       machineWithBattleStats,
       this.globalRarityLevels,
-      this.scarabLevel
+      this.scarabLevel,
+      this.riftRank
     );
 
     return {

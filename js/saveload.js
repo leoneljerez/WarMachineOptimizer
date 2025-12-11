@@ -15,6 +15,10 @@ function validateSaveData(data) {
     errors.push("Invalid scarabLevel");
   }
 
+  if (typeof data.riftRank !== "string") {
+    errors.push("Invalid riftRank");
+  }
+
   // Validate machines array
   if (!Array.isArray(data.machines)) {
     errors.push("machines must be an array");
@@ -82,6 +86,7 @@ function createSaveData(store) {
   return {
     engineerLevel: store.engineerLevel,
     scarabLevel: store.scarabLevel,
+    riftRank: store.riftRank,
     machines: store.machines.map((machine) => ({
       id: machine.id,
       rarity: machine.rarity,
@@ -115,6 +120,7 @@ function applyLoadedData(store, data) {
   // Apply top-level values
   store.engineerLevel = data.engineerLevel;
   store.scarabLevel = data.scarabLevel;
+  store.riftRank = data.riftRank;
 
   // Apply machine data by matching IDs (convert both to strings for comparison)
   data.machines.forEach((savedMachine) => {
@@ -224,6 +230,7 @@ export const SaveLoad = {
       // Update UI inputs
       document.getElementById("engineerLevel").value = store.engineerLevel;
       document.getElementById("scarabLevel").value = store.scarabLevel;
+      document.getElementById("riftRank").value = store.riftRank;
 
       // Re-render all UI components
       renderMachines(store.machines);
