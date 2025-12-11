@@ -310,9 +310,7 @@ export class Calculator {
     crewList = [],
     globalRarityLevels = 0,
     artifactArray = [],
-    engineerLevel = 0,
-    // eslint-disable-next-line no-unused-vars
-    scarabLevel = 0
+    engineerLevel = 0
   ) {
     const base105 = new Decimal(1.05);
 

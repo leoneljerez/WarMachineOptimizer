@@ -261,6 +261,11 @@ function setupEventListeners() {
     saveLoadModal.addEventListener("hidden.bs.modal", () => {
       saveLoadBtn.focus();
     });
+
+    saveLoadModal.addEventListener("shown.bs.modal", () => {
+      // Focus first input when opened
+      document.getElementById("saveLoadBox").focus();
+    });
   }
 
   // Save/Load buttons

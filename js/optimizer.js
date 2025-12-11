@@ -75,8 +75,7 @@ export class Optimizer {
       crew,
       this.globalRarityLevels,
       this.artifactArray,
-      this.engineerLevel,
-      this.scarabLevel
+      this.engineerLevel
     );
 
     const machineWithBattleStats = {

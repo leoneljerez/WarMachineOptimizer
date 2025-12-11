@@ -15,7 +15,6 @@ function toDecimal(serialized) {
  * Formats a Decimal as a localized integer string
  */
 function formatPower(decimal) {
-
   if(toDecimal(decimal).lessThan(999000000))
     return Math.trunc(toDecimal(decimal).toNumber()).toLocaleString("en-US");
 
@@ -78,24 +77,38 @@ function createMachineCard(machine, machineTemplate) {
   // Initial stats (battle mode by default)
   updateMachineStats(card, "battle");
 
-  // Crew images
+  // Crew images - BATCH DOM UPDATE
   const crewDiv = clone.querySelector(".crew");
+  const fragment = document.createDocumentFragment();
+  
   Object.values(machine.crew).forEach((hero) => {
-    crewDiv.appendChild(createCrewImage(hero));
+    fragment.appendChild(createCrewImage(hero));
   });
+  
+  crewDiv.appendChild(fragment); // ✅ Single DOM update
 
   return clone;
 }
 
 /**
- * Sets up the battle/arena stats toggle
+ * Sets up the battle/arena stats toggle with proper cleanup
+ * @param {Object} result - Optimization result containing formation and power stats
+ * @param {HTMLElement} container - Results container element for cleanup tracking
  */
-function setupStatsToggle(result) {
+function setupStatsToggle(result, container) {
   const toggle = document.getElementById("statsToggle");
-  if (!toggle || toggle.__initialized) return;
+  if (!toggle) return;
 
-  toggle.__initialized = true;
+  // Create abort controller for this specific render
+  const controller = new AbortController();
+  
+  // Store controller on container for cleanup
+  if (container.__statsController) {
+    container.__statsController.abort(); // Clean up previous listener
+  }
+  container.__statsController = controller;
 
+  // Add event listener with abort signal
   toggle.addEventListener("change", (e) => {
     const mode = e.target.value;
 
@@ -110,16 +123,21 @@ function setupStatsToggle(result) {
 
     document.querySelector(".powerResult").textContent = formatPower(power);
     document.querySelector(".powerTitle").textContent = title;
-  });
+  }, { signal: controller.signal });
 }
 
 /**
  * Main render function for optimization results
  */
 export function renderResults(result, optimizeMode = "campaign") {
-  //console.log("Result:", result);
-
   const container = document.getElementById("resultsContainer");
+  
+  // Clean up previous event listeners
+  if (container.__statsController) {
+    container.__statsController.abort();
+    container.__statsController = null;
+  }
+  
   container.replaceChildren();
 
   // Handle no results case
@@ -177,12 +195,13 @@ export function renderResults(result, optimizeMode = "campaign") {
 
   // Render each machine in the formation
   const machineTemplate = document.getElementById("machineTemplate");
+  
   result.formation.forEach((machine, index) => {
     const slot = positionMap[index + 1];
     if (!slot) return;
 
     const machineCard = createMachineCard(machine, machineTemplate);
-    slot.appendChild(machineCard);
+    slot.appendChild(machineCard); // Already batched inside createMachineCard
   });
 
   container.appendChild(clone);
@@ -192,6 +211,6 @@ export function renderResults(result, optimizeMode = "campaign") {
     updateMachineStats(card, optimizeMode === "arena" ? "arena" : "battle");
   });
 
-  // Setup toggle for battle/arena stats
-  setupStatsToggle(result);
+  // Setup toggle with cleanup tracking
+  setupStatsToggle(result, container);
 }

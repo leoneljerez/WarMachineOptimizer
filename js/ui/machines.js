@@ -1,3 +1,22 @@
+import {
+  createSection,
+  createFormRow,
+  createNumberInput,
+  createSelect,
+  createListItem,
+  updateListItem,
+  createDetailHeader
+} from "./formHelpers.js";
+
+const RARITIES = [
+  "Common", "Uncommon", "Rare", "Epic", 
+  "Legendary", "Mythic", "Titan", "Angel", "Celestial"
+];
+
+/**
+ * Renders the machine list and sets up selection
+ * @param {Array} machines - Array of machine objects
+ */
 export function renderMachines(machines) {
   const list = document.getElementById("machineList");
   const details = document.getElementById("machineDetails");
@@ -6,80 +25,49 @@ export function renderMachines(machines) {
   details.replaceChildren();
 
   let selectedButton = null;
+  const fragment = document.createDocumentFragment();
 
   machines.forEach((machine, index) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-      "list-group-item list-group-item-action d-flex align-items-center gap-2";
-
-    const thumb = document.createElement("img");
-    thumb.src = machine.image;
-    thumb.alt = machine.name;
-    thumb.style.width = "40px";
-    thumb.style.height = "40px";
-    thumb.style.objectFit = "cover";
-    thumb.classList.add("rounded");
-
-    const textWrap = document.createElement("div");
-    textWrap.className = "flex-grow-1";
-
-    const name = document.createElement("div");
-    name.className = "fw-bold";
-    name.textContent = machine.name;
-
-    const stats = document.createElement("div");
-    stats.className = "text-secondary small";
-
-    // Check if machine is configured
-    const isConfigured = isConfiguredMachine(machine);
-
-    const badge = document.createElement("span");
-    badge.className = `badge ${
-      isConfigured ? "bg-success" : "bg-secondary"
-    } ms-2`;
-    badge.textContent = isConfigured ? "Configured" : "Default";
-    badge.style.fontSize = "0.7rem";
-
     const updateStats = () => {
       const configured = isConfiguredMachine(machine);
-      stats.textContent = `Lv. ${machine.level} • ${machine.rarity}`;
-      badge.className = `badge ${
-        configured ? "bg-success" : "bg-secondary"
-      } ms-2`;
-      badge.textContent = configured ? "Configured" : "Default";
+      const statsText = `Lv. ${machine.level} • ${machine.rarity}`;
+      updateListItem(btn, statsText, configured);
     };
-    updateStats();
 
-    name.appendChild(badge);
-    textWrap.appendChild(name);
-    textWrap.appendChild(stats);
-
-    btn.appendChild(thumb);
-    btn.appendChild(textWrap);
-
-    btn.addEventListener("click", () => {
-      selectMachine(machine, btn, updateStats);
+    const btn = createListItem({
+      image: machine.image,
+      name: machine.name,
+      statsText: `Lv. ${machine.level} • ${machine.rarity}`,
+      isConfigured: isConfiguredMachine(machine),
+      onClick: () => selectMachine(machine, btn, updateStats)
     });
 
-    list.appendChild(btn);
+    fragment.appendChild(btn);
 
     if (index === 0) {
       btn.classList.add("active");
       selectedButton = btn;
-      renderMachineDetails(machine, details, updateStats);
+      queueMicrotask(() => {
+        renderMachineDetails(machine, details, updateStats);
+      });
     }
   });
+
+  list.appendChild(fragment);
 
   function selectMachine(machine, btn, updateStats) {
     if (selectedButton) selectedButton.classList.remove("active");
     selectedButton = btn;
     btn.classList.add("active");
-
     renderMachineDetails(machine, details, updateStats);
   }
 }
 
+/**
+ * Checks if a machine has non-default configuration
+ * @param {Object} machine - Machine object
+ * @returns {boolean} True if configured
+ */
 function isConfiguredMachine(machine) {
   const { rarity, level, blueprints, inscriptionLevel, sacredLevel } = machine;
   const hasBlueprints = Object.values(blueprints).some((v) => v > 0);
@@ -89,49 +77,40 @@ function isConfiguredMachine(machine) {
   return hasBlueprints || hasCards || hasLevel || hasRarity;
 }
 
+/**
+ * Renders machine details in the detail pane
+ * @param {Object} machine - Machine object
+ * @param {HTMLElement} container - Detail container element
+ * @param {Function} updateListStats - Callback to update list stats
+ */
 function renderMachineDetails(machine, container, updateListStats) {
   container.replaceChildren();
-
-  // Create detail view without template
   const detailView = createMachineDetailView(machine, updateListStats);
   container.appendChild(detailView);
 }
 
+/**
+ * Creates the detailed view for a machine
+ * @param {Object} machine - Machine object
+ * @param {Function} updateListStats - Callback to update list stats
+ * @returns {HTMLElement} Detail view container
+ */
 function createMachineDetailView(machine, updateListStats) {
   const wrapper = document.createElement("div");
   wrapper.className = "machine-detail-view";
 
-  // Header with image and name
-  const header = document.createElement("div");
-  header.className = "text-center mb-4";
-
-  const img = document.createElement("img");
-  img.src = machine.image;
-  img.alt = machine.name;
-  img.className = "img-fluid rounded";
-  img.style.maxWidth = "200px";
-
-  const title = document.createElement("h4");
-  title.className = "mt-3 mb-0";
-  title.textContent = machine.name;
-
-  const resetBtn = document.createElement("button");
-  resetBtn.type = "button";
-  resetBtn.className = "btn btn-sm btn-outline-danger mt-2";
-  resetBtn.textContent = "Reset to Default";
-  resetBtn.addEventListener("click", () => {
-    if (confirm(`Reset ${machine.name} to default values?`)) {
-      resetMachine(machine);
-      wrapper.replaceWith(createMachineDetailView(machine, updateListStats));
-      updateListStats();
+  const header = createDetailHeader({
+    image: machine.image,
+    name: machine.name,
+    onReset: () => {
+      if (confirm(`Reset ${machine.name} to default values?`)) {
+        resetMachine(machine);
+        wrapper.replaceWith(createMachineDetailView(machine, updateListStats));
+        updateListStats();
+      }
     }
   });
 
-  header.appendChild(img);
-  header.appendChild(title);
-  header.appendChild(resetBtn);
-
-  // Form sections
   const form = document.createElement("form");
   form.className = "machine-form";
 
@@ -139,7 +118,10 @@ function createMachineDetailView(machine, updateListStats) {
   const generalSection = createSection("General", [
     createFormRow(
       "Rarity",
-      createRaritySelect(machine, updateListStats),
+      createSelect(RARITIES, machine.rarity, (e) => {
+        machine.rarity = e.target.value;
+        updateListStats();
+      }),
       "col-md-6"
     ),
     createFormRow(
@@ -182,99 +164,16 @@ function createMachineDetailView(machine, updateListStats) {
     ),
   ]);
 
-  form.appendChild(generalSection);
-  form.appendChild(blueprintSection);
-  form.appendChild(cardSection);
-
-  wrapper.appendChild(header);
-  wrapper.appendChild(form);
+  form.append(generalSection, blueprintSection, cardSection);
+  wrapper.append(header, form);
 
   return wrapper;
 }
 
-function createSection(title, rows) {
-  const section = document.createElement("div");
-  section.className = "mb-4";
-
-  const heading = document.createElement("h5");
-  heading.className = "mb-3";
-  heading.textContent = title;
-  section.appendChild(heading);
-
-  const rowContainer = document.createElement("div");
-  rowContainer.className = "row g-3";
-  rows.forEach((row) => rowContainer.appendChild(row));
-  section.appendChild(rowContainer);
-
-  return section;
-}
-
-function createFormRow(label, input, colClass = "col-12") {
-  const col = document.createElement("div");
-  col.className = colClass;
-
-  const formGroup = document.createElement("div");
-  formGroup.className = "form-group";
-
-  const labelEl = document.createElement("label");
-  labelEl.className = "form-label";
-  labelEl.textContent = label;
-
-  formGroup.appendChild(labelEl);
-  formGroup.appendChild(input);
-  col.appendChild(formGroup);
-
-  return col;
-}
-
-function createRaritySelect(machine, updateCallback) {
-  const select = document.createElement("select");
-  select.className = "form-select";
-
-  const rarities = [
-    "Common",
-    "Uncommon",
-    "Rare",
-    "Epic",
-    "Legendary",
-    "Mythic",
-    "Titan",
-    "Angel",
-    "Celestial",
-  ];
-  rarities.forEach((rarity) => {
-    const option = document.createElement("option");
-    option.value = rarity;
-    option.textContent = rarity;
-    option.selected = machine.rarity === rarity;
-    select.appendChild(option);
-  });
-
-  select.addEventListener("change", (e) => {
-    machine.rarity = e.target.value;
-    updateCallback();
-  });
-
-  return select;
-}
-
-function createNumberInput(obj, key, updateCallback, min = 0, step = 1) {
-  const input = document.createElement("input");
-  input.type = "number";
-  input.className = "form-control";
-  input.min = min;
-  input.step = step;
-  input.value = obj[key];
-
-  input.addEventListener("input", (e) => {
-    const val = parseInt(e.target.value);
-    obj[key] = isNaN(val) ? 0 : Math.max(min, val);
-    updateCallback();
-  });
-
-  return input;
-}
-
+/**
+ * Resets a machine to default values
+ * @param {Object} machine - Machine object
+ */
 function resetMachine(machine) {
   machine.rarity = "Common";
   machine.level = 0;
