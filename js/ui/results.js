@@ -15,7 +15,11 @@ function toDecimal(serialized) {
  * Formats a Decimal as a localized integer string
  */
 function formatPower(decimal) {
-  return Math.trunc(toDecimal(decimal).toNumber()).toLocaleString("en-US");
+
+  if(toDecimal(decimal).lessThan(999000000))
+    return Math.trunc(toDecimal(decimal).toNumber()).toLocaleString("en-US");
+
+  return toDecimal(decimal).toExponential(2);
 }
 
 /**

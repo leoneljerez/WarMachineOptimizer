@@ -234,7 +234,6 @@ export class Calculator {
     riftRank = ""
   ) {
     const base105 = new Decimal(1.05);
-    console.log("Rift rank is: ", riftRank);
 
     const scarabBonus = Decimal.min(
       Decimal.max(new Decimal(scarabLevel).sub(3).div(2).floor().add(1), 0).mul(
@@ -263,8 +262,6 @@ export class Calculator {
       default:
         riftBonus = new Decimal(0);
     }
-
-    console.log("Rift Bonus is: ", riftBonus);
 
     const mechFuryBonus = base105.pow(globalRarityLevels).sub(1);
 
