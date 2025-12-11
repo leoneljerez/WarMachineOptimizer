@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>War Machine Optimizer</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css" />
+    <style>
+      html {
+        overflow-y: scroll;
+      }
+
+      /* Tighter, more professional spacing */
+      .container {
+        max-width: 1400px;
+      }
+
+      /* Improved header with better visual hierarchy */
+      header {
+        background: linear-gradient(
+          135deg,
+          rgba(13, 110, 253, 0.1) 0%,
+          rgba(13, 110, 253, 0.05) 100%
+        );
+        border-radius: 8px;
+        padding: 1.5rem !important;
+        margin-bottom: 1.5rem;
+      }
+
+      header .fs-4 {
+        font-size: 1.75rem !important;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      /* Cleaner tabs with modern styling */
+      .nav-tabs {
+        border: none;
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 0.5rem;
+        border-radius: 8px;
+      }
+
+      .nav-tabs .nav-link {
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1.25rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.6);
+        transition: all 0.2s ease;
+      }
+
+      .nav-tabs .nav-link:hover {
+        color: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .nav-tabs .nav-link.active {
+        color: #fff;
+        background: rgba(13, 110, 253, 0.2);
+        border: 1px solid rgba(13, 110, 253, 0.3);
+      }
+
+      /* Improved optimize section */
+      .optimize-section {
+        position: sticky;
+        bottom: 0;
+        background: linear-gradient(to top, var(--bs-body-bg) 80%, transparent);
+        padding: 2rem 0 1.5rem;
+        margin-top: 3rem;
+        z-index: 10;
+      }
+
+      .mode-selector {
+        display: inline-flex;
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 0.375rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .mode-selector input[type="radio"] {
+        display: none;
+      }
+
+      .mode-selector label {
+        padding: 0.5rem 1.5rem;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: rgba(255, 255, 255, 0.6);
+        margin: 0;
+      }
+
+      .mode-selector label:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .mode-selector input[type="radio"]:checked + label {
+        background: rgba(13, 110, 253, 0.2);
+        color: #fff;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      #optimizeBtn {
+        min-width: 200px;
+        font-size: 1.1rem;
+        padding: 0.75rem 2.5rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+        transition: all 0.2s ease;
+      }
+
+      #optimizeBtn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 193, 7, 0.4);
+      }
+
+      #optimizeBtn:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      /* Improved artifact layout - horizontal grid */
+      .artifact-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .artifact-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.25rem;
+      }
+
+      .artifact-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .artifact-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+        text-transform: capitalize;
+      }
+
+      .artifact-inputs {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+      }
+
+      .artifact-input-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .artifact-input-group label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        min-width: 45px;
+        margin: 0;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .artifact-input-group input {
+        flex: 1;
+        padding: 0.375rem 0.625rem;
+        font-size: 0.9rem;
+      }
+
+      /* Improved global bonuses card */
+      .global-bonuses-card {
+        background: linear-gradient(
+          135deg,
+          rgba(25, 135, 84, 0.1) 0%,
+          rgba(25, 135, 84, 0.05) 100%
+        );
+        border: 1px solid rgba(25, 135, 84, 0.2);
+      }
+
+      /* Better visual feedback on forms */
+      .form-control:focus,
+      .form-select:focus {
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        border-color: rgba(13, 110, 253, 0.5);
+      }
+
+      /* List items */
+      .list-group-item {
+        transition: all 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .list-group-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      .list-group-item.active {
+        background-color: rgba(13, 110, 253, 0.15);
+        border-color: rgba(13, 110, 253, 0.3);
+      }
+
+      .list-group-item.active .text-secondary {
+        color: #ffffffd5 !important;
+      }
+
+      /* Cards */
+      .card {
+        transition: box-shadow 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+      }
+
+      /* Formation display */
+      .formation-grid {
+        gap: 1rem;
+      }
+
+      .machine-slot {
+        min-height: 150px;
+      }
+
+      .machine-card {
+        background-color: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: transform 0.2s ease;
+      }
+
+      .machine-card:hover {
+        transform: translateY(-2px);
+      }
+
+      /* Animations */
+      .machine-detail-view,
+      .hero-detail-view {
+        animation: fadeIn 0.3s ease-in;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Footer improvements */
+      footer {
+        margin-top: 4rem;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.4);
+      }
+
+      /* Responsive improvements */
+      @media (max-width: 768px) {
+        .artifact-inputs {
+          grid-template-columns: 1fr;
+        }
+
+        .artifact-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .mode-selector label {
+          padding: 0.5rem 1rem;
+          font-size: 0.9rem;
+        }
+
+        #optimizeBtn {
+          width: 100%;
+          font-size: 1rem;
+          padding: 0.625rem 1.5rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container py-4">
+      <!-- Header -->
+      <header class="border-bottom text-body-emphasis">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="fs-4 fw-bold">War Machine Optimizer</span>
+          <button
+            type="button"
+            class="btn btn-success"
+            data-bs-toggle="modal"
+            data-bs-target="#saveLoadModal"
+            id="saveLoadBtn"
+          >
+            Save / Load
+          </button>
+        </div>
+      </header>
+
+      <!-- Save/Load Modal -->
+      <div class="modal fade" id="saveLoadModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Save / Load Configuration</h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+              ></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-secondary small">
+                Click <strong>Save</strong> to generate JSON, then copy it.
+                Paste saved JSON here and click <strong>Load</strong> to
+                restore.
+              </p>
+              <textarea
+                id="saveLoadBox"
+                class="form-control font-monospace"
+                rows="12"
+                placeholder="generate a save or insert one here..."
+              ></textarea>
+            </div>
+            <div class="modal-footer">
+              <button id="saveBtn" type="button" class="btn btn-success">
+                Save
+              </button>
+              <button id="loadBtn" type="button" class="btn btn-primary">
+                Load
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="navbar mt-3">
+        <ul class="nav nav-tabs w-100 justify-content-center" id="wmTabs">
+          <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#machinesTab"
+              >Machines</a
+            >
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#heroesTab"
+              >Heroes</a
+            >
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#artifactsTab"
+              >Artifacts</a
+            >
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#resultsTab"
+              >Results</a
+            >
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Main Content -->
+      <main class="container tab-content py-4">
+        <!-- MACHINES TAB -->
+        <section id="machinesTab" class="tab-pane fade show active">
+          <!-- Global Bonuses -->
+          <div class="card mb-4 global-bonuses-card">
+            <div class="card-body">
+              <h5 class="card-title mb-3">Global Bonuses</h5>
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <label for="engineerLevel" class="form-label"
+                    >Engineer Level</label
+                  >
+                  <input
+                    type="number"
+                    id="engineerLevel"
+                    class="form-control"
+                    min="0"
+                    step="1"
+                    value="0"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="scarabLevel" class="form-label"
+                    >Scarab Level</label
+                  >
+                  <input
+                    type="number"
+                    id="scarabLevel"
+                    class="form-control"
+                    min="0"
+                    step="1"
+                    value="0"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Machine List and Details -->
+          <div class="row">
+            <div class="col-12 col-lg-4">
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Machine List</h5>
+                </div>
+                <div class="card-body p-0">
+                  <div
+                    id="machineList"
+                    class="list-group list-group-flush overflow-auto"
+                    style="max-height: 600px"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-8 mt-3 mt-lg-0">
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Machine Details</h5>
+                </div>
+                <div class="card-body">
+                  <div id="machineDetails"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- HEROES TAB -->
+        <section id="heroesTab" class="tab-pane fade">
+          <div class="row">
+            <div class="col-12 col-lg-4">
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Hero List</h5>
+                </div>
+                <div class="card-body p-0">
+                  <div
+                    id="heroList"
+                    class="list-group list-group-flush overflow-auto"
+                    style="max-height: 600px"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-8 mt-3 mt-lg-0">
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Hero Details</h5>
+                </div>
+                <div class="card-body">
+                  <div id="heroDetails"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ARTIFACTS TAB -->
+        <section id="artifactsTab" class="tab-pane fade">
+          <div class="mb-4 d-flex justify-content-between align-items-center">
+            <div>
+              <h4 class="mb-1">Artifact Configuration</h4>
+              <p class="text-secondary mb-0">
+                Configure artifacts by stat type and percentage tier
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              id="resetArtifacts"
+            >
+              Reset All
+            </button>
+          </div>
+          <div id="artifactsContainer" class="artifact-grid"></div>
+        </section>
+
+        <!-- RESULTS TAB -->
+        <section id="resultsTab" class="tab-pane fade">
+          <div class="card p-4" style="background: rgba(255, 255, 255, 0.03)">
+            <h4 class="mb-3">Optimization Results</h4>
+            <p class="text-secondary">
+              Click the <strong>Optimize</strong> button to calculate your best
+              formation.
+            </p>
+            <p class="text-secondary small">
+              <em
+                >Note: This optimizer does not account for abilities. Therefore,
+                you may be able to earn more stars than what is shown.</em
+              >
+            </p>
+            <div id="resultsContainer"></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- OPTIMIZE SECTION (Sticky) -->
+      <div class="optimize-section">
+        <div class="d-flex flex-column align-items-center gap-3">
+          <!-- Mode Selector -->
+          <div class="mode-selector">
+            <input
+              type="radio"
+              id="campaignMode"
+              name="optimizeMode"
+              value="campaign"
+              checked
+            />
+            <label for="campaignMode">Campaign</label>
+
+            <input
+              type="radio"
+              id="arenaMode"
+              name="optimizeMode"
+              value="arena"
+            />
+            <label for="arenaMode">Arena</label>
+          </div>
+
+          <!-- Optimize Button -->
+          <button
+            id="optimizeBtn"
+            class="btn btn-lg btn-warning fw-bold shadow"
+          >
+            Optimize Formation
+          </button>
+        </div>
+      </div>
+
+      <!-- Toast Container -->
+      <div aria-live="polite" aria-atomic="true">
+        <div
+          id="toastRoot"
+          class="toast-container position-fixed bottom-0 end-0 p-3"
+        ></div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="text-center">
+        <small>© 2025 War Machine Optimizer</small>
+      </footer>
+    </div>
+
+    <!-- Templates remain the same -->
+    <template id="resultTemplate">
+      <div class="result-card mt-4">
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <div class="card text-center">
+              <div class="card-body">
+                <h6 class="text-secondary mb-1">Total Stars</h6>
+                <div class="fs-3 fw-bold totalStars"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-center">
+              <div class="card-body">
+                <h6 class="text-secondary mb-1">Last Cleared</h6>
+                <div class="fs-3 fw-bold lastCleared"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-center">
+              <div class="card-body">
+                <h6 class="text-secondary mb-1 powerTitle">Battle Power</h6>
+                <div class="fs-3 fw-bold text-warning powerResult"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Formation</h5>
+          <div class="mode-selector" id="statsToggle">
+            <input
+              type="radio"
+              id="battleStats"
+              name="statsMode"
+              value="battle"
+              checked
+            />
+            <label for="battleStats">Battle Stats</label>
+            <input
+              type="radio"
+              id="arenaStats"
+              name="statsMode"
+              value="arena"
+            />
+            <label for="arenaStats">Arena Stats</label>
+          </div>
+        </div>
+
+        <div class="d-flex formation-grid justify-content-center">
+          <div class="d-flex flex-column justify-content-end me-3 left-column">
+            <div class="machine-slot mb-2" data-position="5"></div>
+            <div class="machine-slot mb-2" data-position="4"></div>
+            <div class="machine-slot mb-2" data-position="3"></div>
+          </div>
+          <div class="d-flex flex-column justify-content-center right-column">
+            <div class="machine-slot mb-2" data-position="2"></div>
+            <div class="machine-slot mb-2" data-position="1"></div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <template id="machineTemplate">
+      <div class="machine-card border rounded p-3 mb-2 text-center shadow-sm">
+        <img
+          class="machine-image mb-2 rounded"
+          src=""
+          alt="Machine"
+          style="width: 80px; height: 80px; object-fit: cover"
+        />
+        <div class="machine-name fw-bold mb-2"></div>
+        <div
+          class="machine-stats d-flex justify-content-center gap-3 align-items-center mb-2"
+        >
+          <div class="stat damage d-flex align-items-center gap-1">
+            <img
+              src="img/ui/damage.webp"
+              alt="Damage"
+              style="width: 20px; height: 20px"
+            />
+            <span class="value fw-bold"></span>
+          </div>
+          <div class="stat health d-flex align-items-center gap-1">
+            <img
+              src="img/ui/health.webp"
+              alt="Health"
+              style="width: 20px; height: 20px"
+            />
+            <span class="value fw-bold"></span>
+          </div>
+          <div class="stat armor d-flex align-items-center gap-1">
+            <img
+              src="img/ui/armor.webp"
+              alt="Armor"
+              style="width: 20px; height: 20px"
+            />
+            <span class="value fw-bold"></span>
+          </div>
+        </div>
+        <div
+          class="crew d-flex flex-wrap justify-content-center gap-1 mt-2"
+        ></div>
+      </div>
+    </template>
+
+    <!-- Bootstrap 5.3.8 -->
+    <script src="js/vendor/bootstrap.bundle.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

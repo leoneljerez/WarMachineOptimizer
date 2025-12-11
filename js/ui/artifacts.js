@@ -1,0 +1,90 @@
+// ui/artifacts.js - Updated to use horizontal grid layout
+export function renderArtifacts(artifacts) {
+  const container = document.getElementById("artifactsContainer");
+  container.replaceChildren();
+
+  const stats = ["damage", "health", "armor"];
+  const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
+
+  // Render each stat type as a card
+  stats.forEach((stat) => {
+    const card = createArtifactCard(stat, percentages, artifacts);
+    container.appendChild(card);
+  });
+}
+
+function createArtifactCard(stat, percentages, artifacts) {
+  const card = document.createElement("div");
+  card.className = "artifact-card";
+
+  // Header
+  const header = document.createElement("div");
+  header.className = "artifact-card-header";
+
+  const title = document.createElement("h5");
+  title.className = "artifact-card-title";
+  title.textContent = `${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
+
+  const totalBadge = document.createElement("span");
+  totalBadge.className = "badge bg-primary";
+  const total = Object.values(artifacts[stat]).reduce(
+    (sum, val) => sum + val,
+    0
+  );
+  totalBadge.textContent = `Total: ${total}`;
+
+  header.appendChild(title);
+  header.appendChild(totalBadge);
+
+  // Body with input grid
+  const body = document.createElement("div");
+  body.className = "artifact-inputs";
+
+  percentages.forEach((pct) => {
+    const group = document.createElement("div");
+    group.className = "artifact-input-group";
+
+    const label = document.createElement("label");
+    label.textContent = `${pct}%`;
+    label.className = "form-label";
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "form-control form-control-sm";
+    input.min = 0;
+    input.step = 1;
+    input.value = artifacts[stat][pct];
+
+    input.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value);
+      artifacts[stat][pct] = isNaN(val) ? 0 : Math.max(0, val);
+
+      // Update total badge
+      const newTotal = Object.values(artifacts[stat]).reduce(
+        (sum, v) => sum + v,
+        0
+      );
+      totalBadge.textContent = `Total: ${newTotal}`;
+    });
+
+    group.appendChild(label);
+    group.appendChild(input);
+    body.appendChild(group);
+  });
+
+  card.appendChild(header);
+  card.appendChild(body);
+
+  return card;
+}
+
+export function resetAllArtifacts(artifacts) {
+  const stats = ["damage", "health", "armor"];
+  const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
+
+  stats.forEach((stat) => {
+    percentages.forEach((pct) => {
+      artifacts[stat][pct] = 0;
+    });
+  });
+}
