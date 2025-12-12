@@ -11,7 +11,7 @@ export class Optimizer {
     scarabLevel,
     artifactArray,
     globalRarityLevels,
-    riftRank
+    riftRank,
   }) {
     this.ownedMachines = ownedMachines;
     this.heroes = heroes;
@@ -240,74 +240,60 @@ export class Optimizer {
     return sorted.slice(0, Math.min(5, sorted.length)).map((x) => x.machine);
   }
 
-  arrangeByRole(team) {
+  arrangeByRole(team, mission = 1, difficulty = "easy") {
     if (!team || team.length === 0) return [];
 
-    const formation = [null, null, null, null, null];
+    const formation = [];
 
-    const tanks = team.filter((m) => m.role === "tank");
-    const dps = team.filter((m) => m.role !== "tank");
+    // Get enemy stats for this mission & difficulty
+    const enemyStats = Calculator.enemyAttributes(mission, difficulty);
 
-    const sortByPowerDesc = (arr) =>
-      arr
-        .map((m) => ({ m, p: Calculator.computeMachinePower(m.battleStats) }))
-        .sort((a, b) => b.p.cmp(a.p))
-        .map((x) => x.m);
+    // Identify useless machines (those that take zero damage from enemies)
+    const useless = [];
+    const tanks = [];
+    const remaining = [];
 
-    const sortedTanks = sortByPowerDesc(tanks);
-    const sortedDPS = sortByPowerDesc(dps);
+    for (const machine of team) {
+      const dmgTaken = Calculator.computeDamageTaken(
+        machine.battleStats.damage,
+        enemyStats.armor
+      );
 
-    const placed = new Set();
-
-    const slots = [
-      { index: 0, preferred: sortedTanks },
-      { index: 1, preferred: sortedTanks },
-      { index: 3, preferred: sortedDPS },
-      { index: 4, preferred: sortedDPS },
-      { index: 2, preferred: null },
-    ];
-
-    const allSorted = sortByPowerDesc([...sortedTanks, ...sortedDPS]);
-
-    for (const slot of slots) {
-      if (formation[slot.index]) continue;
-
-      let picked = null;
-
-      if (slot.preferred && slot.preferred.length > 0) {
-        for (const machine of slot.preferred) {
-          if (!placed.has(machine.id)) {
-            picked = machine;
-            break;
-          }
-        }
-      }
-
-      if (!picked) {
-        for (const machine of allSorted) {
-          if (!placed.has(machine.id)) {
-            picked = machine;
-            break;
-          }
-        }
-      }
-
-      if (picked) {
-        formation[slot.index] = picked;
-        placed.add(picked.id);
-      }
-
-      if (placed.size === team.length) break;
-    }
-
-    const compacted = [];
-    for (let i = 0; i < formation.length; i++) {
-      if (formation[i] !== null) {
-        compacted.push(formation[i]);
+      if (dmgTaken.eq(0)) {
+        useless.push(machine); // Machine contributes nothing
+      } else if (machine.role === "tank") {
+        tanks.push(machine); // Tanks
+      } else {
+        remaining.push(machine); // Non-tank, non-useless
       }
     }
 
-    return compacted;
+    // Sort by damage/health (least to greatest)
+    remaining.sort((a, b) => a.battleStats.damage - b.battleStats.damage);
+    tanks.sort((a, b) => a.battleStats.health - b.battleStats.health);
+
+    let strongestMachine;
+    if (remaining.length > 0) {
+      if (team.length === 5) {
+        strongestMachine = remaining.pop();
+      } else {
+        strongestMachine = null;
+      }
+    }
+
+    if (useless.length > 0) formation.push(...useless);
+    if (tanks.length > 0) formation.push(...tanks);
+    if (remaining.length > 0) formation.push(...remaining);
+
+    if (strongestMachine) {
+      if (formation.length > 0) {
+        formation.splice(formation.length - 1, 0, strongestMachine);
+      } else {
+        formation.push(strongestMachine);
+      }
+    }
+
+    return formation;
   }
 
   optimizeCampaignMaxStars({
@@ -335,16 +321,20 @@ export class Optimizer {
           ownedMachines,
           "campaign"
         );
-
         currentBestTeam = this.selectBestFive(allOptimized, "campaign");
 
         if (currentBestTeam.length === 0) break;
 
-        currentBestTeam = this.arrangeByRole(currentBestTeam);
         lastOptimizedMission = mission;
       }
 
       for (const difficulty of difficulties) {
+        const arrangedTeam = this.arrangeByRole(
+          currentBestTeam,
+          mission,
+          difficulty
+        );
+
         const enemyFormation = Calculator.getEnemyTeamForMission(
           mission,
           difficulty
@@ -353,15 +343,13 @@ export class Optimizer {
           mission,
           difficulty
         );
+        const ourPower = Calculator.computeSquadPower(arrangedTeam, "campaign");
 
-        const ourPower = Calculator.computeSquadPower(
-          currentBestTeam,
-          "campaign"
-        );
-
+        // Skip if power is too low
         if (ourPower.lt(requiredPower.mul(0.8))) break;
 
-        const battleTeam = currentBestTeam.map((m) => ({
+        // Deep copy stats and crew for simulation
+        const battleTeam = arrangedTeam.map((m) => ({
           ...m,
           crew: [...m.crew],
           battleStats: {
@@ -381,8 +369,9 @@ export class Optimizer {
         if (result.playerWon) {
           totalStars++;
           if (difficulty === "easy") lastCleared = mission;
-          lastWinningTeam = currentBestTeam.map((m) => ({ ...m }));
+          lastWinningTeam = arrangedTeam.map((m) => ({ ...m }));
         } else {
+          // Stop trying higher difficulties if we lose
           break;
         }
       }
@@ -411,7 +400,7 @@ export class Optimizer {
     const allOptimized = this.optimizeCrewGlobally(ownedMachines, "arena");
 
     let bestTeam = this.selectBestFive(allOptimized, "arena");
-    bestTeam = this.arrangeByRole(bestTeam);
+    bestTeam = this.arrangeByRole(bestTeam, 1, "easy");
 
     const arenaPower = Calculator.computeSquadPower(bestTeam, "arena");
     const battlePower = Calculator.computeSquadPower(bestTeam, "campaign");
