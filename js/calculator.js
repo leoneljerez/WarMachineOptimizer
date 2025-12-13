@@ -2,9 +2,11 @@
 import Decimal from "./vendor/break_eternity.esm.js"; // v2.1.3
 
 export class Calculator {
-  // ---------------------------
-  // Helper to ensure proper Decimal instances
-  // ---------------------------
+  /**
+   * Ensures that any value is converted to a Decimal object
+   * @param {*} value 
+   * @returns 
+   */
   static toDecimal(value) {
     if (value instanceof Decimal) {
       return value;
@@ -42,10 +44,13 @@ export class Calculator {
     nightmare: new Decimal("2.92e+18"),
   };
 
-  // ---------------------------
-  // Damage Taken
-  // (Enemy_Damage - Character_Armor)
-  // ---------------------------
+  /**
+   * Computes the damage taken by the machine of the second parameter
+   * Formula: (Enemy_Damage - Character_Armor)
+   * @param {number} enemyDamage 
+   * @param {nummber} characterArmor 
+   * @returns {number} nummber of damage taken by the machine that had the characterArmor
+   */
   static computeDamageTaken(enemyDamage, characterArmor) {
     const dmg = Calculator.toDecimal(enemyDamage);
     const armor = Calculator.toDecimal(characterArmor);
@@ -55,9 +60,11 @@ export class Calculator {
     return dmg.sub(armor).max(0);
   }
 
-  // ---------------------------
-  // Global rarity level of all machines
-  // ---------------------------
+  /**
+   * Gets the global rarity level by summing all of them
+   * @param {Nested object of machines} ownedMachines 
+   * @returns {number} summed rarity level
+   */
   static getGlobalRarityLevels(ownedMachines) {
     return ownedMachines.reduce((sum, machine) => {
       const rarity = machine.rarity?.toLowerCase() ?? "common";
@@ -65,9 +72,11 @@ export class Calculator {
     }, 0);
   }
 
-  // ---------------------------
-  // Overdrive of the machine - how often the ability will proc
-  // ---------------------------
+  /**
+   * Gets the overdrive of one machine
+   * @param {Machine object} machine 
+   * @returns {number} overdrive
+   */
   static calculateOverdrive(machine) {
     const rarity = Calculator.RARITY_LEVELS[machine.rarity];
     const startingOverdrive = 0.25;
@@ -78,9 +87,12 @@ export class Calculator {
     return startingOverdrive + (rarity * multiplier);
   }
 
-  // ---------------------------
-  // Enemy attributes for a mission
-  // ---------------------------
+  /**
+   * Gets the enemy attributes for the mission/difficulty
+   * @param {number} missionNumber 
+   * @param {string} difficulty 
+   * @returns {damage, health, armor} of one enemy 
+   */
   static enemyAttributes(missionNumber, difficulty) {
     const diffMultiplier = this.DIFFICULTY_MULTIPLIERS[difficulty];
     const missionNum = missionNumber - 1;
@@ -100,9 +112,12 @@ export class Calculator {
     };
   }
 
-  // ---------------------------
-  // Create an enemy team
-  // ---------------------------
+  /**
+   * Gets the enemy team for the mission/difficulty
+   * @param {number} missionNumber 
+   * @param {string} difficulty 
+   * @returns {object} of the enemy team
+   */
   static getEnemyTeamForMission(missionNumber, difficulty) {
     const enemyTeam = [];
     for (let i = 0; i < 5; i++) {
@@ -126,9 +141,12 @@ export class Calculator {
     return enemyTeam;
   }
 
-  // ---------------------------
-  // Required power to unlock next level
-  // ---------------------------
+  /**
+   * Gets the power requirements to do the mission
+   * @param {number} missionNumber 
+   * @param {string} difficulty 
+   * @returns {number} 
+   */
   static requiredPowerForMission(missionNumber, difficulty) {
     const enemyTeam = Calculator.getEnemyTeamForMission(
       missionNumber,
@@ -150,9 +168,11 @@ export class Calculator {
     return enemyPower.mul(reqPct);
   }
 
-  // ---------------------------
-  // Crew bonus for a machine
-  // ---------------------------
+  /**
+   * Gets the summed crew bonus
+   * @param {object} crewList 
+   * @returns {dmg, hp, arm} for the crew bonus
+   */
   static computeCrewBonus(crewList) {
     let totalDmg = new Decimal(0);
     let totalHp = new Decimal(0);
@@ -178,9 +198,18 @@ export class Calculator {
     return { dmg: totalDmg, hp: totalHp, arm: totalArm };
   }
 
-  // ---------------------------
-  // Basic Attribute formula
-  // ---------------------------
+  /**
+   * Calculates the attribute for one stat type (damage, health, armor)
+   * @param {number} base 
+   * @param {number} levelBonus 
+   * @param {number} engineerBonus 
+   * @param {number} blueprintBonus 
+   * @param {number} rarityBonus 
+   * @param {number} sacredBonus 
+   * @param {number} inscriptionBonus 
+   * @param {number} artifactBonus 
+   * @returns {number} attribute
+   */
   static computeBasicAttribute(
     base,
     levelBonus,
@@ -201,9 +230,12 @@ export class Calculator {
       .mul(new Decimal(1).add(artifactBonus));
   }
 
-  // ---------------------------
-  // Compute Artifact multipliers
-  // ---------------------------
+  /**
+   * Calculates the  
+   * @param {array} artifactArray 
+   * @param {string} stat 
+   * @returns 
+   */
   static computeArtifactBonus(artifactArray, stat) {
     let total = new Decimal(1);
 

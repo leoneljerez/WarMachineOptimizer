@@ -2,6 +2,7 @@
 import { renderMachines } from "./ui/machines.js";
 import { renderHeroes } from "./ui/heroes.js";
 import { renderArtifacts, resetAllArtifacts } from "./ui/artifacts.js";
+import { renderTavernCards } from "./ui/tavern.js";
 import { renderResults } from "./ui/results.js";
 import { machinesData } from "./data/machines.js";
 import { heroesData } from "./data/heroes.js";
@@ -299,6 +300,7 @@ function init() {
   renderMachines(store.machines);
   renderHeroes(store.heroes);
   renderArtifacts(store.artifacts);
+  renderTavernCards(store.machines);
 
   // Setup event listeners
   setupEventListeners();

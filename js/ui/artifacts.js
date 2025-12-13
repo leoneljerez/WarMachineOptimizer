@@ -1,4 +1,4 @@
-// ui/artifacts.js - Updated to use horizontal grid layout
+// ui/artifacts.js - Updated to use Bootstrap grid with custom card styling
 export function renderArtifacts(artifacts) {
   const container = document.getElementById("artifactsContainer");
   container.replaceChildren();
@@ -6,11 +6,21 @@ export function renderArtifacts(artifacts) {
   const stats = ["damage", "health", "armor"];
   const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
 
+  // Create Bootstrap row
+  const row = document.createElement("div");
+  row.className = "row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3";
+
   // Render each stat type as a card
   stats.forEach((stat) => {
+    const col = document.createElement("div");
+    col.className = "col";
+
     const card = createArtifactCard(stat, percentages, artifacts);
-    container.appendChild(card);
+    col.appendChild(card);
+    row.appendChild(col);
   });
+
+  container.appendChild(row);
 }
 
 function createArtifactCard(stat, percentages, artifacts) {

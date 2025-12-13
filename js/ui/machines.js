@@ -1,3 +1,4 @@
+// ui/machines.js
 import {
   createSection,
   createFormRow,
@@ -5,12 +6,19 @@ import {
   createSelect,
   createListItem,
   updateListItem,
-  createDetailHeader
+  createDetailHeader,
 } from "./formHelpers.js";
 
 const RARITIES = [
-  "Common", "Uncommon", "Rare", "Epic", 
-  "Legendary", "Mythic", "Titan", "Angel", "Celestial"
+  "Common",
+  "Uncommon",
+  "Rare",
+  "Epic",
+  "Legendary",
+  "Mythic",
+  "Titan",
+  "Angel",
+  "Celestial",
 ];
 
 /**
@@ -39,7 +47,7 @@ export function renderMachines(machines) {
       name: machine.name,
       statsText: `Lv. ${machine.level} • ${machine.rarity}`,
       isConfigured: isConfiguredMachine(machine),
-      onClick: () => selectMachine(machine, btn, updateStats)
+      onClick: () => selectMachine(machine, btn, updateStats),
     });
 
     fragment.appendChild(btn);
@@ -108,7 +116,7 @@ function createMachineDetailView(machine, updateListStats) {
         wrapper.replaceWith(createMachineDetailView(machine, updateListStats));
         updateListStats();
       }
-    }
+    },
   });
 
   const form = document.createElement("form");
@@ -150,21 +158,7 @@ function createMachineDetailView(machine, updateListStats) {
     ),
   ]);
 
-  // Card Levels section
-  const cardSection = createSection("Card Levels", [
-    createFormRow(
-      "Sacred Card",
-      createNumberInput(machine, "sacredLevel", updateListStats, 0, 1),
-      "col-md-6"
-    ),
-    createFormRow(
-      "Inscription Card",
-      createNumberInput(machine, "inscriptionLevel", updateListStats, 0, 1),
-      "col-md-6"
-    ),
-  ]);
-
-  form.append(generalSection, blueprintSection, cardSection);
+  form.append(generalSection, blueprintSection);
   wrapper.append(header, form);
 
   return wrapper;
@@ -180,6 +174,4 @@ function resetMachine(machine) {
   machine.blueprints.damage = 0;
   machine.blueprints.health = 0;
   machine.blueprints.armor = 0;
-  machine.inscriptionLevel = 0;
-  machine.sacredLevel = 0;
 }

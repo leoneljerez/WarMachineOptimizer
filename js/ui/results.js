@@ -15,7 +15,7 @@ function toDecimal(serialized) {
  * Formats a Decimal as a localized integer string
  */
 function formatPower(decimal) {
-  if(toDecimal(decimal).lessThan(999000000))
+  if (toDecimal(decimal).lessThan(999000000))
     return Math.trunc(toDecimal(decimal).toNumber()).toLocaleString("en-US");
 
   return toDecimal(decimal).toExponential(2);
@@ -80,11 +80,11 @@ function createMachineCard(machine, machineTemplate) {
   // Crew images - BATCH DOM UPDATE
   const crewDiv = clone.querySelector(".crew");
   const fragment = document.createDocumentFragment();
-  
+
   Object.values(machine.crew).forEach((hero) => {
     fragment.appendChild(createCrewImage(hero));
   });
-  
+
   crewDiv.appendChild(fragment); // ✅ Single DOM update
 
   return clone;
@@ -101,7 +101,7 @@ function setupStatsToggle(result, container) {
 
   // Create abort controller for this specific render
   const controller = new AbortController();
-  
+
   // Store controller on container for cleanup
   if (container.__statsController) {
     container.__statsController.abort(); // Clean up previous listener
@@ -109,21 +109,25 @@ function setupStatsToggle(result, container) {
   container.__statsController = controller;
 
   // Add event listener with abort signal
-  toggle.addEventListener("change", (e) => {
-    const mode = e.target.value;
+  toggle.addEventListener(
+    "change",
+    (e) => {
+      const mode = e.target.value;
 
-    // Update all machine cards
-    document.querySelectorAll(".machine-card").forEach((card) => {
-      updateMachineStats(card, mode);
-    });
+      // Update all machine cards
+      document.querySelectorAll(".machine-card").forEach((card) => {
+        updateMachineStats(card, mode);
+      });
 
-    // Update power display
-    const power = mode === "arena" ? result.arenaPower : result.battlePower;
-    const title = mode === "arena" ? "Arena Power:" : "Battle Power:";
+      // Update power display
+      const power = mode === "arena" ? result.arenaPower : result.battlePower;
+      const title = mode === "arena" ? "Arena Power:" : "Battle Power:";
 
-    document.querySelector(".powerResult").textContent = formatPower(power);
-    document.querySelector(".powerTitle").textContent = title;
-  }, { signal: controller.signal });
+      document.querySelector(".powerResult").textContent = formatPower(power);
+      document.querySelector(".powerTitle").textContent = title;
+    },
+    { signal: controller.signal }
+  );
 }
 
 /**
@@ -131,13 +135,13 @@ function setupStatsToggle(result, container) {
  */
 export function renderResults(result, optimizeMode = "campaign") {
   const container = document.getElementById("resultsContainer");
-  
+
   // Clean up previous event listeners
   if (container.__statsController) {
     container.__statsController.abort();
     container.__statsController = null;
   }
-  
+
   container.replaceChildren();
 
   // Handle no results case
@@ -195,7 +199,7 @@ export function renderResults(result, optimizeMode = "campaign") {
 
   // Render each machine in the formation
   const machineTemplate = document.getElementById("machineTemplate");
-  
+
   result.formation.forEach((machine, index) => {
     const slot = positionMap[index + 1];
     if (!slot) return;

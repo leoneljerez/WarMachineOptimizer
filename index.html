@@ -125,36 +125,7 @@
         transform: translateY(0);
       }
 
-      /* Improved artifact layout - horizontal grid */
-      .artifact-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-        gap: 1.5rem;
-      }
-
-      .artifact-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        padding: 1.25rem;
-      }
-
-      .artifact-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .artifact-card-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin: 0;
-        text-transform: capitalize;
-      }
-
+      /* Artifact inputs layout */
       .artifact-inputs {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -179,6 +150,30 @@
         flex: 1;
         padding: 0.375rem 0.625rem;
         font-size: 0.9rem;
+      }
+
+      /* Artifact card styling */
+      .artifact-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.25rem;
+      }
+
+      .artifact-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .artifact-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+        text-transform: capitalize;
       }
 
       /* Improved global bonuses card */
@@ -228,15 +223,7 @@
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
       }
 
-      /* Formation display */
-      .formation-grid {
-        gap: 1rem;
-      }
-
-      .machine-slot {
-        min-height: 150px;
-      }
-
+      /* Machine card in results */
       .machine-card {
         background-color: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -264,21 +251,9 @@
         }
       }
 
-      /* Footer improvements */
-      footer {
-        margin-top: 4rem;
-        padding-top: 2rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        color: rgba(255, 255, 255, 0.4);
-      }
-
       /* Responsive improvements */
       @media (max-width: 768px) {
         .artifact-inputs {
-          grid-template-columns: 1fr;
-        }
-
-        .artifact-grid {
           grid-template-columns: 1fr;
         }
 
@@ -364,6 +339,11 @@
           <li class="nav-item">
             <a class="nav-link active" data-bs-toggle="tab" href="#machinesTab"
               >Machines</a
+            >
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tavernTab"
+              >Tavern</a
             >
           </li>
           <li class="nav-item">
@@ -465,6 +445,45 @@
                   <div id="machineDetails"></div>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAVERN TAB -->
+        <section id="tavernTab" class="tab-pane fade">
+          <div class="mb-4">
+            <h4 class="mb-1">Tavern & Scarab's Game</h4>
+            <p class="text-secondary mb-0">
+              Manage card levels for all machines
+            </p>
+          </div>
+
+          <!-- Sub-tabs for Tavern and Scarab's Game -->
+          <ul class="nav nav-tabs mb-4" id="tavernSubTabs">
+            <li class="nav-item">
+              <a
+                class="nav-link active"
+                data-bs-toggle="tab"
+                href="#tavernSubTab"
+                >Tavern (Sacred Cards)</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" data-bs-toggle="tab" href="#scarabSubTab"
+                >Scarab's Game (Inscription Cards)</a
+              >
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <!-- Tavern Sub-tab -->
+            <div id="tavernSubTab" class="tab-pane fade show active">
+              <div id="tavernCardsContainer"></div>
+            </div>
+
+            <!-- Scarab's Game Sub-tab -->
+            <div id="scarabSubTab" class="tab-pane fade">
+              <div id="scarabCardsContainer"></div>
             </div>
           </div>
         </section>
@@ -581,7 +600,9 @@
       </div>
 
       <!-- Footer -->
-      <footer class="text-center">
+      <footer
+        class="text-center mt-5 pt-4 border-top border-opacity-10 text-white-50"
+      >
         <small>© 2025 War Machine Optimizer</small>
       </footer>
     </div>
@@ -616,7 +637,9 @@
           </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div
+          class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2"
+        >
           <h5 class="mb-0">Formation</h5>
           <div class="mode-selector" id="statsToggle">
             <input
@@ -637,15 +660,45 @@
           </div>
         </div>
 
-        <div class="d-flex formation-grid justify-content-center">
-          <div class="d-flex flex-column justify-content-end me-3 left-column">
-            <div class="machine-slot mb-2" data-position="5"></div>
-            <div class="machine-slot mb-2" data-position="4"></div>
-            <div class="machine-slot mb-2" data-position="3"></div>
+        <div class="row g-3 justify-content-center" id="formationContainer">
+          <!-- Left Column (Positions 5, 4, 3) -->
+          <div class="col-12 col-md-auto order-2 order-md-1">
+            <div class="d-flex flex-column gap-2 left-column">
+              <div
+                class="machine-slot"
+                data-position="5"
+                style="min-height: 150px"
+              ></div>
+              <div
+                class="machine-slot"
+                data-position="4"
+                style="min-height: 150px"
+              ></div>
+              <div
+                class="machine-slot"
+                data-position="3"
+                style="min-height: 150px"
+              ></div>
+            </div>
           </div>
-          <div class="d-flex flex-column justify-content-center right-column">
-            <div class="machine-slot mb-2" data-position="2"></div>
-            <div class="machine-slot mb-2" data-position="1"></div>
+
+          <!-- Right Column (Positions 2, 1) -->
+          <div class="col-12 col-md-auto order-1 order-md-2">
+            <div
+              class="d-flex flex-column gap-2 justify-content-center right-column"
+              style="height: 100%"
+            >
+              <div
+                class="machine-slot"
+                data-position="2"
+                style="min-height: 150px"
+              ></div>
+              <div
+                class="machine-slot"
+                data-position="1"
+                style="min-height: 150px"
+              ></div>
+            </div>
           </div>
         </div>
       </div>

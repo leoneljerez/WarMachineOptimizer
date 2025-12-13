@@ -1,6 +1,8 @@
+// js/saveload.js
 import { renderArtifacts } from "./ui/artifacts.js";
 import { renderHeroes } from "./ui/heroes.js";
 import { renderMachines } from "./ui/machines.js";
+import { renderTavernCards } from "./ui/tavern.js";
 
 // Validate loaded data structure
 function validateSaveData(data) {
@@ -236,6 +238,7 @@ export const SaveLoad = {
       renderMachines(store.machines);
       renderHeroes(store.heroes);
       renderArtifacts(store.artifacts);
+      renderTavernCards(store.machines);
 
       showToast("Data loaded successfully!", "success");
 

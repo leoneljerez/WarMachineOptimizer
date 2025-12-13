@@ -56,7 +56,7 @@ export class Optimizer {
         score = dmgGain * 10.0 + hpGain * 0.55 + armGain * 0.3;
       }
     } else {
-      // Arena mode
+      // Arena mode -- temporarily change to campaign numbers while I decide if I have to refactor
       if (role === "tank") {
         // Tanks prioritize: health > armor > damage
         score = hpGain * 5.0 + armGain * 3.0 + dmgGain * 0.3;
