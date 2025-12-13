@@ -189,13 +189,12 @@ export function renderResults(result, optimizeMode = "campaign") {
   }
 
   // Map formation positions to slots
-  const positionMap = {
-    1: clone.querySelector('.right-column .machine-slot[data-position="1"]'),
-    2: clone.querySelector('.right-column .machine-slot[data-position="2"]'),
-    3: clone.querySelector('.left-column .machine-slot[data-position="3"]'),
-    4: clone.querySelector('.left-column .machine-slot[data-position="4"]'),
-    5: clone.querySelector('.left-column .machine-slot[data-position="5"]'),
-  };
+  const slots = clone.querySelectorAll(".machine-slot[data-position]");
+  const positionMap = {};
+  slots.forEach((slot) => {
+    const position = slot.getAttribute("data-position");
+    positionMap[position] = slot;
+  });
 
   // Render each machine in the formation
   const machineTemplate = document.getElementById("machineTemplate");

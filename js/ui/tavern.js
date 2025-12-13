@@ -28,13 +28,16 @@ export function renderTavernCards(machines) {
   tavernGrid.className =
     "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3";
 
+  // Use fragment for batch DOM update
+  const tavernFragment = document.createDocumentFragment();
   sortedMachines.forEach((machine) => {
     const col = document.createElement("div");
     col.className = "col";
     const card = createCardLevelCard(machine, "sacred");
     col.appendChild(card);
-    tavernGrid.appendChild(col);
+    tavernFragment.appendChild(col);
   });
+  tavernGrid.appendChild(tavernFragment);
 
   tavernContainer.appendChild(tavernResetBtn);
   tavernContainer.appendChild(tavernGrid);
@@ -54,13 +57,16 @@ export function renderTavernCards(machines) {
   scarabGrid.className =
     "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3";
 
+  // Use fragment for batch DOM update
+  const scarabFragment = document.createDocumentFragment();
   sortedMachines.forEach((machine) => {
     const col = document.createElement("div");
     col.className = "col";
     const card = createCardLevelCard(machine, "inscription");
     col.appendChild(card);
-    scarabGrid.appendChild(col);
+    scarabFragment.appendChild(col);
   });
+  scarabGrid.appendChild(scarabFragment);
 
   scarabContainer.appendChild(scarabResetBtn);
   scarabContainer.appendChild(scarabGrid);
@@ -115,7 +121,7 @@ function createCardLevelCard(machine, cardType) {
 
   const label = document.createElement("span");
   label.className = "input-group-text";
-  label.textContent = "Card Level";
+  label.textContent = "Level";
 
   const input = document.createElement("input");
   input.type = "number";

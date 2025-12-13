@@ -6,20 +6,20 @@ export function renderArtifacts(artifacts) {
   const stats = ["damage", "health", "armor"];
   const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
 
-  // Create Bootstrap row
   const row = document.createElement("div");
   row.className = "row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3";
 
-  // Render each stat type as a card
+  const fragment = document.createDocumentFragment();
+
   stats.forEach((stat) => {
     const col = document.createElement("div");
     col.className = "col";
-
     const card = createArtifactCard(stat, percentages, artifacts);
     col.appendChild(card);
-    row.appendChild(col);
+    fragment.appendChild(col);
   });
 
+  row.appendChild(fragment);
   container.appendChild(row);
 }
 
