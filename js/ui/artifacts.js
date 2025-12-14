@@ -10,7 +10,6 @@ export function renderArtifacts(artifacts) {
   const row = document.createElement("div");
   row.className = "row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3";
 
-  // ✅ Use fragment for batch DOM update
   const fragment = document.createDocumentFragment();
 
   // Render each stat type as a card
@@ -29,11 +28,12 @@ export function renderArtifacts(artifacts) {
 
 function createArtifactCard(stat, percentages, artifacts) {
   const card = document.createElement("div");
-  card.className = "artifact-card";
+  card.className = "artifact-card p-4 rounded";
 
   // Header
   const header = document.createElement("div");
-  header.className = "artifact-card-header";
+  header.className =
+    "artifact-card-header d-flex justify-content-between align-items-center";
 
   const title = document.createElement("h5");
   title.className = "artifact-card-title";
@@ -52,22 +52,29 @@ function createArtifactCard(stat, percentages, artifacts) {
 
   // Body with input grid
   const body = document.createElement("div");
-  body.className = "artifact-inputs";
+  body.className = "artifact-inputs pt-4";
 
   percentages.forEach((pct) => {
     const group = document.createElement("div");
     group.className = "artifact-input-group";
 
+    const inputId = `artifact-${stat}-${pct}`;
+    const labelId = `${inputId}-label`;
+
     const label = document.createElement("label");
     label.textContent = `${pct}%`;
     label.className = "form-label";
+    label.htmlFor = inputId;
+    label.id = labelId;
 
     const input = document.createElement("input");
     input.type = "number";
     input.className = "form-control form-control-sm";
+    input.id = inputId;
     input.min = 0;
     input.step = 1;
     input.value = artifacts[stat][pct];
+    input.setAttribute("aria-labelledby", labelId);
 
     input.addEventListener("input", (e) => {
       const val = parseInt(e.target.value);

@@ -122,20 +122,36 @@ function createMachineDetailView(machine, updateListStats) {
   const form = document.createElement("form");
   form.className = "machine-form";
 
+  const machineId = `machine-${machine.id}`;
+
   // General section
   const generalSection = createSection("General", [
     createFormRow(
       "Rarity",
-      createSelect(RARITIES, machine.rarity, (e) => {
-        machine.rarity = e.target.value;
-        updateListStats();
-      }),
-      "col-md-6"
+      createSelect(
+        RARITIES,
+        machine.rarity,
+        (e) => {
+          machine.rarity = e.target.value;
+          updateListStats();
+        },
+        `${machineId}-rarity`
+      ),
+      "col-md-6",
+      `${machineId}-rarity`
     ),
     createFormRow(
       "Level",
-      createNumberInput(machine, "level", updateListStats, 0, 1),
-      "col-md-6"
+      createNumberInput(
+        machine,
+        "level",
+        updateListStats,
+        0,
+        1,
+        `${machineId}-level`
+      ),
+      "col-md-6",
+      `${machineId}-level`
     ),
   ]);
 
@@ -143,18 +159,42 @@ function createMachineDetailView(machine, updateListStats) {
   const blueprintSection = createSection("Blueprint Stats", [
     createFormRow(
       "Damage",
-      createNumberInput(machine.blueprints, "damage", updateListStats, 0, 1),
-      "col-md-4"
+      createNumberInput(
+        machine.blueprints,
+        "damage",
+        updateListStats,
+        0,
+        1,
+        `${machineId}-bp-damage`
+      ),
+      "col-md-4",
+      `${machineId}-bp-damage`
     ),
     createFormRow(
       "Health",
-      createNumberInput(machine.blueprints, "health", updateListStats, 0, 1),
-      "col-md-4"
+      createNumberInput(
+        machine.blueprints,
+        "health",
+        updateListStats,
+        0,
+        1,
+        `${machineId}-bp-health`
+      ),
+      "col-md-4",
+      `${machineId}-bp-health`
     ),
     createFormRow(
       "Armor",
-      createNumberInput(machine.blueprints, "armor", updateListStats, 0, 1),
-      "col-md-4"
+      createNumberInput(
+        machine.blueprints,
+        "armor",
+        updateListStats,
+        0,
+        1,
+        `${machineId}-bp-armor`
+      ),
+      "col-md-4",
+      `${machineId}-bp-armor`
     ),
   ]);
 

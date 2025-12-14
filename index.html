@@ -10,43 +10,23 @@
         overflow-y: scroll;
       }
 
-      /* Tighter, more professional spacing */
-      .container {
-        max-width: 1400px;
-      }
-
-      /* Improved header with better visual hierarchy */
+      /* Header gradient background (visual polish) */
       header {
         background: linear-gradient(
           135deg,
           rgba(13, 110, 253, 0.1) 0%,
           rgba(13, 110, 253, 0.05) 100%
         );
-        border-radius: 8px;
-        padding: 1.5rem !important;
-        margin-bottom: 1.5rem;
       }
 
-      header .fs-4 {
-        font-size: 1.75rem !important;
-        font-weight: 600;
-        letter-spacing: -0.02em;
-      }
-
-      /* Cleaner tabs with modern styling */
+      /* Custom tab styling (visual polish) */
       .nav-tabs {
         border: none;
-        gap: 0.5rem;
         background: rgba(255, 255, 255, 0.03);
-        padding: 0.5rem;
-        border-radius: 8px;
       }
 
       .nav-tabs .nav-link {
         border: none;
-        border-radius: 6px;
-        padding: 0.5rem 1.25rem;
-        font-weight: 500;
         color: rgba(255, 255, 255, 0.6);
         transition: all 0.2s ease;
       }
@@ -62,22 +42,18 @@
         border: 1px solid rgba(13, 110, 253, 0.3);
       }
 
-      /* Improved optimize section */
+      /* Sticky optimize section (functional + visual) */
       .optimize-section {
         position: sticky;
         bottom: 0;
         background: linear-gradient(to top, var(--bs-body-bg) 80%, transparent);
-        padding: 2rem 0 1.5rem;
-        margin-top: 3rem;
         z-index: 10;
       }
 
+      /* Custom mode selector - radio buttons styled as toggle (custom component) */
       .mode-selector {
         display: inline-flex;
-        gap: 0.5rem;
         background: rgba(255, 255, 255, 0.05);
-        padding: 0.375rem;
-        border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
 
@@ -86,9 +62,6 @@
       }
 
       .mode-selector label {
-        padding: 0.5rem 1.5rem;
-        border-radius: 6px;
-        font-weight: 500;
         cursor: pointer;
         transition: all 0.2s ease;
         color: rgba(255, 255, 255, 0.6);
@@ -106,11 +79,8 @@
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
+      /* Optimize button visual effects */
       #optimizeBtn {
-        min-width: 200px;
-        font-size: 1.1rem;
-        padding: 0.75rem 2.5rem;
-        font-weight: 600;
         letter-spacing: 0.02em;
         box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
         transition: all 0.2s ease;
@@ -125,7 +95,7 @@
         transform: translateY(0);
       }
 
-      /* Artifact inputs layout */
+      /* Artifact inputs - specialized 2-column grid (custom layout) */
       .artifact-inputs {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -140,7 +110,6 @@
 
       .artifact-input-group label {
         font-size: 0.9rem;
-        font-weight: 500;
         min-width: 45px;
         margin: 0;
         color: rgba(255, 255, 255, 0.7);
@@ -148,35 +117,28 @@
 
       .artifact-input-group input {
         flex: 1;
-        padding: 0.375rem 0.625rem;
         font-size: 0.9rem;
       }
 
-      /* Artifact card styling */
+      /* Artifact card visual styling */
       .artifact-card {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        padding: 1.25rem;
+      }
+
+      .artifact-card:hover{
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
       }
 
       .artifact-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
 
       .artifact-card-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin: 0;
         text-transform: capitalize;
       }
 
-      /* Improved global bonuses card */
+      /* Global bonuses card gradient */
       .global-bonuses-card {
         background: linear-gradient(
           135deg,
@@ -186,14 +148,14 @@
         border: 1px solid rgba(25, 135, 84, 0.2);
       }
 
-      /* Better visual feedback on forms */
+      /* Form focus states (visual enhancement) */
       .form-control:focus,
       .form-select:focus {
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
         border-color: rgba(13, 110, 253, 0.5);
       }
 
-      /* List items */
+      /* List item hover/active states (visual enhancement) */
       .list-group-item {
         transition: all 0.2s ease;
         border: 1px solid rgba(255, 255, 255, 0.05);
@@ -213,7 +175,7 @@
         color: #ffffffd5 !important;
       }
 
-      /* Cards */
+      /* Card hover effect (visual enhancement) */
       .card {
         transition: box-shadow 0.2s ease;
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -223,7 +185,7 @@
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
       }
 
-      /* Machine card in results */
+      /* Machine card in results (visual styling) */
       .machine-card {
         background-color: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -234,7 +196,7 @@
         transform: translateY(-2px);
       }
 
-      /* Animations */
+      /* Fade-in animation (visual enhancement) */
       .machine-detail-view,
       .hero-detail-view {
         animation: fadeIn 0.3s ease-in;
@@ -251,30 +213,23 @@
         }
       }
 
-      /* Responsive improvements */
+      /* Responsive adjustments */
       @media (max-width: 768px) {
         .artifact-inputs {
           grid-template-columns: 1fr;
         }
 
-        .mode-selector label {
-          padding: 0.5rem 1rem;
-          font-size: 0.9rem;
-        }
-
         #optimizeBtn {
           width: 100%;
-          font-size: 1rem;
-          padding: 0.625rem 1.5rem;
         }
       }
     </style>
   </head>
 
   <body>
-    <div class="container py-4">
-      <!-- Header -->
-      <header class="border-bottom text-body-emphasis">
+    <div class="container-xxl py-4">
+      <!-- Header with Bootstrap utilities -->
+      <header class="border-bottom text-body-emphasis rounded-3 p-4 mb-4">
         <div class="d-flex justify-content-between align-items-center">
           <span class="fs-4 fw-bold">War Machine Optimizer</span>
           <button
@@ -333,31 +288,49 @@
         </div>
       </div>
 
-      <!-- Navigation -->
+      <!-- Navigation with Bootstrap utilities -->
       <nav class="navbar mt-3">
-        <ul class="nav nav-tabs w-100 justify-content-center" id="wmTabs">
+        <ul
+          class="nav nav-tabs w-100 justify-content-center gap-2 p-2 rounded-3"
+          id="wmTabs"
+        >
           <li class="nav-item">
-            <a class="nav-link active" data-bs-toggle="tab" href="#machinesTab"
+            <a
+              class="nav-link active px-3 py-2 fw-semibold rounded-2"
+              data-bs-toggle="tab"
+              href="#machinesTab"
               >Machines</a
             >
           </li>
           <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="tab" href="#tavernTab"
+            <a
+              class="nav-link px-3 py-2 fw-semibold rounded-2"
+              data-bs-toggle="tab"
+              href="#tavernTab"
               >Tavern</a
             >
           </li>
           <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="tab" href="#heroesTab"
+            <a
+              class="nav-link px-3 py-2 fw-semibold rounded-2"
+              data-bs-toggle="tab"
+              href="#heroesTab"
               >Heroes</a
             >
           </li>
           <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="tab" href="#artifactsTab"
+            <a
+              class="nav-link px-3 py-2 fw-semibold rounded-2"
+              data-bs-toggle="tab"
+              href="#artifactsTab"
               >Artifacts</a
             >
           </li>
           <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="tab" href="#resultsTab"
+            <a
+              class="nav-link px-3 py-2 fw-semibold rounded-2"
+              data-bs-toggle="tab"
+              href="#resultsTab"
               >Results</a
             >
           </li>
@@ -365,7 +338,7 @@
       </nav>
 
       <!-- Main Content -->
-      <main class="container tab-content py-4">
+      <main class="container-fluid tab-content py-4">
         <!-- MACHINES TAB -->
         <section id="machinesTab" class="tab-pane fade show active">
           <!-- Global Bonuses -->
@@ -459,17 +432,17 @@
           </div>
 
           <!-- Sub-tabs for Tavern and Scarab's Game -->
-          <ul class="nav nav-tabs mb-4" id="tavernSubTabs">
+          <ul class="nav nav-tabs mb-4 p-2" id="tavernSubTabs">
             <li class="nav-item">
               <a
-                class="nav-link active"
+                class="nav-link fw-medium active"
                 data-bs-toggle="tab"
                 href="#tavernSubTab"
                 >Tavern (Sacred Cards)</a
               >
             </li>
-            <li class="nav-item">
-              <a class="nav-link" data-bs-toggle="tab" href="#scarabSubTab"
+            <li class="nav-item ps-2">
+              <a class="nav-link fw-medium" data-bs-toggle="tab" href="#scarabSubTab"
                 >Scarab's Game (Inscription Cards)</a
               >
             </li>
@@ -558,11 +531,11 @@
         </section>
       </main>
 
-      <!-- OPTIMIZE SECTION (Sticky) -->
-      <div class="optimize-section">
+      <!-- OPTIMIZE SECTION (Sticky) with Bootstrap utilities -->
+      <div class="optimize-section py-4 mt-5">
         <div class="d-flex flex-column align-items-center gap-3">
-          <!-- Mode Selector -->
-          <div class="mode-selector">
+          <!-- Mode Selector with Bootstrap utilities -->
+          <div class="mode-selector gap-2 p-2 rounded-3">
             <input
               type="radio"
               id="campaignMode"
@@ -570,7 +543,9 @@
               value="campaign"
               checked
             />
-            <label for="campaignMode">Campaign</label>
+            <label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium"
+              >Campaign</label
+            >
 
             <input
               type="radio"
@@ -578,13 +553,16 @@
               name="optimizeMode"
               value="arena"
             />
-            <label for="arenaMode">Arena</label>
+            <label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium"
+              >Arena</label
+            >
           </div>
 
-          <!-- Optimize Button -->
+          <!-- Optimize Button with Bootstrap utilities -->
           <button
             id="optimizeBtn"
-            class="btn btn-lg btn-warning fw-bold shadow"
+            class="btn btn-lg btn-warning fw-semibold shadow px-5 py-3"
+            style="min-width: 200px; font-size: 1.1rem"
           >
             Optimize Formation
           </button>
@@ -599,7 +577,7 @@
         ></div>
       </div>
 
-      <!-- Footer -->
+      <!-- Footer with Bootstrap utilities -->
       <footer
         class="text-center mt-5 pt-4 border-top border-opacity-10 text-white-50"
       >
@@ -641,7 +619,7 @@
           class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2"
         >
           <h5 class="mb-0">Formation</h5>
-          <div class="mode-selector" id="statsToggle">
+          <div class="mode-selector gap-2 p-2 rounded-3" id="statsToggle">
             <input
               type="radio"
               id="battleStats"
@@ -649,14 +627,18 @@
               value="battle"
               checked
             />
-            <label for="battleStats">Battle Stats</label>
+            <label for="battleStats" class="px-4 py-2 rounded-2 fw-medium"
+              >Battle Stats</label
+            >
             <input
               type="radio"
               id="arenaStats"
               name="statsMode"
               value="arena"
             />
-            <label for="arenaStats">Arena Stats</label>
+            <label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium"
+              >Arena Stats</label
+            >
           </div>
         </div>
 

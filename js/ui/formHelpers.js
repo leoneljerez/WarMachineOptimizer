@@ -1,43 +1,49 @@
-/**
- * Creates a form section with a heading and rows
- * @param {string} title - Section heading text
- * @param {HTMLElement[]} rows - Array of form row elements
- * @returns {HTMLElement} Section container
- */
 export function createSection(title, rows) {
-  const section = document.createElement("div");
+  const section = document.createElement("section");
   section.className = "mb-4";
+  section.setAttribute("aria-labelledby", `section-${CSS.escape(title)}`);
 
   const heading = document.createElement("h5");
   heading.className = "mb-3";
+  heading.id = `section-${CSS.escape(title)}`;
   heading.textContent = title;
 
   const rowContainer = document.createElement("div");
   rowContainer.className = "row g-3";
-
   rowContainer.append(...rows);
-  section.append(heading, rowContainer);
 
+  section.append(heading, rowContainer);
   return section;
 }
 
-/**
- * Creates a form row with label and input
- * @param {string} label - Label text
- * @param {HTMLElement} input - Input element
- * @param {string} colClass - Bootstrap column class
- * @returns {HTMLElement} Form row container
- */
-export function createFormRow(label, input, colClass = "col-12") {
+export function createFormRow(
+  labelText,
+  input,
+  colClass = "col-12",
+  inputId = null
+) {
   const col = document.createElement("div");
   col.className = colClass;
 
   const formGroup = document.createElement("div");
-  formGroup.className = "form-group";
+  formGroup.className = "mb-3";
 
   const labelEl = document.createElement("label");
   labelEl.className = "form-label";
-  labelEl.textContent = label;
+  labelEl.textContent = labelText;
+
+  const id =
+    inputId || input.id || `input-${Math.random().toString(36).substr(2, 9)}`;
+  labelEl.htmlFor = id;
+  input.id = id;
+
+  if (input.hasAttribute("aria-describedby")) {
+    const helperId = input.getAttribute("aria-describedby");
+    const helper = document.getElementById(helperId);
+    if (helper) {
+      formGroup.appendChild(helper);
+    }
+  }
 
   formGroup.append(labelEl, input);
   col.appendChild(formGroup);
@@ -45,43 +51,55 @@ export function createFormRow(label, input, colClass = "col-12") {
   return col;
 }
 
-/**
- * Creates a number input that updates an object property
- * @param {Object} obj - Object to update
- * @param {string} key - Property key to update
- * @param {Function} updateCallback - Callback after value changes
- * @param {number} min - Minimum allowed value
- * @param {number} step - Step increment
- * @returns {HTMLInputElement} Number input element
- */
-export function createNumberInput(obj, key, updateCallback, min = 0, step = 1) {
+export function createNumberInput(
+  obj,
+  key,
+  updateCallback,
+  min = 0,
+  step = 1,
+  id = ""
+) {
   const input = document.createElement("input");
   input.type = "number";
   input.className = "form-control";
   input.min = min;
   input.step = step;
   input.value = obj[key];
+  input.setAttribute("aria-label", `${key} value`);
 
+  if (id) {
+    input.id = id;
+  }
+
+  // Use input event for real-time updates
   input.addEventListener("input", (e) => {
-    const val = parseInt(e.target.value);
+    const val = parseInt(e.target.value, 10);
     obj[key] = isNaN(val) ? 0 : Math.max(min, val);
     updateCallback();
+  });
+
+  // Validate on blur
+  input.addEventListener("blur", (e) => {
+    const val = parseInt(e.target.value, 10);
+    if (isNaN(val) || val < min) {
+      e.target.value = min;
+      obj[key] = min;
+      updateCallback();
+    }
   });
 
   return input;
 }
 
-/**
- * Creates a select dropdown with options
- * @param {string[]} options - Array of option values
- * @param {string} currentValue - Currently selected value
- * @param {Function} onChange - Change handler function
- * @returns {HTMLSelectElement} Select element
- */
-export function createSelect(options, currentValue, onChange) {
+export function createSelect(options, currentValue, onChange, id = "") {
   const select = document.createElement("select");
   select.className = "form-select";
 
+  if (id) {
+    select.id = id;
+  }
+
+  // Use DocumentFragment for better performance
   const fragment = document.createDocumentFragment();
 
   options.forEach((option) => {
@@ -98,16 +116,6 @@ export function createSelect(options, currentValue, onChange) {
   return select;
 }
 
-/**
- * Creates a list item button with image thumbnail and text
- * @param {Object} config - Configuration object
- * @param {string} config.image - Image source URL
- * @param {string} config.name - Item name
- * @param {string} config.statsText - Secondary stats text
- * @param {boolean} config.isConfigured - Whether item is configured
- * @param {Function} config.onClick - Click handler
- * @returns {HTMLButtonElement} List item button
- */
 export function createListItem({
   image,
   name,
@@ -117,16 +125,18 @@ export function createListItem({
 }) {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className =
-    "list-group-item list-group-item-action d-flex align-items-center gap-2";
+  btn.className = "list-group-item list-group-item-action";
+  btn.setAttribute("aria-label", `Select ${name}`);
+
+  const container = document.createElement("div");
+  container.className = "d-flex align-items-center gap-2";
 
   const thumb = document.createElement("img");
   thumb.src = image;
-  thumb.alt = name;
-  thumb.style.width = "40px";
-  thumb.style.height = "40px";
-  thumb.style.objectFit = "cover";
-  thumb.classList.add("rounded");
+  thumb.alt = ""; // Decorative image, name is in text
+  thumb.className = "rounded";
+  thumb.style.cssText = "width: 40px; height: 40px; object-fit: cover;";
+  thumb.setAttribute("aria-hidden", "true");
 
   const textWrap = document.createElement("div");
   textWrap.className = "flex-grow-1";
@@ -138,17 +148,22 @@ export function createListItem({
   const statsDiv = document.createElement("div");
   statsDiv.className = "text-secondary small";
   statsDiv.textContent = statsText;
+  statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
 
   const badge = document.createElement("span");
-  badge.className = `badge ${
+  badge.className = `badge ms-2 ${
     isConfigured ? "bg-success" : "bg-secondary"
-  } ms-2`;
+  }`;
   badge.textContent = isConfigured ? "Configured" : "Default";
-  badge.style.fontSize = "0.7rem";
+  badge.setAttribute(
+    "aria-label",
+    isConfigured ? "Configured" : "Using default values"
+  );
 
   nameDiv.appendChild(badge);
   textWrap.append(nameDiv, statsDiv);
-  btn.append(thumb, textWrap);
+  container.append(thumb, textWrap);
+  btn.appendChild(container);
 
   btn.addEventListener("click", onClick);
 
@@ -159,32 +174,24 @@ export function createListItem({
   return btn;
 }
 
-/**
- * Updates a list item's badge and stats text
- * @param {HTMLButtonElement} btn - List item button
- * @param {string} statsText - New stats text
- * @param {boolean} isConfigured - Whether item is configured
- */
 export function updateListItem(btn, statsText, isConfigured) {
   if (btn.__statsDiv) {
     btn.__statsDiv.textContent = statsText;
+    btn.__statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
   }
+
   if (btn.__badge) {
-    btn.__badge.className = `badge ${
+    btn.__badge.className = `badge ms-2 ${
       isConfigured ? "bg-success" : "bg-secondary"
-    } ms-2`;
+    }`;
     btn.__badge.textContent = isConfigured ? "Configured" : "Default";
+    btn.__badge.setAttribute(
+      "aria-label",
+      isConfigured ? "Configured" : "Using default values"
+    );
   }
 }
 
-/**
- * Creates a detail view header with image, title, and reset button
- * @param {Object} config - Configuration object
- * @param {string} config.image - Image source URL
- * @param {string} config.name - Item name
- * @param {Function} config.onReset - Reset button click handler
- * @returns {HTMLElement} Header container
- */
 export function createDetailHeader({ image, name, onReset }) {
   const header = document.createElement("div");
   header.className = "text-center mb-4";
@@ -203,6 +210,7 @@ export function createDetailHeader({ image, name, onReset }) {
   resetBtn.type = "button";
   resetBtn.className = "btn btn-sm btn-outline-danger mt-2";
   resetBtn.textContent = "Reset to Default";
+  resetBtn.setAttribute("aria-label", `Reset ${name} to default values`);
   resetBtn.addEventListener("click", onReset);
 
   header.append(img, title, resetBtn);

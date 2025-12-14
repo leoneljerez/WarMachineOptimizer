@@ -1,3 +1,4 @@
+// ui/heroes.js
 import {
   createSection,
   createFormRow,
@@ -118,21 +119,47 @@ function createHeroDetailView(hero, updateListStats) {
   const form = document.createElement("form");
   form.className = "hero-form";
 
+  const heroId = `hero-${hero.id}`;
+
   const percentSection = createSection("Crew Bonus", [
     createFormRow(
       "Damage %",
-      createNumberInput(hero.percentages, "damage", updateListStats, 0, 1),
-      "col-md-4"
+      createNumberInput(
+        hero.percentages,
+        "damage",
+        updateListStats,
+        0,
+        1,
+        `${heroId}-damage-pct`
+      ),
+      "col-md-4",
+      `${heroId}-damage-pct`
     ),
     createFormRow(
       "Health %",
-      createNumberInput(hero.percentages, "health", updateListStats, 0, 1),
-      "col-md-4"
+      createNumberInput(
+        hero.percentages,
+        "health",
+        updateListStats,
+        0,
+        1,
+        `${heroId}-health-pct`
+      ),
+      "col-md-4",
+      `${heroId}-health-pct`
     ),
     createFormRow(
       "Armor %",
-      createNumberInput(hero.percentages, "armor", updateListStats, 0, 1),
-      "col-md-4"
+      createNumberInput(
+        hero.percentages,
+        "armor",
+        updateListStats,
+        0,
+        1,
+        `${heroId}-armor-pct`
+      ),
+      "col-md-4",
+      `${heroId}-armor-pct`
     ),
   ]);
 

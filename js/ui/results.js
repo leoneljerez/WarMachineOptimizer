@@ -204,7 +204,7 @@ export function renderResults(result, optimizeMode = "campaign") {
     if (!slot) return;
 
     const machineCard = createMachineCard(machine, machineTemplate);
-    slot.appendChild(machineCard); // Already batched inside createMachineCard
+    slot.appendChild(machineCard);
   });
 
   container.appendChild(clone);

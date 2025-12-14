@@ -41,15 +41,12 @@ export function renderTavernCards(machines) {
   tavernContainer.appendChild(tavernGrid);
 
   // Build Scarab section
-  const scarabResetBtn = createResetButton(
-    "Reset All Inscription Cards",
-    () => {
-      if (confirm("Reset all Inscription Card levels to 0?")) {
-        machines.forEach((machine) => (machine.inscriptionLevel = 0));
-        renderTavernCards(machines);
-      }
+  const scarabResetBtn = createResetButton("Reset All Inscription Cards", () => {
+    if (confirm("Reset all Inscription Card levels to 0?")) {
+      machines.forEach((machine) => (machine.inscriptionLevel = 0));
+      renderTavernCards(machines);
     }
-  );
+  });
 
   const scarabGrid = document.createElement("div");
   scarabGrid.className =
@@ -77,8 +74,7 @@ export function renderTavernCards(machines) {
  */
 function createResetButton(text, onClick) {
   const buttonContainer = document.createElement("div");
-  buttonContainer.className = "d-flex justify-content-end";
-  buttonContainer.style.marginBottom = "1rem";
+  buttonContainer.className = "d-flex justify-content-end mb-3";
 
   const button = document.createElement("button");
   button.type = "button";
@@ -113,18 +109,25 @@ function createCardLevelCard(machine, cardType) {
   title.className = "card-title text-center mb-3";
   title.textContent = machine.name;
 
+  const inputId = `${cardType}-card-machine-${machine.id}`;
+  const labelId = `${inputId}-label`;
+
   const inputGroup = document.createElement("div");
   inputGroup.className = "input-group input-group-sm mt-auto w-100";
 
-  const label = document.createElement("span");
+  const label = document.createElement("label");
   label.className = "input-group-text";
   label.textContent = "Level";
+  label.htmlFor = inputId;
+  label.id = labelId;
 
   const input = document.createElement("input");
   input.type = "number";
   input.className = "form-control";
+  input.id = inputId;
   input.min = 0;
   input.step = 1;
+  input.setAttribute("aria-labelledby", labelId);
 
   // Get the appropriate property name
   const propertyName =
