@@ -33,7 +33,7 @@ function createArtifactCard(stat, percentages, artifacts) {
   // Header
   const header = document.createElement("div");
   header.className =
-    "artifact-card-header d-flex justify-content-between align-items-center";
+    "artifact-card-header d-flex justify-content-between align-items-start";
 
   const title = document.createElement("h5");
   title.className = "artifact-card-title";
