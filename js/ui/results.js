@@ -1,3 +1,4 @@
+// ui/results.js
 import Decimal from "../vendor/break_eternity.esm.js";
 
 /**
@@ -85,7 +86,7 @@ function createMachineCard(machine, machineTemplate) {
     fragment.appendChild(createCrewImage(hero));
   });
 
-  crewDiv.appendChild(fragment); // ✅ Single DOM update
+  crewDiv.appendChild(fragment);
 
   return clone;
 }
@@ -188,7 +189,6 @@ export function renderResults(result, optimizeMode = "campaign") {
     arenaRadio.checked = false;
   }
 
-  // Map formation positions to slots
   const slots = clone.querySelectorAll(".machine-slot[data-position]");
   const positionMap = {};
   slots.forEach((slot) => {

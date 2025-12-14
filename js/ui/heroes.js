@@ -4,7 +4,7 @@ import {
   createNumberInput,
   createListItem,
   updateListItem,
-  createDetailHeader
+  createDetailHeader,
 } from "./formHelpers.js";
 
 /**
@@ -33,7 +33,7 @@ export function renderHeroes(heroes) {
       name: hero.name,
       statsText: formatHeroStats(hero),
       isConfigured: isConfiguredHero(hero),
-      onClick: () => selectHero(hero, btn, updateStats)
+      onClick: () => selectHero(hero, btn, updateStats),
     });
 
     fragment.appendChild(btn);
@@ -65,9 +65,11 @@ export function renderHeroes(heroes) {
  * @returns {string} Formatted stats string
  */
 function formatHeroStats(hero) {
-  return `Dmg ${hero.percentages.damage}% • ` +
-         `Hp ${hero.percentages.health}% • ` +
-         `Arm ${hero.percentages.armor}%`;
+  return (
+    `Dmg ${hero.percentages.damage}% • ` +
+    `Hp ${hero.percentages.health}% • ` +
+    `Arm ${hero.percentages.armor}%`
+  );
 }
 
 /**
@@ -110,7 +112,7 @@ function createHeroDetailView(hero, updateListStats) {
         wrapper.replaceWith(createHeroDetailView(hero, updateListStats));
         updateListStats();
       }
-    }
+    },
   });
 
   const form = document.createElement("form");

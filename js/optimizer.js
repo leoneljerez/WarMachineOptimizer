@@ -1,7 +1,12 @@
-// Simplified Power-Based Optimizer
+// optimizer.js
 import { Calculator } from "./calculator.js";
 import { BattleEngine } from "./battleengine.js";
 import Decimal from "./vendor/break_eternity.esm.js";
+
+// Constants
+const REOPTIMIZE_INTERVAL = 5;
+const POWER_THRESHOLD = 0.8;
+const MAX_ROUNDS = 20;
 
 export class Optimizer {
   constructor({
@@ -20,7 +25,7 @@ export class Optimizer {
     this.artifactArray = artifactArray;
     this.globalRarityLevels = globalRarityLevels;
     this.riftRank = riftRank;
-    this.battleEngine = new BattleEngine({ verbose: false });
+    this.battleEngine = new BattleEngine();
     this.maxSlots = Calculator.maxCrewSlots(engineerLevel);
   }
 
@@ -56,7 +61,7 @@ export class Optimizer {
         score = dmgGain * 10.0 + hpGain * 0.55 + armGain * 0.3;
       }
     } else {
-      // Arena mode -- temporarily change to campaign numbers while I decide if I have to refactor
+      // Arena mode
       if (role === "tank") {
         // Tanks prioritize: health > armor > damage
         score = hpGain * 5.0 + armGain * 3.0 + dmgGain * 0.3;
@@ -130,21 +135,16 @@ export class Optimizer {
       };
     });
 
-    // Sort machines by power (strongest first)
-    machineStates.sort((a, b) => b.power.cmp(a.power));
+    const sortedStates = machineStates.toSorted((a, b) => b.power.cmp(a.power));
 
-    // Special handling: Find strongest DPS and strongest tank
-    const dpsMachines = machineStates.filter(
-      (ms) => ms.machine.role !== "tank"
-    );
-    const tankMachines = machineStates.filter(
-      (ms) => ms.machine.role === "tank"
+    const grouped = Object.groupBy(sortedStates, (ms) =>
+      ms.machine.role === "tank" ? "tank" : "dps"
     );
 
-    // Priority order:
-    // 1. Strongest DPS (gets damage heroes first)
-    // 2. Strongest tank (gets health heroes first)
-    // 3. Rest by power
+    const dpsMachines = grouped.dps ?? [];
+    const tankMachines = grouped.tank ?? [];
+
+    // Priority order
     const priorityOrder = [];
 
     if (dpsMachines.length > 0) {
@@ -157,7 +157,7 @@ export class Optimizer {
 
     // Add remaining machines by power, excluding those already in priority
     const priorityIds = new Set(priorityOrder.map((ms) => ms.machine.id));
-    for (const ms of machineStates) {
+    for (const ms of sortedStates) {
       if (!priorityIds.has(ms.machine.id)) {
         priorityOrder.push(ms);
       }
@@ -217,7 +217,7 @@ export class Optimizer {
     }
 
     // Return machines with crews and final stats
-    return machineStates.map((ms) => ({
+    return sortedStates.map((ms) => ({
       ...ms.machine,
       crew: ms.crew,
       battleStats: ms.stats.battleStats,
@@ -228,14 +228,13 @@ export class Optimizer {
   selectBestFive(optimizedMachines, mode = "campaign") {
     if (optimizedMachines.length === 0) return [];
 
-    // Sort by power and take top 5
     const sorted = optimizedMachines
       .map((m) => {
         const stats = mode === "arena" ? m.arenaStats : m.battleStats;
         const power = Calculator.computeMachinePower(stats);
         return { machine: m, power };
       })
-      .sort((a, b) => b.power.cmp(a.power));
+      .toSorted((a, b) => b.power.cmp(a.power));
 
     return sorted.slice(0, Math.min(5, sorted.length)).map((x) => x.machine);
   }
@@ -248,41 +247,40 @@ export class Optimizer {
     // Get enemy stats for this mission & difficulty
     const enemyStats = Calculator.enemyAttributes(mission, difficulty);
 
-    // Identify useless machines (those that take zero damage from enemies)
-    const useless = [];
-    const tanks = [];
-    const remaining = [];
-
-    for (const machine of team) {
+    const grouped = Object.groupBy(team, (machine) => {
       const dmgTaken = Calculator.computeDamageTaken(
         machine.battleStats.damage,
         enemyStats.armor
       );
 
-      if (dmgTaken.eq(0)) {
-        useless.push(machine); // Machine contributes nothing
-      } else if (machine.role === "tank") {
-        tanks.push(machine); // Tanks
-      } else {
-        remaining.push(machine); // Non-tank, non-useless
-      }
-    }
+      if (dmgTaken.eq(0)) return "useless";
+      if (machine.role === "tank") return "tank";
+      return "remaining";
+    });
 
-    // Sort by damage/health (least to greatest)
-    remaining.sort((a, b) => a.battleStats.damage - b.battleStats.damage);
-    tanks.sort((a, b) => a.battleStats.health - b.battleStats.health);
+    const useless = grouped.useless ?? [];
+    const tanks = grouped.tank ?? [];
+    let remaining = grouped.remaining ?? [];
+
+    remaining = remaining.toSorted(
+      (a, b) => a.battleStats.damage - b.battleStats.damage
+    );
+    const sortedTanks = tanks.toSorted(
+      (a, b) => a.battleStats.health - b.battleStats.health
+    );
 
     let strongestMachine;
     if (remaining.length > 0) {
       if (team.length === 5) {
-        strongestMachine = remaining.pop();
+        strongestMachine = remaining.at(-1);
+        remaining = remaining.slice(0, -1);
       } else {
         strongestMachine = null;
       }
     }
 
     if (useless.length > 0) formation.push(...useless);
-    if (tanks.length > 0) formation.push(...tanks);
+    if (sortedTanks.length > 0) formation.push(...sortedTanks);
     if (remaining.length > 0) formation.push(...remaining);
 
     if (strongestMachine) {
@@ -314,7 +312,8 @@ export class Optimizer {
 
     for (let mission = 1; mission <= maxMission; mission++) {
       const shouldReoptimize =
-        !currentBestTeam || mission - lastOptimizedMission >= 5;
+        !currentBestTeam ||
+        mission - lastOptimizedMission >= REOPTIMIZE_INTERVAL;
 
       if (shouldReoptimize) {
         const allOptimized = this.optimizeCrewGlobally(
@@ -346,7 +345,7 @@ export class Optimizer {
         const ourPower = Calculator.computeSquadPower(arrangedTeam, "campaign");
 
         // Skip if power is too low
-        if (ourPower.lt(requiredPower.mul(0.8))) break;
+        if (ourPower.lt(requiredPower.mul(POWER_THRESHOLD))) break;
 
         // Deep copy stats and crew for simulation
         const battleTeam = arrangedTeam.map((m) => ({
@@ -363,7 +362,7 @@ export class Optimizer {
         const result = this.battleEngine.runBattle(
           battleTeam,
           enemyFormation,
-          20
+          MAX_ROUNDS
         );
 
         if (result.playerWon) {

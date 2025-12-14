@@ -1,9 +1,4 @@
 /**
- * Shared form utilities for machines.js and heroes.js
- * Eliminates code duplication and ensures consistency
- */
-
-/**
  * Creates a form section with a heading and rows
  * @param {string} title - Section heading text
  * @param {HTMLElement[]} rows - Array of form row elements
@@ -19,7 +14,7 @@ export function createSection(title, rows) {
 
   const rowContainer = document.createElement("div");
   rowContainer.className = "row g-3";
-  
+
   rowContainer.append(...rows);
   section.append(heading, rowContainer);
 
@@ -88,7 +83,7 @@ export function createSelect(options, currentValue, onChange) {
   select.className = "form-select";
 
   const fragment = document.createDocumentFragment();
-  
+
   options.forEach((option) => {
     const optionEl = document.createElement("option");
     optionEl.value = option;
@@ -96,7 +91,7 @@ export function createSelect(options, currentValue, onChange) {
     optionEl.selected = currentValue === option;
     fragment.appendChild(optionEl);
   });
-  
+
   select.appendChild(fragment);
   select.addEventListener("change", onChange);
 
@@ -118,7 +113,7 @@ export function createListItem({
   name,
   statsText,
   isConfigured,
-  onClick
+  onClick,
 }) {
   const btn = document.createElement("button");
   btn.type = "button";

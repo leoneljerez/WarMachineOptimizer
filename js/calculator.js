@@ -4,8 +4,8 @@ import Decimal from "./vendor/break_eternity.esm.js"; // v2.1.3
 export class Calculator {
   /**
    * Ensures that any value is converted to a Decimal object
-   * @param {*} value 
-   * @returns 
+   * @param {*} value
+   * @returns
    */
   static toDecimal(value) {
     if (value instanceof Decimal) {
@@ -47,8 +47,8 @@ export class Calculator {
   /**
    * Computes the damage taken by the machine of the second parameter
    * Formula: (Enemy_Damage - Character_Armor)
-   * @param {number} enemyDamage 
-   * @param {nummber} characterArmor 
+   * @param {number} enemyDamage
+   * @param {nummber} characterArmor
    * @returns {number} nummber of damage taken by the machine that had the characterArmor
    */
   static computeDamageTaken(enemyDamage, characterArmor) {
@@ -62,7 +62,7 @@ export class Calculator {
 
   /**
    * Gets the global rarity level by summing all of them
-   * @param {Nested object of machines} ownedMachines 
+   * @param {Nested object of machines} ownedMachines
    * @returns {number} summed rarity level
    */
   static getGlobalRarityLevels(ownedMachines) {
@@ -74,7 +74,7 @@ export class Calculator {
 
   /**
    * Gets the overdrive of one machine
-   * @param {Machine object} machine 
+   * @param {Machine object} machine
    * @returns {number} overdrive
    */
   static calculateOverdrive(machine) {
@@ -82,16 +82,16 @@ export class Calculator {
     const startingOverdrive = 0.25;
     const multiplier = 0.03;
 
-    if(rarity === 0) return startingOverdrive;
+    if (rarity === 0) return startingOverdrive;
 
-    return startingOverdrive + (rarity * multiplier);
+    return startingOverdrive + rarity * multiplier;
   }
 
   /**
    * Gets the enemy attributes for the mission/difficulty
-   * @param {number} missionNumber 
-   * @param {string} difficulty 
-   * @returns {damage, health, armor} of one enemy 
+   * @param {number} missionNumber
+   * @param {string} difficulty
+   * @returns {damage, health, armor} of one enemy
    */
   static enemyAttributes(missionNumber, difficulty) {
     const diffMultiplier = this.DIFFICULTY_MULTIPLIERS[difficulty];
@@ -114,8 +114,8 @@ export class Calculator {
 
   /**
    * Gets the enemy team for the mission/difficulty
-   * @param {number} missionNumber 
-   * @param {string} difficulty 
+   * @param {number} missionNumber
+   * @param {string} difficulty
    * @returns {object} of the enemy team
    */
   static getEnemyTeamForMission(missionNumber, difficulty) {
@@ -143,9 +143,9 @@ export class Calculator {
 
   /**
    * Gets the power requirements to do the mission
-   * @param {number} missionNumber 
-   * @param {string} difficulty 
-   * @returns {number} 
+   * @param {number} missionNumber
+   * @param {string} difficulty
+   * @returns {number}
    */
   static requiredPowerForMission(missionNumber, difficulty) {
     const enemyTeam = Calculator.getEnemyTeamForMission(
@@ -170,7 +170,7 @@ export class Calculator {
 
   /**
    * Gets the summed crew bonus
-   * @param {object} crewList 
+   * @param {object} crewList
    * @returns {dmg, hp, arm} for the crew bonus
    */
   static computeCrewBonus(crewList) {
@@ -200,14 +200,14 @@ export class Calculator {
 
   /**
    * Calculates the attribute for one stat type (damage, health, armor)
-   * @param {number} base 
-   * @param {number} levelBonus 
-   * @param {number} engineerBonus 
-   * @param {number} blueprintBonus 
-   * @param {number} rarityBonus 
-   * @param {number} sacredBonus 
-   * @param {number} inscriptionBonus 
-   * @param {number} artifactBonus 
+   * @param {number} base
+   * @param {number} levelBonus
+   * @param {number} engineerBonus
+   * @param {number} blueprintBonus
+   * @param {number} rarityBonus
+   * @param {number} sacredBonus
+   * @param {number} inscriptionBonus
+   * @param {number} artifactBonus
    * @returns {number} attribute
    */
   static computeBasicAttribute(
@@ -231,10 +231,10 @@ export class Calculator {
   }
 
   /**
-   * Calculates the  
-   * @param {array} artifactArray 
-   * @param {string} stat 
-   * @returns 
+   * Calculates the
+   * @param {array} artifactArray
+   * @param {string} stat
+   * @returns
    */
   static computeArtifactBonus(artifactArray, stat) {
     let total = new Decimal(1);
@@ -334,7 +334,7 @@ export class Calculator {
 
   // ---------------------------
   // Full battle stats including crew and artifacts
-  // basic attribute = base attribute * (1 + level bonus) * (1 + engineer bonus) * (1 + blueprint bonus) 
+  // basic attribute = base attribute * (1 + level bonus) * (1 + engineer bonus) * (1 + blueprint bonus)
   // * (1 + rarity bonus) * (1 + sacred card bonus)  * (1 + inscription card bonus) * (1 + artifact bonus)
   // ---------------------------
   static calculateBattleAttributes(
@@ -456,12 +456,12 @@ export class Calculator {
     for (const machine of machines) {
       // Use the appropriate stats based on mode
       const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
-      
+
       if (!stats) {
         console.warn(`Machine missing ${mode}Stats:`, machine.name);
         continue;
       }
-      
+
       const machinePower = Calculator.computeMachinePower(stats);
       totalPower = totalPower.add(machinePower);
     }

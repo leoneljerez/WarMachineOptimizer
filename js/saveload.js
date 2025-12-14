@@ -3,6 +3,7 @@ import { renderArtifacts } from "./ui/artifacts.js";
 import { renderHeroes } from "./ui/heroes.js";
 import { renderMachines } from "./ui/machines.js";
 import { renderTavernCards } from "./ui/tavern.js";
+import { showToast } from "./ui/notifications.js";
 
 // Validate loaded data structure
 function validateSaveData(data) {
@@ -163,33 +164,6 @@ function applyLoadedData(store, data) {
   });
 }
 
-function showToast(message, type = "success") {
-  const toastRoot = document.getElementById("toastRoot");
-
-  const toastEl = document.createElement("div");
-  toastEl.className = `toast align-items-center text-bg-${type} border-0`;
-  toastEl.setAttribute("role", "alert");
-  toastEl.setAttribute("aria-live", "assertive");
-  toastEl.setAttribute("aria-atomic", "true");
-
-  toastEl.innerHTML = `
-    <div class="d-flex">
-      <div class="toast-body">${message}</div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-    </div>
-  `;
-
-  toastRoot.appendChild(toastEl);
-
-  // eslint-disable-next-line no-undef
-  const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
-  toast.show();
-
-  toastEl.addEventListener("hidden.bs.toast", () => {
-    toastEl.remove();
-  });
-}
-
 export const SaveLoad = {
   save(store) {
     try {
@@ -201,8 +175,9 @@ export const SaveLoad = {
         "success"
       );
     } catch (error) {
-      console.error("Save error:", error);
-      showToast("Failed to save data: " + error.message, "danger");
+      const wrappedError = new Error("Failed to save data", { cause: error });
+      console.error(wrappedError);
+      showToast("Failed to save data. Please try again.", "danger");
     }
   },
 
@@ -221,7 +196,10 @@ export const SaveLoad = {
       // Validate structure
       const errors = validateSaveData(data);
       if (errors.length > 0) {
-        console.error("Validation errors:", errors);
+        const wrappedError = new Error("Invalid save data structure", {
+          cause: errors,
+        });
+        console.error(wrappedError);
         showToast(`Invalid save data: ${errors[0]}`, "danger");
         return;
       }
@@ -245,14 +223,21 @@ export const SaveLoad = {
       // Clear the textarea after successful load
       textarea.value = "";
     } catch (error) {
-      console.error("Load error:", error);
       if (error instanceof SyntaxError) {
+        const wrappedError = new Error("Invalid JSON format", {
+          cause: error,
+        });
+        console.error(wrappedError);
         showToast(
           "Invalid JSON format. Please check your save data.",
           "danger"
         );
       } else {
-        showToast("Failed to load data: " + error.message, "danger");
+        const wrappedError = new Error("Failed to load data", {
+          cause: error,
+        });
+        console.error(wrappedError);
+        showToast("Failed to load data. Please try again.", "danger");
       }
     }
   },

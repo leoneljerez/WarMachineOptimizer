@@ -9,9 +9,18 @@ import { heroesData } from "./data/heroes.js";
 import { abilitiesData } from "./data/abilities.js";
 import { Calculator } from "./calculator.js";
 import { SaveLoad } from "./saveload.js";
+import { showToast } from "./ui/notifications.js";
 
 // ---------------------------
-// Data for input
+// Constants
+// ---------------------------
+const DEFAULT_ENGINEER_LEVEL = 0;
+const DEFAULT_SCARAB_LEVEL = 0;
+const DEFAULT_RIFT_RANK = "bronze";
+const DEFAULT_OPTIMIZE_MODE = "campaign";
+
+// ---------------------------
+// Data Store
 // ---------------------------
 
 function createInitialStore() {
@@ -55,10 +64,10 @@ function createInitialStore() {
       health: { 30: 0, 35: 0, 40: 0, 45: 0, 50: 0, 55: 0, 60: 0, 65: 0 },
       armor: { 30: 0, 35: 0, 40: 0, 45: 0, 50: 0, 55: 0, 60: 0, 65: 0 },
     },
-    engineerLevel: 0,
-    scarabLevel: 0,
-    riftRank: "bronze",
-    optimizeMode: "campaign", // Default mode
+    engineerLevel: DEFAULT_ENGINEER_LEVEL,
+    scarabLevel: DEFAULT_SCARAB_LEVEL,
+    riftRank: DEFAULT_RIFT_RANK,
+    optimizeMode: DEFAULT_OPTIMIZE_MODE,
   };
 }
 
@@ -140,17 +149,6 @@ function runOptimization() {
   const artifactArray = getArtifactArray();
   const globalRarityLevels = Calculator.getGlobalRarityLevels(ownedMachines);
 
-  // Only enable for debug since Console.log slows down performance
-  /* console.log("Starting optimization with:", {
-    mode: store.optimizeMode,
-    machines: ownedMachines.length,
-    heroes: ownedHeroes.length,
-    engineerLevel: store.engineerLevel,
-    scarabLevel: store.scarabLevel,
-    artifacts: artifactArray,
-    globalRarityLevels,
-  }); */
-
   const worker = new Worker("js/optimizerWorker.js", { type: "module" });
 
   worker.postMessage({
@@ -169,8 +167,9 @@ function runOptimization() {
     const result = e.data;
 
     if (result.error) {
-      console.error("Optimizer worker error:", result.error);
-      alert(`Optimization failed: ${result.error}`);
+      const error = new Error("Optimization failed", { cause: result.error });
+      console.error(error);
+      showToast("Optimization failed. Please try again.", "danger");
       setLoading(false);
       return;
     }
@@ -181,10 +180,9 @@ function runOptimization() {
   };
 
   worker.onerror = function (err) {
-    console.error("Worker error:", err);
-    alert(
-      "An error occurred during optimization. Check the console for details."
-    );
+    const error = new Error("Worker error occurred", { cause: err });
+    console.error(error);
+    showToast("Optimization failed. Please try again.", "danger");
     setLoading(false);
   };
 }
@@ -309,9 +307,10 @@ function init() {
   updateOptimizeButtonText();
 }
 
-// Start the application when DOM is ready
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
+  await new Promise((resolve) => {
+    document.addEventListener("DOMContentLoaded", resolve, { once: true });
+  });
 }
+
+init();

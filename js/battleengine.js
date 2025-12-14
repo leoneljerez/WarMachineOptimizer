@@ -1,23 +1,10 @@
-// battleEngine.js
+// battleengine.js
 import { Calculator } from "./calculator.js";
 import Decimal from "./vendor/break_eternity.esm.js";
 
 export class BattleEngine {
-  constructor({
-    machines = [],
-    heroes = [],
-    abilities = {},
-    playerOrder = [0, 1, 2, 4, 3],
-    verbose = false,
-  } = {}) {
-    this.machines = machines;
-    this.heroes = heroes;
-    this.abilities = abilities;
-    this.PLAYER_ORDER = playerOrder;
-    this.verbose = verbose;
-  }
-
   static ZERO = new Decimal(0);
+  static ATTACK_ORDER = [0, 1, 2, 4, 3];
 
   runBattle(playerTeam, enemyTeam, maxRounds = 20) {
     // Input validation
@@ -29,8 +16,8 @@ export class BattleEngine {
     }
 
     const ZERO = BattleEngine.ZERO;
-    const targetOrder = [0, 1, 2, 4, 3];
-    const playerAttackOrder = [0, 1, 2, 4, 3];
+    const targetOrder = BattleEngine.ATTACK_ORDER;
+    const playerAttackOrder = BattleEngine.ATTACK_ORDER;
 
     const cloneTeam = (team) =>
       team.map((m) => {

@@ -12,7 +12,7 @@ self.onmessage = function (e) {
       engineerLevel = 0,
       scarabLevel = 0,
       artifactArray = [],
-      riftRank = ""
+      riftRank = "",
     } = e.data;
 
     // Create optimizer

@@ -11,8 +11,7 @@ export function renderTavernCards(machines) {
   tavernContainer.replaceChildren();
   scarabContainer.replaceChildren();
 
-  // Sort machines alphabetically by name
-  const sortedMachines = [...machines].sort((a, b) =>
+  const sortedMachines = machines.toSorted((a, b) =>
     a.name.localeCompare(b.name)
   );
 
@@ -28,7 +27,6 @@ export function renderTavernCards(machines) {
   tavernGrid.className =
     "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3";
 
-  // Use fragment for batch DOM update
   const tavernFragment = document.createDocumentFragment();
   sortedMachines.forEach((machine) => {
     const col = document.createElement("div");
@@ -57,7 +55,6 @@ export function renderTavernCards(machines) {
   scarabGrid.className =
     "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3";
 
-  // Use fragment for batch DOM update
   const scarabFragment = document.createDocumentFragment();
   sortedMachines.forEach((machine) => {
     const col = document.createElement("div");
