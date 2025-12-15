@@ -1,111 +1,111 @@
 // ui/artifacts.js
+
+/**
+ * Renders artifact configuration cards
+ * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
+ */
 export function renderArtifacts(artifacts) {
-  const container = document.getElementById("artifactsContainer");
-  container.replaceChildren();
+	const container = document.getElementById("artifactsContainer");
+	container.replaceChildren();
 
-  const stats = ["damage", "health", "armor"];
-  const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
+	const stats = ["damage", "health", "armor"];
+	const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
 
-  // Create Bootstrap row
-  const row = document.createElement("div");
-  row.className = "row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3";
+	const fragment = document.createDocumentFragment();
 
-  const fragment = document.createDocumentFragment();
+	stats.forEach((stat) => {
+		const col = document.createElement("div");
+		col.className = "col";
+		const card = createArtifactCard(stat, percentages, artifacts);
+		col.appendChild(card);
+		fragment.appendChild(col);
+	});
 
-  // Render each stat type as a card
-  stats.forEach((stat) => {
-    const col = document.createElement("div");
-    col.className = "col";
-
-    const card = createArtifactCard(stat, percentages, artifacts);
-    col.appendChild(card);
-    fragment.appendChild(col);
-  });
-
-  row.appendChild(fragment);
-  container.appendChild(row);
+	container.appendChild(fragment);
 }
 
+/**
+ * Creates an artifact card for a specific stat
+ * @param {string} stat - Stat type (damage, health, armor)
+ * @param {number[]} percentages - Array of percentage tiers
+ * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
+ * @returns {HTMLElement} Card element
+ */
 function createArtifactCard(stat, percentages, artifacts) {
-  const card = document.createElement("div");
-  card.className = "artifact-card p-4 rounded";
+	const card = document.createElement("div");
+	card.className = "card h-100 card-hover bg-body-tertiary bg-opacity-25";
 
-  // Header
-  const header = document.createElement("div");
-  header.className =
-    "artifact-card-header d-flex justify-content-between align-items-start";
+	const body = document.createElement("div");
+	body.className = "card-body";
 
-  const title = document.createElement("h5");
-  title.className = "artifact-card-title";
-  title.textContent = `${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
+	// Title + badge row
+	const titleRow = document.createElement("div");
+	titleRow.className = "d-flex justify-content-between align-items-center mb-3";
 
-  const totalBadge = document.createElement("span");
-  totalBadge.className = "badge bg-primary";
-  const total = Object.values(artifacts[stat]).reduce(
-    (sum, val) => sum + val,
-    0
-  );
-  totalBadge.textContent = `Total: ${total}`;
+	const title = document.createElement("h5");
+	title.className = "card-title mb-0 text-capitalize";
+	title.textContent = stat;
 
-  header.appendChild(title);
-  header.appendChild(totalBadge);
+	const total = Object.values(artifacts[stat]).reduce((sum, val) => sum + val, 0);
+	const totalBadge = document.createElement("span");
+	totalBadge.className = "badge bg-primary";
+	totalBadge.textContent = `Total: ${total}`;
 
-  // Body with input grid
-  const body = document.createElement("div");
-  body.className = "artifact-inputs pt-4";
+	titleRow.append(title, totalBadge);
+	body.appendChild(titleRow);
 
-  percentages.forEach((pct) => {
-    const group = document.createElement("div");
-    group.className = "artifact-input-group";
+	// Input grid: two columns
+	const grid = document.createElement("div");
+	grid.className = "row g-2";
 
-    const inputId = `artifact-${stat}-${pct}`;
-    const labelId = `${inputId}-label`;
+	percentages.forEach((pct) => {
+		const col = document.createElement("div");
+		col.className = "col-6";
 
-    const label = document.createElement("label");
-    label.textContent = `${pct}%`;
-    label.className = "form-label";
-    label.htmlFor = inputId;
-    label.id = labelId;
+		const inputGroup = document.createElement("div");
+		inputGroup.className = "input-group input-group-sm";
 
-    const input = document.createElement("input");
-    input.type = "number";
-    input.className = "form-control form-control-sm";
-    input.id = inputId;
-    input.min = 0;
-    input.step = 1;
-    input.value = artifacts[stat][pct];
-    input.setAttribute("aria-labelledby", labelId);
+		const label = document.createElement("span");
+		label.className = "input-group-text";
+		label.textContent = `${pct}%`;
+		label.style.width = "55px";
 
-    input.addEventListener("input", (e) => {
-      const val = parseInt(e.target.value);
-      artifacts[stat][pct] = isNaN(val) ? 0 : Math.max(0, val);
+		const input = document.createElement("input");
+		input.type = "number";
+		input.min = 0;
+		input.step = 1;
+		input.value = artifacts[stat][pct];
+		input.className = "form-control form-control-sm";
 
-      // Update total badge
-      const newTotal = Object.values(artifacts[stat]).reduce(
-        (sum, v) => sum + v,
-        0
-      );
-      totalBadge.textContent = `Total: ${newTotal}`;
-    });
+		const inputId = `artifact-${stat}-${pct}`;
+		input.id = inputId;
+		input.setAttribute("aria-label", `${stat} ${pct}% quantity`);
 
-    group.appendChild(label);
-    group.appendChild(input);
-    body.appendChild(group);
-  });
+		input.addEventListener("input", (e) => {
+			const val = parseInt(e.target.value, 10);
+			artifacts[stat][pct] = isNaN(val) ? 0 : Math.max(0, val);
 
-  card.appendChild(header);
-  card.appendChild(body);
+			const newTotal = Object.values(artifacts[stat]).reduce((sum, v) => sum + v, 0);
+			totalBadge.textContent = `Total: ${newTotal}`;
+		});
 
-  return card;
+		inputGroup.append(label, input);
+		col.appendChild(inputGroup);
+		grid.appendChild(col);
+	});
+
+	body.appendChild(grid);
+	card.appendChild(body);
+
+	return card;
 }
 
+/**
+ * Resets all artifact values to 0
+ * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
+ */
 export function resetAllArtifacts(artifacts) {
-  const stats = ["damage", "health", "armor"];
-  const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
-
-  stats.forEach((stat) => {
-    percentages.forEach((pct) => {
-      artifacts[stat][pct] = 0;
-    });
-  });
+	const stats = ["damage", "health", "armor"];
+	const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
+	stats.forEach((stat) => percentages.forEach((pct) => (artifacts[stat][pct] = 0)));
 }

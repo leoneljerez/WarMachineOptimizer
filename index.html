@@ -1,736 +1,399 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>War Machine Optimizer</title>
-    <link rel="stylesheet" href="css/bootstrap.min.css" />
-    <style>
-      html {
-        overflow-y: scroll;
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>War Machine Optimizer</title>
+		<link rel="stylesheet" href="css/bootstrap.min.css" />
+		<style>
+			html {
+				overflow-y: scroll;
+			}
+
+			/* Header gradient background */
+			.header-gradient {
+				background: linear-gradient(135deg, rgba(13, 110, 253, 0.1) 0%, rgba(13, 110, 253, 0.05) 100%);
+			}
+
+			/* Card hover effect */
+			.card-hover:hover {
+				box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+				transition: all 0.2s ease;
+			}
+
+      .list-group-item.active, .list-group-item.active * {
+        color: whitesmoke !important;
       }
 
-      /* Header gradient background (visual polish) */
-      header {
-        background: linear-gradient(
-          135deg,
-          rgba(13, 110, 253, 0.1) 0%,
-          rgba(13, 110, 253, 0.05) 100%
-        );
-      }
+			/* Sticky optimize section gradient */
+			.optimize-section {
+				background: linear-gradient(to top, var(--bs-body-bg) 80%, transparent);
+			}
 
-      /* Custom tab styling (visual polish) */
-      .nav-tabs {
-        border: none;
-        background: rgba(255, 255, 255, 0.03);
-      }
+			/* Mode selector custom styling */
+			.mode-selector {
+				display: inline-flex;
+				background: rgba(255, 255, 255, 0.05);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+			}
 
-      .nav-tabs .nav-link {
-        border: none;
-        color: rgba(255, 255, 255, 0.6);
-        transition: all 0.2s ease;
-      }
+			.mode-selector input[type="radio"] {
+				display: none;
+			}
 
-      .nav-tabs .nav-link:hover {
-        color: rgba(255, 255, 255, 0.9);
-        background: rgba(255, 255, 255, 0.08);
-      }
+			.mode-selector label {
+				cursor: pointer;
+				transition: all 0.2s ease;
+				color: rgba(255, 255, 255, 0.6);
+				margin: 0;
+			}
 
-      .nav-tabs .nav-link.active {
-        color: #fff;
-        background: rgba(13, 110, 253, 0.2);
-        border: 1px solid rgba(13, 110, 253, 0.3);
-      }
+			.mode-selector label:hover {
+				background: rgba(255, 255, 255, 0.08);
+				color: rgba(255, 255, 255, 0.9);
+			}
 
-      /* Sticky optimize section (functional + visual) */
-      .optimize-section {
-        position: sticky;
-        bottom: 0;
-        background: linear-gradient(to top, var(--bs-body-bg) 80%, transparent);
-        z-index: 10;
-      }
+			.mode-selector input[type="radio"]:checked + label {
+				background: rgba(13, 110, 253, 0.2);
+				color: #fff;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
 
-      /* Custom mode selector - radio buttons styled as toggle (custom component) */
-      .mode-selector {
-        display: inline-flex;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
+			/* Optimize button hover effect */
+			#optimizeBtn:hover:not(:disabled) {
+				transform: translateY(-2px);
+				box-shadow: 0 6px 16px rgba(255, 193, 7, 0.4);
+			}
 
-      .mode-selector input[type="radio"] {
-        display: none;
-      }
+			#optimizeBtn:active:not(:disabled) {
+				transform: translateY(0);
+			}
 
-      .mode-selector label {
-        cursor: pointer;
-        transition: all 0.2s ease;
-        color: rgba(255, 255, 255, 0.6);
-        margin: 0;
-      }
+			/* Fade-in animation */
+			.machine-detail-view,
+			.hero-detail-view {
+				animation: fadeIn 0.3s ease-in;
+			}
 
-      .mode-selector label:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.9);
-      }
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(10px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+		</style>
+	</head>
 
-      .mode-selector input[type="radio"]:checked + label {
-        background: rgba(13, 110, 253, 0.2);
-        color: #fff;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }
+	<body>
+		<div class="container-xxl py-4">
+			<!-- Header -->
+			<header class="header-gradient border-bottom rounded-3 p-4 mb-4">
+				<div class="d-flex justify-content-between align-items-center">
+					<span class="fs-4 fw-bold">War Machine Optimizer</span>
+					<button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#saveLoadModal" id="saveLoadBtn">Save / Load</button>
+				</div>
+			</header>
 
-      /* Optimize button visual effects */
-      #optimizeBtn {
-        letter-spacing: 0.02em;
-        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
-        transition: all 0.2s ease;
-      }
+			<!-- Save/Load Modal -->
+			<div class="modal fade" id="saveLoadModal" tabindex="-1">
+				<div class="modal-dialog modal-lg modal-dialog-centered">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title">Save / Load Configuration</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+						</div>
+						<div class="modal-body">
+							<p class="text-secondary small">Click <strong>Save</strong> to generate JSON, then copy it. Paste saved JSON here and click <strong>Load</strong> to restore.</p>
+							<textarea id="saveLoadBox" class="form-control font-monospace" rows="12" placeholder="generate a save or insert one here..."></textarea>
+						</div>
+						<div class="modal-footer">
+							<button id="saveBtn" type="button" class="btn btn-success">Save</button>
+							<button id="loadBtn" type="button" class="btn btn-primary">Load</button>
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+						</div>
+					</div>
+				</div>
+			</div>
 
-      #optimizeBtn:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(255, 193, 7, 0.4);
-      }
+			<!-- Navigation -->
+			<nav class="navbar mt-3">
+				<ul class="nav nav-tabs w-100 justify-content-center gap-2 p-2 rounded-3 bg-body-tertiary bg-opacity-25" id="wmTabs">
+					<li class="nav-item">
+						<a class="nav-link active px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#machinesTab">Machines</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#tavernTab">Tavern</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#heroesTab">Heroes</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#artifactsTab">Artifacts</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#resultsTab">Results</a>
+					</li>
+				</ul>
+			</nav>
 
-      #optimizeBtn:active:not(:disabled) {
-        transform: translateY(0);
-      }
+			<!-- Main Content -->
+			<main class="container-fluid tab-content py-4">
+				<!-- MACHINES TAB -->
+				<section id="machinesTab" class="tab-pane fade show active">
+					<!-- Global Bonuses -->
+					<div class="card card-hover mb-4 bg-success bg-opacity-10 border-success border-opacity-25">
+						<div class="card-body">
+							<h5 class="card-title mb-3">Global Bonuses</h5>
+							<div class="row g-3">
+								<div class="col-12 col-md-6">
+									<label for="engineerLevel" class="form-label">Engineer Level</label>
+									<input type="number" id="engineerLevel" class="form-control" min="0" step="1" value="0" />
+								</div>
+								<div class="col-12 col-md-6">
+									<label for="scarabLevel" class="form-label">Scarab Level</label>
+									<input type="number" id="scarabLevel" class="form-control" min="0" step="1" value="0" />
+								</div>
+								<div class="col-12 col-md-6">
+									<label for="riftRank" class="form-label">Chaos Rift Rank</label>
+									<select id="riftRank" class="form-select">
+										<option selected value="bronze">Bronze</option>
+										<option value="silver">Silver</option>
+										<option value="gold">Gold</option>
+										<option value="pearl">Pearl</option>
+										<option value="sapphire">Sapphire</option>
+										<option value="emerald">Emerald</option>
+										<option value="ruby">Ruby</option>
+										<option value="platinum">Platinum</option>
+										<option value="diamond">Diamond</option>
+									</select>
+								</div>
+							</div>
+						</div>
+					</div>
 
-      /* Artifact inputs - specialized 2-column grid (custom layout) */
-      .artifact-inputs {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
-      }
+					<!-- Machine List and Details -->
+					<div class="row g-3">
+						<div class="col-12 col-lg-4">
+							<div class="card card-hover">
+								<div class="card-header">
+									<h5 class="mb-0">Machine List</h5>
+								</div>
+								<div class="card-body p-0">
+									<div id="machineList" class="list-group list-group-flush overflow-auto" style="max-height: 600px"></div>
+								</div>
+							</div>
+						</div>
 
-      .artifact-input-group {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
+						<div class="col-12 col-lg-8">
+							<div class="card card-hover">
+								<div class="card-header">
+									<h5 class="mb-0">Machine Details</h5>
+								</div>
+								<div class="card-body">
+									<div id="machineDetails"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
 
-      .artifact-input-group label {
-        font-size: 0.9rem;
-        min-width: 45px;
-        margin: 0;
-        color: rgba(255, 255, 255, 0.7);
-      }
+				<!-- TAVERN TAB -->
+				<section id="tavernTab" class="tab-pane fade">
+					<div class="mb-4">
+						<h4 class="mb-1">Tavern & Scarab's Game</h4>
+						<p class="text-secondary mb-0">Manage card levels for all machines</p>
+					</div>
 
-      .artifact-input-group input {
-        flex: 1;
-        font-size: 0.9rem;
-      }
+					<!-- Sub-tabs for Tavern and Scarab's Game -->
+					<div class="d-flex justify-content-center mb-4">
+						<div class="mode-selector gap-2 p-2 rounded-3">
+							<input type="radio" id="tavernSubTab" name="tavernMode" value="tavern" checked />
+							<label for="tavernSubTab" class="px-4 py-2 rounded-2 fw-medium">Tavern (Sacred Cards)</label>
 
-      /* Artifact card visual styling */
-      .artifact-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
+							<input type="radio" id="scarabSubTab" name="tavernMode" value="scarab" />
+							<label for="scarabSubTab" class="px-4 py-2 rounded-2 fw-medium">Scarab's Game (Inscription Cards)</label>
+						</div>
+					</div>
 
-      .artifact-card:hover{
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-      }
+					<!-- Tavern Content -->
+					<div id="tavernCardsContainer"></div>
 
-      .artifact-card-header {
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
+					<!-- Scarab Content -->
+					<div id="scarabCardsContainer" class="d-none"></div>
+				</section>
 
-      .artifact-card-title {
-        text-transform: capitalize;
-      }
+				<!-- HEROES TAB -->
+				<section id="heroesTab" class="tab-pane fade">
+					<div class="row g-3">
+						<div class="col-12 col-lg-4">
+							<div class="card card-hover">
+								<div class="card-header">
+									<h5 class="mb-0">Hero List</h5>
+								</div>
+								<div class="card-body p-0">
+									<div id="heroList" class="list-group list-group-flush overflow-auto" style="max-height: 600px"></div>
+								</div>
+							</div>
+						</div>
 
-      /* Global bonuses card gradient */
-      .global-bonuses-card {
-        background: linear-gradient(
-          135deg,
-          rgba(25, 135, 84, 0.1) 0%,
-          rgba(25, 135, 84, 0.05) 100%
-        );
-        border: 1px solid rgba(25, 135, 84, 0.2);
-      }
+						<div class="col-12 col-lg-8">
+							<div class="card card-hover">
+								<div class="card-header">
+									<h5 class="mb-0">Hero Details</h5>
+								</div>
+								<div class="card-body">
+									<div id="heroDetails"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
 
-      /* Form focus states (visual enhancement) */
-      .form-control:focus,
-      .form-select:focus {
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
-        border-color: rgba(13, 110, 253, 0.5);
-      }
+				<!-- ARTIFACTS TAB -->
+				<section id="artifactsTab" class="tab-pane fade">
+					<div class="mb-4 d-flex justify-content-between align-items-center">
+						<div>
+							<h4 class="mb-1">Artifact Configuration</h4>
+							<p class="text-secondary mb-0">Configure artifacts by stat type and percentage tier</p>
+						</div>
+						<button type="button" class="btn btn-sm btn-outline-danger" id="resetArtifacts">Reset All</button>
+					</div>
+					<div id="artifactsContainer" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3"></div>
+				</section>
 
-      /* List item hover/active states (visual enhancement) */
-      .list-group-item {
-        transition: all 0.2s ease;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-      }
+				<!-- RESULTS TAB -->
+				<section id="resultsTab" class="tab-pane fade">
+					<div class="card p-4 bg-body-tertiary bg-opacity-25">
+						<h4 class="mb-3">Optimization Results</h4>
+						<p class="text-secondary">Click the <strong>Optimize</strong> button to calculate your best formation.</p>
+						<p class="text-secondary small">
+							<em>Note: This optimizer does not account for abilities. Therefore, you may be able to earn more stars than what is shown.</em>
+						</p>
+						<div id="resultsContainer"></div>
+					</div>
+				</section>
+			</main>
 
-      .list-group-item:hover {
-        background-color: rgba(255, 255, 255, 0.05);
-        border-color: rgba(255, 255, 255, 0.1);
-      }
+			<!-- OPTIMIZE SECTION (Sticky) -->
+			<div class="optimize-section py-4 mt-5 sticky-bottom">
+				<div class="d-flex flex-column align-items-center gap-3">
+					<div class="mode-selector gap-2 p-2 rounded-3">
+						<input type="radio" id="campaignMode" name="optimizeMode" value="campaign" checked />
+						<label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium">Campaign</label>
 
-      .list-group-item.active {
-        background-color: rgba(13, 110, 253, 0.15);
-        border-color: rgba(13, 110, 253, 0.3);
-      }
+						<input type="radio" id="arenaMode" name="optimizeMode" value="arena" />
+						<label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium">Arena</label>
+					</div>
 
-      .list-group-item.active .text-secondary {
-        color: #ffffffd5 !important;
-      }
+					<button
+						id="optimizeBtn"
+						class="btn btn-warning btn-lg fw-semibold shadow px-5 py-3"
+						style="min-width: 200px; font-size: 1.1rem; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3); transition: all 0.2s ease">
+						Optimize Formation
+					</button>
+				</div>
+			</div>
 
-      /* Card hover effect (visual enhancement) */
-      .card {
-        transition: box-shadow 0.2s ease;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
+			<!-- Toast Container -->
+			<div aria-live="polite" aria-atomic="true">
+				<div id="toastRoot" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+			</div>
 
-      .card:hover {
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-      }
+			<!-- Footer -->
+			<footer class="text-center mt-5 pt-4 border-top border-opacity-10 text-white-50">
+				<small>© 2025 War Machine Optimizer</small>
+			</footer>
+		</div>
 
-      /* Machine card in results (visual styling) */
-      .machine-card {
-        background-color: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: transform 0.2s ease;
-      }
+		<!-- Templates -->
+		<template id="resultTemplate">
+			<div class="result-card mt-4">
+				<div class="row g-3 mb-4">
+					<div class="col-md-4">
+						<div class="card text-center">
+							<div class="card-body">
+								<h6 class="text-secondary mb-1">Total Stars</h6>
+								<div class="fs-3 fw-bold totalStars"></div>
+							</div>
+						</div>
+					</div>
+					<div class="col-md-4">
+						<div class="card text-center">
+							<div class="card-body">
+								<h6 class="text-secondary mb-1">Last Cleared</h6>
+								<div class="fs-3 fw-bold lastCleared"></div>
+							</div>
+						</div>
+					</div>
+					<div class="col-md-4">
+						<div class="card text-center">
+							<div class="card-body">
+								<h6 class="text-secondary mb-1 powerTitle">Battle Power</h6>
+								<div class="fs-3 fw-bold text-warning powerResult"></div>
+							</div>
+						</div>
+					</div>
+				</div>
 
-      .machine-card:hover {
-        transform: translateY(-2px);
-      }
+				<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+					<h5 class="mb-0">Formation</h5>
+					<div class="mode-selector gap-2 p-2 rounded-3" id="statsToggle">
+						<input type="radio" id="battleStats" name="statsMode" value="battle" checked />
+						<label for="battleStats" class="px-4 py-2 rounded-2 fw-medium">Battle Stats</label>
+						<input type="radio" id="arenaStats" name="statsMode" value="arena" />
+						<label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium">Arena Stats</label>
+					</div>
+				</div>
 
-      /* Fade-in animation (visual enhancement) */
-      .machine-detail-view,
-      .hero-detail-view {
-        animation: fadeIn 0.3s ease-in;
-      }
+				<div class="row g-3 justify-content-center" id="formationContainer">
+					<!-- Left Column (Positions 5, 4, 3) -->
+					<div class="col-12 col-md-auto order-2 order-md-1">
+						<div class="d-flex flex-column gap-2 left-column">
+							<div class="machine-slot card-hover" data-position="5" style="min-height: 150px"></div>
+							<div class="machine-slot card-hover" data-position="4" style="min-height: 150px"></div>
+							<div class="machine-slot card-hover" data-position="3" style="min-height: 150px"></div>
+						</div>
+					</div>
 
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
+					<!-- Right Column (Positions 2, 1) -->
+					<div class="col-12 col-md-auto order-1 order-md-2">
+						<div class="d-flex flex-column gap-2 justify-content-center right-column" style="height: 100%">
+							<div class="machine-slot card-hover" data-position="2" style="min-height: 150px"></div>
+							<div class="machine-slot card-hover" data-position="1" style="min-height: 150px"></div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
 
-      /* Responsive adjustments */
-      @media (max-width: 768px) {
-        .artifact-inputs {
-          grid-template-columns: 1fr;
-        }
+		<template id="machineTemplate">
+			<div class="machine-card border rounded p-3 mb-2 text-center shadow-sm">
+				<img class="machine-image mb-2 rounded" src="" alt="Machine" style="width: 80px; height: 80px; object-fit: cover" />
+				<div class="machine-name fw-bold mb-2"></div>
+				<div class="machine-stats d-flex justify-content-center gap-3 align-items-center mb-2">
+					<div class="stat damage d-flex align-items-center gap-1">
+						<img src="img/ui/damage.webp" alt="Damage" style="width: 20px; height: 20px" />
+						<span class="value fw-bold"></span>
+					</div>
+					<div class="stat health d-flex align-items-center gap-1">
+						<img src="img/ui/health.webp" alt="Health" style="width: 20px; height: 20px" />
+						<span class="value fw-bold"></span>
+					</div>
+					<div class="stat armor d-flex align-items-center gap-1">
+						<img src="img/ui/armor.webp" alt="Armor" style="width: 20px; height: 20px" />
+						<span class="value fw-bold"></span>
+					</div>
+				</div>
+				<div class="crew d-flex flex-wrap justify-content-center gap-1 mt-2"></div>
+			</div>
+		</template>
 
-        #optimizeBtn {
-          width: 100%;
-        }
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="container-xxl py-4">
-      <!-- Header with Bootstrap utilities -->
-      <header class="border-bottom text-body-emphasis rounded-3 p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="fs-4 fw-bold">War Machine Optimizer</span>
-          <button
-            type="button"
-            class="btn btn-success"
-            data-bs-toggle="modal"
-            data-bs-target="#saveLoadModal"
-            id="saveLoadBtn"
-          >
-            Save / Load
-          </button>
-        </div>
-      </header>
-
-      <!-- Save/Load Modal -->
-      <div class="modal fade" id="saveLoadModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Save / Load Configuration</h5>
-              <button
-                type="button"
-                class="btn-close"
-                data-bs-dismiss="modal"
-              ></button>
-            </div>
-            <div class="modal-body">
-              <p class="text-secondary small">
-                Click <strong>Save</strong> to generate JSON, then copy it.
-                Paste saved JSON here and click <strong>Load</strong> to
-                restore.
-              </p>
-              <textarea
-                id="saveLoadBox"
-                class="form-control font-monospace"
-                rows="12"
-                placeholder="generate a save or insert one here..."
-              ></textarea>
-            </div>
-            <div class="modal-footer">
-              <button id="saveBtn" type="button" class="btn btn-success">
-                Save
-              </button>
-              <button id="loadBtn" type="button" class="btn btn-primary">
-                Load
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary"
-                data-bs-dismiss="modal"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Navigation with Bootstrap utilities -->
-      <nav class="navbar mt-3">
-        <ul
-          class="nav nav-tabs w-100 justify-content-center gap-2 p-2 rounded-3"
-          id="wmTabs"
-        >
-          <li class="nav-item">
-            <a
-              class="nav-link active px-3 py-2 fw-semibold rounded-2"
-              data-bs-toggle="tab"
-              href="#machinesTab"
-              >Machines</a
-            >
-          </li>
-          <li class="nav-item">
-            <a
-              class="nav-link px-3 py-2 fw-semibold rounded-2"
-              data-bs-toggle="tab"
-              href="#tavernTab"
-              >Tavern</a
-            >
-          </li>
-          <li class="nav-item">
-            <a
-              class="nav-link px-3 py-2 fw-semibold rounded-2"
-              data-bs-toggle="tab"
-              href="#heroesTab"
-              >Heroes</a
-            >
-          </li>
-          <li class="nav-item">
-            <a
-              class="nav-link px-3 py-2 fw-semibold rounded-2"
-              data-bs-toggle="tab"
-              href="#artifactsTab"
-              >Artifacts</a
-            >
-          </li>
-          <li class="nav-item">
-            <a
-              class="nav-link px-3 py-2 fw-semibold rounded-2"
-              data-bs-toggle="tab"
-              href="#resultsTab"
-              >Results</a
-            >
-          </li>
-        </ul>
-      </nav>
-
-      <!-- Main Content -->
-      <main class="container-fluid tab-content py-4">
-        <!-- MACHINES TAB -->
-        <section id="machinesTab" class="tab-pane fade show active">
-          <!-- Global Bonuses -->
-          <div class="card mb-4 global-bonuses-card">
-            <div class="card-body">
-              <h5 class="card-title mb-3">Global Bonuses</h5>
-              <div class="row g-3">
-                <div class="col-12 col-md-6">
-                  <label for="engineerLevel" class="form-label"
-                    >Engineer Level</label
-                  >
-                  <input
-                    type="number"
-                    id="engineerLevel"
-                    class="form-control"
-                    min="0"
-                    step="1"
-                    value="0"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <label for="scarabLevel" class="form-label"
-                    >Scarab Level</label
-                  >
-                  <input
-                    type="number"
-                    id="scarabLevel"
-                    class="form-control"
-                    min="0"
-                    step="1"
-                    value="0"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <label for="riftRank" class="form-label"
-                    >Chaos Rift Rank</label
-                  >
-                  <select id="riftRank" class="form-select">
-                    <option selected value="bronze">Bronze</option>
-                    <option value="silver">Silver</option>
-                    <option value="gold">Gold</option>
-                    <option value="pearl">Pearl</option>
-                    <option value="sapphire">Sapphire</option>
-                    <option value="emerald">Emerald</option>
-                    <option value="ruby">Ruby</option>
-                    <option value="platinum">Platinum</option>
-                    <option value="diamond">Diamond</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Machine List and Details -->
-          <div class="row">
-            <div class="col-12 col-lg-4">
-              <div class="card">
-                <div class="card-header">
-                  <h5 class="mb-0">Machine List</h5>
-                </div>
-                <div class="card-body p-0">
-                  <div
-                    id="machineList"
-                    class="list-group list-group-flush overflow-auto"
-                    style="max-height: 600px"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-lg-8 mt-3 mt-lg-0">
-              <div class="card">
-                <div class="card-header">
-                  <h5 class="mb-0">Machine Details</h5>
-                </div>
-                <div class="card-body">
-                  <div id="machineDetails"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- TAVERN TAB -->
-        <section id="tavernTab" class="tab-pane fade">
-          <div class="mb-4">
-            <h4 class="mb-1">Tavern & Scarab's Game</h4>
-            <p class="text-secondary mb-0">
-              Manage card levels for all machines
-            </p>
-          </div>
-
-          <!-- Sub-tabs for Tavern and Scarab's Game -->
-          <ul class="nav nav-tabs mb-4 p-2" id="tavernSubTabs">
-            <li class="nav-item">
-              <a
-                class="nav-link fw-medium active"
-                data-bs-toggle="tab"
-                href="#tavernSubTab"
-                >Tavern (Sacred Cards)</a
-              >
-            </li>
-            <li class="nav-item ps-2">
-              <a class="nav-link fw-medium" data-bs-toggle="tab" href="#scarabSubTab"
-                >Scarab's Game (Inscription Cards)</a
-              >
-            </li>
-          </ul>
-
-          <div class="tab-content">
-            <!-- Tavern Sub-tab -->
-            <div id="tavernSubTab" class="tab-pane fade show active">
-              <div id="tavernCardsContainer"></div>
-            </div>
-
-            <!-- Scarab's Game Sub-tab -->
-            <div id="scarabSubTab" class="tab-pane fade">
-              <div id="scarabCardsContainer"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- HEROES TAB -->
-        <section id="heroesTab" class="tab-pane fade">
-          <div class="row">
-            <div class="col-12 col-lg-4">
-              <div class="card">
-                <div class="card-header">
-                  <h5 class="mb-0">Hero List</h5>
-                </div>
-                <div class="card-body p-0">
-                  <div
-                    id="heroList"
-                    class="list-group list-group-flush overflow-auto"
-                    style="max-height: 600px"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-lg-8 mt-3 mt-lg-0">
-              <div class="card">
-                <div class="card-header">
-                  <h5 class="mb-0">Hero Details</h5>
-                </div>
-                <div class="card-body">
-                  <div id="heroDetails"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ARTIFACTS TAB -->
-        <section id="artifactsTab" class="tab-pane fade">
-          <div class="mb-4 d-flex justify-content-between align-items-center">
-            <div>
-              <h4 class="mb-1">Artifact Configuration</h4>
-              <p class="text-secondary mb-0">
-                Configure artifacts by stat type and percentage tier
-              </p>
-            </div>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-danger"
-              id="resetArtifacts"
-            >
-              Reset All
-            </button>
-          </div>
-          <div id="artifactsContainer"></div>
-        </section>
-
-        <!-- RESULTS TAB -->
-        <section id="resultsTab" class="tab-pane fade">
-          <div class="card p-4" style="background: rgba(255, 255, 255, 0.03)">
-            <h4 class="mb-3">Optimization Results</h4>
-            <p class="text-secondary">
-              Click the <strong>Optimize</strong> button to calculate your best
-              formation.
-            </p>
-            <p class="text-secondary small">
-              <em
-                >Note: This optimizer does not account for abilities. Therefore,
-                you may be able to earn more stars than what is shown.</em
-              >
-            </p>
-            <div id="resultsContainer"></div>
-          </div>
-        </section>
-      </main>
-
-      <!-- OPTIMIZE SECTION (Sticky) with Bootstrap utilities -->
-      <div class="optimize-section py-4 mt-5">
-        <div class="d-flex flex-column align-items-center gap-3">
-          <!-- Mode Selector with Bootstrap utilities -->
-          <div class="mode-selector gap-2 p-2 rounded-3">
-            <input
-              type="radio"
-              id="campaignMode"
-              name="optimizeMode"
-              value="campaign"
-              checked
-            />
-            <label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium"
-              >Campaign</label
-            >
-
-            <input
-              type="radio"
-              id="arenaMode"
-              name="optimizeMode"
-              value="arena"
-            />
-            <label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium"
-              >Arena</label
-            >
-          </div>
-
-          <!-- Optimize Button with Bootstrap utilities -->
-          <button
-            id="optimizeBtn"
-            class="btn btn-lg btn-warning fw-semibold shadow px-5 py-3"
-            style="min-width: 200px; font-size: 1.1rem"
-          >
-            Optimize Formation
-          </button>
-        </div>
-      </div>
-
-      <!-- Toast Container -->
-      <div aria-live="polite" aria-atomic="true">
-        <div
-          id="toastRoot"
-          class="toast-container position-fixed bottom-0 end-0 p-3"
-        ></div>
-      </div>
-
-      <!-- Footer with Bootstrap utilities -->
-      <footer
-        class="text-center mt-5 pt-4 border-top border-opacity-10 text-white-50"
-      >
-        <small>© 2025 War Machine Optimizer</small>
-      </footer>
-    </div>
-
-    <!-- Templates -->
-    <template id="resultTemplate">
-      <div class="result-card mt-4">
-        <div class="row g-3 mb-4">
-          <div class="col-md-4">
-            <div class="card text-center">
-              <div class="card-body">
-                <h6 class="text-secondary mb-1">Total Stars</h6>
-                <div class="fs-3 fw-bold totalStars"></div>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card text-center">
-              <div class="card-body">
-                <h6 class="text-secondary mb-1">Last Cleared</h6>
-                <div class="fs-3 fw-bold lastCleared"></div>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card text-center">
-              <div class="card-body">
-                <h6 class="text-secondary mb-1 powerTitle">Battle Power</h6>
-                <div class="fs-3 fw-bold text-warning powerResult"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2"
-        >
-          <h5 class="mb-0">Formation</h5>
-          <div class="mode-selector gap-2 p-2 rounded-3" id="statsToggle">
-            <input
-              type="radio"
-              id="battleStats"
-              name="statsMode"
-              value="battle"
-              checked
-            />
-            <label for="battleStats" class="px-4 py-2 rounded-2 fw-medium"
-              >Battle Stats</label
-            >
-            <input
-              type="radio"
-              id="arenaStats"
-              name="statsMode"
-              value="arena"
-            />
-            <label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium"
-              >Arena Stats</label
-            >
-          </div>
-        </div>
-
-        <div class="row g-3 justify-content-center" id="formationContainer">
-          <!-- Left Column (Positions 5, 4, 3) -->
-          <div class="col-12 col-md-auto order-2 order-md-1">
-            <div class="d-flex flex-column gap-2 left-column">
-              <div
-                class="machine-slot"
-                data-position="5"
-                style="min-height: 150px"
-              ></div>
-              <div
-                class="machine-slot"
-                data-position="4"
-                style="min-height: 150px"
-              ></div>
-              <div
-                class="machine-slot"
-                data-position="3"
-                style="min-height: 150px"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Right Column (Positions 2, 1) -->
-          <div class="col-12 col-md-auto order-1 order-md-2">
-            <div
-              class="d-flex flex-column gap-2 justify-content-center right-column"
-              style="height: 100%"
-            >
-              <div
-                class="machine-slot"
-                data-position="2"
-                style="min-height: 150px"
-              ></div>
-              <div
-                class="machine-slot"
-                data-position="1"
-                style="min-height: 150px"
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
-
-    <template id="machineTemplate">
-      <div class="machine-card border rounded p-3 mb-2 text-center shadow-sm">
-        <img
-          class="machine-image mb-2 rounded"
-          src=""
-          alt="Machine"
-          style="width: 80px; height: 80px; object-fit: cover"
-        />
-        <div class="machine-name fw-bold mb-2"></div>
-        <div
-          class="machine-stats d-flex justify-content-center gap-3 align-items-center mb-2"
-        >
-          <div class="stat damage d-flex align-items-center gap-1">
-            <img
-              src="img/ui/damage.webp"
-              alt="Damage"
-              style="width: 20px; height: 20px"
-            />
-            <span class="value fw-bold"></span>
-          </div>
-          <div class="stat health d-flex align-items-center gap-1">
-            <img
-              src="img/ui/health.webp"
-              alt="Health"
-              style="width: 20px; height: 20px"
-            />
-            <span class="value fw-bold"></span>
-          </div>
-          <div class="stat armor d-flex align-items-center gap-1">
-            <img
-              src="img/ui/armor.webp"
-              alt="Armor"
-              style="width: 20px; height: 20px"
-            />
-            <span class="value fw-bold"></span>
-          </div>
-        </div>
-        <div
-          class="crew d-flex flex-wrap justify-content-center gap-1 mt-2"
-        ></div>
-      </div>
-    </template>
-
-    <!-- Bootstrap 5.3.8 -->
-    <script src="js/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="js/app.js"></script>
-  </body>
+		<!-- Bootstrap 5.3.8 -->
+		<script src="js/vendor/bootstrap.bundle.min.js"></script>
+		<script type="module" src="js/app.js"></script>
+	</body>
 </html>
