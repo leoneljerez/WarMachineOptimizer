@@ -8,7 +8,41 @@ const REOPTIMIZE_INTERVAL = 5;
 const POWER_THRESHOLD = 0.8;
 const MAX_ROUNDS = 20;
 
+/**
+ * @typedef {Object} OptimizerConfig
+ * @property {import('./app.js').Machine[]} ownedMachines - Array of owned machines
+ * @property {import('./app.js').Hero[]} heroes - Array of heroes
+ * @property {number} engineerLevel - Engineer level
+ * @property {number} scarabLevel - Scarab level
+ * @property {Array<{stat: string, values: Object}>} artifactArray - Array of artifact configurations
+ * @property {number} globalRarityLevels - Sum of all machine rarity levels
+ * @property {string} riftRank - Chaos Rift rank
+ */
+
+/**
+ * @typedef {Object} CampaignResult
+ * @property {number} totalStars - Total stars earned
+ * @property {number} lastCleared - Last mission cleared
+ * @property {import('./app.js').Machine[]} formation - Optimal formation
+ * @property {Decimal} battlePower - Total battle power
+ * @property {Decimal} arenaPower - Total arena power
+ */
+
+/**
+ * @typedef {Object} ArenaResult
+ * @property {import('./app.js').Machine[]} formation - Optimal formation
+ * @property {Decimal} arenaPower - Total arena power
+ * @property {Decimal} battlePower - Total battle power
+ */
+
+/**
+ * Optimizer class for finding optimal machine formations and crew assignments
+ */
 export class Optimizer {
+	/**
+	 * Creates an Optimizer instance
+	 * @param {OptimizerConfig} config - Optimizer configuration
+	 */
 	constructor({ ownedMachines, heroes, engineerLevel, scarabLevel, artifactArray, globalRarityLevels, riftRank }) {
 		this.ownedMachines = ownedMachines;
 		this.heroes = heroes;
@@ -21,7 +55,14 @@ export class Optimizer {
 		this.maxSlots = Calculator.maxCrewSlots(engineerLevel);
 	}
 
-	// Score hero for a specific machine based on role preferences and current stats
+	/**
+	 * Scores a hero for a specific machine based on role and current stats
+	 * @param {import('./app.js').Hero} hero - Hero to score
+	 * @param {import('./app.js').Machine} machine - Machine to score for
+	 * @param {import('./app.js').MachineStats} currentStats - Current machine stats
+	 * @param {string} mode - "campaign" or "arena"
+	 * @returns {number} Score value (higher is better)
+	 */
 	scoreHeroForMachine(hero, machine, currentStats, mode = "campaign") {
 		const role = machine.role === "tank" ? "tank" : "dps";
 
@@ -33,7 +74,6 @@ export class Optimizer {
 			return 0;
 		}
 
-		// Calculate absolute stat gains (percentage × current stat value)
 		const currentDmg = Calculator.toDecimal(currentStats.damage).toNumber();
 		const currentHp = Calculator.toDecimal(currentStats.health).toNumber();
 		const currentArm = Calculator.toDecimal(currentStats.armor).toNumber();
@@ -46,19 +86,14 @@ export class Optimizer {
 
 		if (mode === "campaign") {
 			if (role === "tank") {
-				// Tanks prioritize: health > armor > damage
 				score = hpGain * 5.0 + armGain * 3.0 + dmgGain * 0.3;
 			} else {
-				// DPS/Healer prioritize: damage > health > armor
 				score = dmgGain * 10.0 + hpGain * 0.55 + armGain * 0.3;
 			}
 		} else {
-			// Arena mode
 			if (role === "tank") {
-				// Tanks prioritize: health > armor > damage
 				score = hpGain * 5.0 + armGain * 3.0 + dmgGain * 0.3;
 			} else {
-				// DPS/Healer prioritize: damage > health > armor
 				score = dmgGain * 10.0 + hpGain * 0.55 + armGain * 0.3;
 			}
 		}
@@ -66,6 +101,12 @@ export class Optimizer {
 		return score;
 	}
 
+	/**
+	 * Calculates both battle and arena stats for a machine with crew
+	 * @param {import('./app.js').Machine} machine - Machine to calculate for
+	 * @param {import('./app.js').Hero[]} crew - Crew members
+	 * @returns {{battleStats: import('./app.js').MachineStats, arenaStats: import('./app.js').MachineStats}}
+	 */
 	calculateAllStats(machine, crew) {
 		const battleStats = Calculator.calculateBattleAttributes(machine, crew, this.globalRarityLevels, this.artifactArray, this.engineerLevel);
 
@@ -97,12 +138,16 @@ export class Optimizer {
 		};
 	}
 
-	// Power-based crew optimization
+	/**
+	 * Optimizes crew assignments globally across all machines
+	 * @param {import('./app.js').Machine[]} machines - Machines to optimize
+	 * @param {string} mode - "campaign" or "arena"
+	 * @returns {import('./app.js').Machine[]} Machines with optimized crew
+	 */
 	optimizeCrewGlobally(machines, mode = "campaign") {
 		const availableHeroes = [...this.heroes];
 		const assignedHeroIds = new Set();
 
-		// Initialize all machines with empty crews and calculate base stats
 		const machineStates = machines.map((machine) => {
 			const stats = this.calculateAllStats(machine, []);
 			const power = Calculator.computeMachinePower(mode === "arena" ? stats.arenaStats : stats.battleStats);
@@ -121,7 +166,6 @@ export class Optimizer {
 		const dpsMachines = grouped.dps ?? [];
 		const tankMachines = grouped.tank ?? [];
 
-		// Priority order
 		const priorityOrder = [];
 
 		if (dpsMachines.length > 0) {
@@ -132,7 +176,6 @@ export class Optimizer {
 			priorityOrder.push(tankMachines[0]);
 		}
 
-		// Add remaining machines by power, excluding those already in priority
 		const priorityIds = new Set(priorityOrder.map((ms) => ms.machine.id));
 		for (const ms of sortedStates) {
 			if (!priorityIds.has(ms.machine.id)) {
@@ -140,14 +183,10 @@ export class Optimizer {
 			}
 		}
 
-		// Assign heroes sequentially to machines in priority order
 		for (const machineState of priorityOrder) {
-			// Fill this machine's crew slots
 			while (machineState.crew.length < this.maxSlots) {
-				// Get current stats for accurate scoring
 				const currentStats = mode === "arena" ? machineState.stats.arenaStats : machineState.stats.battleStats;
 
-				// Find best available hero for this machine
 				let bestHeroIdx = -1;
 				let bestScore = 0;
 
@@ -162,27 +201,22 @@ export class Optimizer {
 					}
 				}
 
-				// Stop if no beneficial hero found
 				if (bestHeroIdx === -1 || bestScore === 0) {
 					break;
 				}
 
-				// Assign the hero
 				const hero = availableHeroes[bestHeroIdx];
 				machineState.crew.push(hero);
 				assignedHeroIds.add(hero.id);
 
-				// Recalculate stats with new crew
 				machineState.stats = this.calculateAllStats(machineState.machine, machineState.crew);
 
-				// Stop if we've run out of heroes
 				if (assignedHeroIds.size >= availableHeroes.length) {
 					break;
 				}
 			}
 		}
 
-		// Return machines with crews and final stats
 		return sortedStates.map((ms) => ({
 			...ms.machine,
 			crew: ms.crew,
@@ -191,6 +225,12 @@ export class Optimizer {
 		}));
 	}
 
+	/**
+	 * Selects the best five machines based on power
+	 * @param {import('./app.js').Machine[]} optimizedMachines - Machines to select from
+	 * @param {string} mode - "campaign" or "arena"
+	 * @returns {import('./app.js').Machine[]} Top 5 machines
+	 */
 	selectBestFive(optimizedMachines, mode = "campaign") {
 		if (optimizedMachines.length === 0) return [];
 
@@ -205,12 +245,18 @@ export class Optimizer {
 		return sorted.slice(0, Math.min(5, sorted.length)).map((x) => x.machine);
 	}
 
+	/**
+	 * Arranges team by role for optimal positioning
+	 * @param {import('./app.js').Machine[]} team - Team to arrange
+	 * @param {number} mission - Mission number
+	 * @param {string} difficulty - Difficulty level
+	 * @returns {import('./app.js').Machine[]} Arranged team
+	 */
 	arrangeByRole(team, mission = 1, difficulty = "easy") {
 		if (!team || team.length === 0) return [];
 
 		const formation = [];
 
-		// Get enemy stats for this mission & difficulty
 		const enemyStats = Calculator.enemyAttributes(mission, difficulty);
 
 		const grouped = Object.groupBy(team, (machine) => {
@@ -253,6 +299,14 @@ export class Optimizer {
 		return formation;
 	}
 
+	/**
+	 * Optimizes campaign formation for maximum stars
+	 * @param {Object} config - Configuration object
+	 * @param {import('./app.js').Machine[]} config.ownedMachines - Owned machines
+	 * @param {number} config.maxMission - Maximum mission to test
+	 * @param {string[]} config.difficulties - Difficulty levels to test
+	 * @returns {CampaignResult} Optimization result
+	 */
 	optimizeCampaignMaxStars({ ownedMachines, maxMission = 90, difficulties = ["easy", "normal", "hard", "insane", "nightmare"] }) {
 		let totalStars = 0;
 		let lastCleared = 0;
@@ -284,10 +338,8 @@ export class Optimizer {
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 				const ourPower = Calculator.computeSquadPower(arrangedTeam, "campaign");
 
-				// Skip if power is too low
 				if (ourPower.lt(requiredPower.mul(POWER_THRESHOLD))) break;
 
-				// Deep copy stats and crew for simulation
 				const battleTeam = arrangedTeam.map((m) => ({
 					...m,
 					crew: [...m.crew],
@@ -306,7 +358,6 @@ export class Optimizer {
 					if (difficulty === "easy") lastCleared = mission;
 					lastWinningTeam = arrangedTeam.map((m) => ({ ...m }));
 				} else {
-					// Stop trying higher difficulties if we lose
 					break;
 				}
 			}
@@ -324,6 +375,11 @@ export class Optimizer {
 		};
 	}
 
+	/**
+	 * Optimizes formation for arena mode
+	 * @param {import('./app.js').Machine[]} ownedMachines - Owned machines
+	 * @returns {ArenaResult} Optimization result
+	 */
 	optimizeForArena(ownedMachines) {
 		if (!ownedMachines?.length) {
 			return { formation: [], totalPower: new Decimal(0) };

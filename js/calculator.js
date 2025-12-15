@@ -1,23 +1,30 @@
 // calculator.js
 import Decimal from "./vendor/break_eternity.esm.js"; // v2.1.3
 
+/**
+ * Calculator utility class for all game calculations
+ * Handles stat calculations, damage computation, and power metrics
+ * @class
+ */
 export class Calculator {
 	/**
 	 * Ensures that any value is converted to a Decimal object
-	 * @param {*} value
-	 * @returns
+	 * @param {*} value - Value to convert (number, string, or Decimal)
+	 * @returns {Decimal} Decimal instance
 	 */
 	static toDecimal(value) {
 		if (value instanceof Decimal) {
 			return value;
 		}
-
 		return new Decimal(value);
 	}
 
-	// ---------------------------
-	// Static Variables
-	// ---------------------------
+	/**
+	 * Rarity level mappings for machines
+	 * Maps rarity names to numeric levels for calculations
+	 * @type {Object.<string, number>}
+	 * @readonly
+	 */
 	static RARITY_LEVELS = {
 		common: 0,
 		uncommon: 1,
@@ -30,12 +37,23 @@ export class Calculator {
 		celestial: 8,
 	};
 
+	/**
+	 * Base stat values for enemy calculations
+	 * @type {{damage: Decimal, health: Decimal, armor: Decimal}}
+	 * @readonly
+	 */
 	static BASE = {
 		damage: new Decimal(260),
 		health: new Decimal(1560),
 		armor: new Decimal(30),
 	};
 
+	/**
+	 * Difficulty multipliers for mission calculations
+	 * Each difficulty applies a different scaling factor to enemy stats
+	 * @type {Object.<string, Decimal>}
+	 * @readonly
+	 */
 	static DIFFICULTY_MULTIPLIERS = {
 		easy: new Decimal(1),
 		normal: new Decimal(360),
@@ -45,11 +63,11 @@ export class Calculator {
 	};
 
 	/**
-	 * Computes the damage taken by the machine of the second parameter
-	 * Formula: (Enemy_Damage - Character_Armor)
-	 * @param {number} enemyDamage
-	 * @param {nummber} characterArmor
-	 * @returns {number} nummber of damage taken by the machine that had the characterArmor
+	 * Computes the damage taken by a character after armor reduction
+	 * If armor >= damage, returns 0 (no damage taken)
+	 * @param {number|Decimal} enemyDamage - Enemy's damage value
+	 * @param {number|Decimal} characterArmor - Character's armor value
+	 * @returns {Decimal} Damage taken (0 if armor >= damage)
 	 */
 	static computeDamageTaken(enemyDamage, characterArmor) {
 		const dmg = Calculator.toDecimal(enemyDamage);
@@ -61,9 +79,10 @@ export class Calculator {
 	}
 
 	/**
-	 * Gets the global rarity level by summing all of them
-	 * @param {Nested object of machines} ownedMachines
-	 * @returns {number} summed rarity level
+	 * Gets the global rarity level by summing all machine rarity levels
+	 * Used for calculating global bonuses that scale with total collection
+	 * @param {Array<import('./optimizer.js').Machine>} ownedMachines - Array of owned machines
+	 * @returns {number} Sum of all rarity levels
 	 */
 	static getGlobalRarityLevels(ownedMachines) {
 		return ownedMachines.reduce((sum, machine) => {
@@ -73,9 +92,10 @@ export class Calculator {
 	}
 
 	/**
-	 * Gets the overdrive of one machine
-	 * @param {Machine object} machine
-	 * @returns {number} overdrive
+	 * Calculates overdrive value for a machine based on rarity
+	 * Formula: 0.25 + (rarity_level * 0.03)
+	 * @param {import('./optimizer.js').Machine} machine - Machine object
+	 * @returns {number} Overdrive value (decimal multiplier)
 	 */
 	static calculateOverdrive(machine) {
 		const rarity = Calculator.RARITY_LEVELS[machine.rarity];
@@ -88,10 +108,11 @@ export class Calculator {
 	}
 
 	/**
-	 * Gets the enemy attributes for the mission/difficulty
-	 * @param {number} missionNumber
-	 * @param {string} difficulty
-	 * @returns {damage, health, armor} of one enemy
+	 * Gets enemy attributes for a specific mission and difficulty
+	 * Applies mission scaling (1.2^mission) and milestone scaling (3^(mission/10))
+	 * @param {number} missionNumber - Mission number (1-90)
+	 * @param {string} difficulty - Difficulty level (easy, normal, hard, insane, nightmare)
+	 * @returns {{damage: Decimal, health: Decimal, armor: Decimal}} Enemy stats
 	 */
 	static enemyAttributes(missionNumber, difficulty) {
 		const diffMultiplier = this.DIFFICULTY_MULTIPLIERS[difficulty];
@@ -111,10 +132,11 @@ export class Calculator {
 	}
 
 	/**
-	 * Gets the enemy team for the mission/difficulty
-	 * @param {number} missionNumber
-	 * @param {string} difficulty
-	 * @returns {object} of the enemy team
+	 * Creates an enemy team for a mission
+	 * Generates 5 identical enemies with stats for the given mission/difficulty
+	 * @param {number} missionNumber - Mission number (1-90)
+	 * @param {string} difficulty - Difficulty level
+	 * @returns {Array<{name: string, baseStats: Object, battleStats: import('./app.js').MachineStats, isDead: boolean}>} Array of 5 enemy objects
 	 */
 	static getEnemyTeamForMission(missionNumber, difficulty) {
 		const enemyTeam = [];
@@ -140,31 +162,31 @@ export class Calculator {
 	}
 
 	/**
-	 * Gets the power requirements to do the mission
-	 * @param {number} missionNumber
-	 * @param {string} difficulty
-	 * @returns {number}
+	 * Calculates required power to complete a mission
+	 * Uses difficulty-based percentage thresholds (30% for early easy, 50% for mid easy, 80% default)
+	 * @param {number} missionNumber - Mission number (1-90)
+	 * @param {string} difficulty - Difficulty level
+	 * @returns {Decimal} Required power value to clear the mission
 	 */
 	static requiredPowerForMission(missionNumber, difficulty) {
 		const enemyTeam = Calculator.getEnemyTeamForMission(missionNumber, difficulty);
 
-		// Compute enemy power
 		const enemyPower = Calculator.computeMachinePower(enemyTeam[0].battleStats).mul(5);
 
-		// Determine required percentage
-		let reqPct = 0.8; // 80%
+		let reqPct = 0.8;
 		if (difficulty === "easy") {
-			if (missionNumber <= 10) reqPct = 0.3; // 30%
-			else if (missionNumber <= 30) reqPct = 0.5; // 50%
+			if (missionNumber <= 10) reqPct = 0.3;
+			else if (missionNumber <= 30) reqPct = 0.5;
 		}
 
 		return enemyPower.mul(reqPct);
 	}
 
 	/**
-	 * Gets the summed crew bonus
-	 * @param {object} crewList
-	 * @returns {dmg, hp, arm} for the crew bonus
+	 * Computes total crew bonus from a list of heroes
+	 * Sums all hero percentage bonuses (additive)
+	 * @param {Array<import('./optimizer.js').Hero>} crewList - Array of crew members
+	 * @returns {{dmg: Decimal, hp: Decimal, arm: Decimal}} Total bonuses as decimal multipliers
 	 */
 	static computeCrewBonus(crewList) {
 		let totalDmg = new Decimal(0);
@@ -172,7 +194,6 @@ export class Calculator {
 		let totalArm = new Decimal(0);
 
 		(crewList || []).forEach((hero) => {
-			// Add bonuses if they exist and are non-zero
 			const dmgPct = hero?.percentages?.damage || 0;
 			const hpPct = hero?.percentages?.health || 0;
 			const armPct = hero?.percentages?.armor || 0;
@@ -192,16 +213,18 @@ export class Calculator {
 	}
 
 	/**
-	 * Calculates the attribute for one stat type (damage, health, armor)
-	 * @param {number} base
-	 * @param {number} levelBonus
-	 * @param {number} engineerBonus
-	 * @param {number} blueprintBonus
-	 * @param {number} rarityBonus
-	 * @param {number} sacredBonus
-	 * @param {number} inscriptionBonus
-	 * @param {number} artifactBonus
-	 * @returns {number} attribute
+	 * Calculates a single attribute with all bonuses applied
+	 * Formula: base * (1 + level) * (1 + engineer) * (1 + blueprint) * (1 + rarity) * (1 + sacred) * (1 + inscription) * (1 + artifact)
+	 * All bonuses are multiplicative
+	 * @param {number|Decimal} base - Base stat value
+	 * @param {number|Decimal} levelBonus - Level bonus multiplier (decimal, e.g., 0.5 for 50%)
+	 * @param {number|Decimal} engineerBonus - Engineer bonus multiplier
+	 * @param {number|Decimal} blueprintBonus - Blueprint bonus multiplier
+	 * @param {number|Decimal} rarityBonus - Rarity bonus multiplier
+	 * @param {number|Decimal} sacredBonus - Sacred card bonus multiplier
+	 * @param {number|Decimal} inscriptionBonus - Inscription card bonus multiplier
+	 * @param {number|Decimal} artifactBonus - Artifact bonus multiplier
+	 * @returns {Decimal} Final calculated attribute value
 	 */
 	static computeBasicAttribute(base, levelBonus, engineerBonus, blueprintBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonus) {
 		return Calculator.toDecimal(base)
@@ -215,10 +238,11 @@ export class Calculator {
 	}
 
 	/**
-	 * Calculates the
-	 * @param {array} artifactArray
-	 * @param {string} stat
-	 * @returns
+	 * Computes artifact bonus for a specific stat
+	 * Artifacts are multiplicative: (1 + pct)^quantity for each tier
+	 * @param {Array<{stat: string, values: Object.<string, number>}>} artifactArray - Array of artifact configurations
+	 * @param {string} stat - Stat type (damage, health, armor)
+	 * @returns {Decimal} Total artifact bonus as decimal multiplier (e.g., 0.5 for 50% increase)
 	 */
 	static computeArtifactBonus(artifactArray, stat) {
 		let total = new Decimal(1);
@@ -236,18 +260,26 @@ export class Calculator {
 			});
 		});
 
-		// Return as additive bonus (e.g. 0.69 = +69%)
 		return total.sub(1);
 	}
 
-	// ---------------------------
-	// Arena battle stats including crew and artifacts
-	// ---------------------------
+	/**
+	 * Calculates arena attributes with special logarithmic scaling
+	 * Arena stats use log scaling: base * (log10(battle/base) + 1)^2
+	 * Then applies Mech Fury, Scarab, and Rift bonuses (multiplicative)
+	 * @param {import('./optimizer.js').Machine} machine - Machine with battle stats already calculated
+	 * @param {number} [globalRarityLevels=0] - Sum of all rarity levels (for Mech Fury bonus)
+	 * @param {number} [scarabLevel=0] - Scarab level (affects bonus calculation)
+	 * @param {string} [riftRank=''] - Chaos Rift rank (bronze, silver, gold, pearl, sapphire, emerald, ruby, platinum, diamond)
+	 * @returns {{damage: Decimal, health: Decimal, armor: Decimal}} Arena stats
+	 */
 	static calculateArenaAttributes(machine, globalRarityLevels = 0, scarabLevel = 0, riftRank = "") {
 		const base105 = new Decimal(1.05);
 
+		// Scarab bonus: min(max(floor((scarabLevel - 3) / 2) + 1, 0) * 0.002, 1)
 		const scarabBonus = Decimal.min(Decimal.max(new Decimal(scarabLevel).sub(3).div(2).floor().add(1), 0).mul(0.002), 1);
 
+		// Rift rank bonuses (multiplicative)
 		let riftBonus = new Decimal(0);
 		switch (String(riftRank).toLowerCase()) {
 			case "sapphire":
@@ -269,6 +301,7 @@ export class Calculator {
 				riftBonus = new Decimal(0);
 		}
 
+		// Mech Fury bonus: 1.05^globalRarityLevels - 1
 		const mechFuryBonus = base105.pow(globalRarityLevels).sub(1);
 
 		const baseDamage = Calculator.toDecimal(machine.baseStats.damage);
@@ -279,10 +312,12 @@ export class Calculator {
 		const battleHealth = Calculator.toDecimal(machine.battleStats.health);
 		const battleArmor = Calculator.toDecimal(machine.battleStats.armor);
 
+		// Ratio of battle stats to base stats
 		const divDmg = battleDamage.div(baseDamage);
 		const divHp = battleHealth.div(baseHealth);
 		const divArm = battleArmor.div(baseArmor);
 
+		// Arena formula: base * (log10(ratio) + 1)^2 * bonuses
 		const arenaDmg = baseDamage.mul(Decimal.log10(divDmg).add(1).pow(2)).mul(mechFuryBonus.add(1)).mul(scarabBonus.add(1)).mul(riftBonus.add(1));
 		const arenaHp = baseHealth.mul(Decimal.log10(divHp).add(1).pow(2)).mul(mechFuryBonus.add(1)).mul(scarabBonus.add(1)).mul(riftBonus.add(1));
 		const arenaArm = baseArmor.mul(Decimal.log10(divArm).add(1).pow(2)).mul(mechFuryBonus.add(1)).mul(scarabBonus.add(1)).mul(riftBonus.add(1));
@@ -294,54 +329,61 @@ export class Calculator {
 		};
 	}
 
-	// ---------------------------
-	// Full battle stats including crew and artifacts
-	// basic attribute = base attribute * (1 + level bonus) * (1 + engineer bonus) * (1 + blueprint bonus)
-	// * (1 + rarity bonus) * (1 + sacred card bonus)  * (1 + inscription card bonus) * (1 + artifact bonus)
-	// ---------------------------
+	/**
+	 * Calculates battle attributes with all bonuses applied
+	 * Combines level, engineer, blueprint, rarity, sacred card, inscription card, artifact, and crew bonuses
+	 * Most bonuses are multiplicative; crew bonuses are additive at the end
+	 * Formula per stat: base * bonuses * (1 + crew_bonus)
+	 * @param {import('./optimizer.js').Machine} machine - Machine object with base stats
+	 * @param {Array<import('./optimizer.js').Hero>} [crewList=[]] - Array of crew members
+	 * @param {number} [globalRarityLevels=0] - Sum of all rarity levels
+	 * @param {Array<{stat: string, values: Object}>} [artifactArray=[]] - Artifact configurations
+	 * @param {number} [engineerLevel=0] - Engineer level
+	 * @returns {{damage: Decimal, health: Decimal, armor: Decimal}} Battle stats
+	 */
 	static calculateBattleAttributes(machine, crewList = [], globalRarityLevels = 0, artifactArray = [], engineerLevel = 0) {
 		const base105 = new Decimal(1.05);
 
-		// level bonus = 1.05^(war machine level – 1) - 1
+		// Level bonus: 1.05^(level - 1) - 1
 		const levelBonus = base105.pow(machine.level - 1).sub(1);
 
-		// engineer bonus = 1.05^(engineer level – 1) - 1
+		// Engineer bonus: 1.05^(engineer_level - 1) - 1
 		const engineerBonus = base105.pow(engineerLevel - 1).sub(1);
 
-		// blueprint bonus = 1.05^blueprint level - 1
+		// Blueprint bonus: 1.05^blueprint_level - 1
 		const dmgBPBonus = base105.pow(machine.blueprints.damage).sub(1);
 		const hpBPBonus = base105.pow(machine.blueprints.health).sub(1);
 		const armBPBonus = base105.pow(machine.blueprints.armor).sub(1);
 
-		// rarity bonus = 1.05^(rarity level of this machine + rarity levels of all machines) - 1
+		// Rarity bonus: 1.05^(machine_rarity + global_rarity) - 1
 		const rarityLevel = Calculator.RARITY_LEVELS[machine.rarity?.toLowerCase()] || 0;
 		const rarityBonus = base105.pow(rarityLevel + globalRarityLevels).sub(1);
 
-		// base effect = 0.05 for both
-		// card bonus = (1 + base effect)^card level - 1
+		// Card bonuses: 1.05^card_level - 1
 		const sacredBonus = base105.pow(machine.sacredLevel).sub(1);
 		const inscriptionBonus = base105.pow(machine.inscriptionLevel).sub(1);
 
-		// multiplicative
+		// Artifact bonuses (multiplicative)
 		const artifactBonusDmg = Calculator.computeArtifactBonus(artifactArray, "damage");
 		const artifactBonusHp = Calculator.computeArtifactBonus(artifactArray, "health");
 		const artifactBonusArm = Calculator.computeArtifactBonus(artifactArray, "armor");
 
-		// base Stats
+		// Base stats
 		const baseDamage = Calculator.toDecimal(machine.baseStats.damage);
 		const baseHealth = Calculator.toDecimal(machine.baseStats.health);
 		const baseArmor = Calculator.toDecimal(machine.baseStats.armor);
 
+		// Calculate basic attributes (before crew)
 		const basicDmg = Calculator.computeBasicAttribute(baseDamage, levelBonus, engineerBonus, dmgBPBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonusDmg);
 
 		const basicHp = Calculator.computeBasicAttribute(baseHealth, levelBonus, engineerBonus, hpBPBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonusHp);
 
 		const basicArm = Calculator.computeBasicAttribute(baseArmor, levelBonus, engineerBonus, armBPBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonusArm);
 
-		// additive
+		// Crew bonuses (additive)
 		const crewBonus = Calculator.computeCrewBonus(crewList);
 
-		// battle attribute = basic attribute * (1 + crew bonus)
+		// Final battle attributes: basic * (1 + crew_bonus)
 		return {
 			damage: basicDmg.mul(new Decimal(1).add(crewBonus.dmg)),
 			health: basicHp.mul(new Decimal(1).add(crewBonus.hp)),
@@ -349,10 +391,13 @@ export class Calculator {
 		};
 	}
 
-	// ---------------------------
-	// Compute machine power
-	// ((10 * dmgVal)^0.7) + ((1 * hpVal)^0.7) + ((10 * armVal)^0.7)
-	// ---------------------------
+	/**
+	 * Computes machine power for ranking/comparison
+	 * Formula: ((10 * damage)^0.7) + ((1 * health)^0.7) + ((10 * armor)^0.7)
+	 * Uses power scaling to balance stats appropriately
+	 * @param {import('./optimizer.js').MachineStats} stats - Machine stats (battle or arena)
+	 * @returns {Decimal} Total power value
+	 */
 	static computeMachinePower(stats) {
 		const dmgVal = Calculator.toDecimal(stats.damage);
 		const hpVal = Calculator.toDecimal(stats.health);
@@ -365,10 +410,12 @@ export class Calculator {
 		return dmgPower.add(hpPower).add(armPower);
 	}
 
-	// ---------------------------
-	// Squad power
-	// sum of machine power
-	// ---------------------------
+	/**
+	 * Computes total squad power (sum of all machine powers)
+	 * @param {Array<import('./optimizer.js').Machine>} [machines=[]] - Array of machines
+	 * @param {string} [mode='campaign'] - Mode to use: 'campaign' (battleStats) or 'arena' (arenaStats)
+	 * @returns {Decimal} Total squad power
+	 */
 	static computeSquadPower(machines = [], mode = "campaign") {
 		let totalPower = new Decimal(0);
 
@@ -388,9 +435,14 @@ export class Calculator {
 		return totalPower;
 	}
 
-	// ---------------------------
-	// Max crew slots
-	// ---------------------------
+	/**
+	 * Calculates maximum crew slots based on engineer level
+	 * Level 1-29: 4 slots
+	 * Level 30-59: 5 slots
+	 * Level 60+: 6 slots
+	 * @param {number} engineerLevel - Engineer level
+	 * @returns {number} Maximum crew slots (4, 5, or 6)
+	 */
 	static maxCrewSlots(engineerLevel) {
 		if (engineerLevel >= 60) return 6;
 		if (engineerLevel >= 30) return 5;

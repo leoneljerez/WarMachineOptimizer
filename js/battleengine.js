@@ -2,10 +2,32 @@
 import { Calculator } from "./calculator.js";
 import Decimal from "./vendor/break_eternity.esm.js";
 
+/**
+ * Battle simulation engine for War Machine Optimizer
+ * Handles turn-based combat between player and enemy teams
+ */
 export class BattleEngine {
+	/** @type {Decimal} */
 	static ZERO = new Decimal(0);
+
+	/** @type {number[]} Attack order for targeting (positions 0-4) */
 	static ATTACK_ORDER = [0, 1, 2, 4, 3];
 
+	/**
+	 * Runs a complete battle simulation between two teams
+	 * @param {Array<import('./app.js').Machine>} playerTeam - Player's team of machines
+	 * @param {Array<Object>} enemyTeam - Enemy team (from Calculator.getEnemyTeamForMission)
+	 * @param {number} [maxRounds=20] - Maximum number of combat rounds
+	 * @returns {{
+	 *   playerWon: boolean,
+	 *   rounds: number,
+	 *   playerTeam: Array<Object>,
+	 *   enemyTeam: Array<Object>,
+	 *   playerTotalHP: Decimal,
+	 *   enemyTotalHP: Decimal
+	 * }} Battle result
+	 * @throws {Error} If teams are invalid or missing battleStats
+	 */
 	runBattle(playerTeam, enemyTeam, maxRounds = 20) {
 		// Input validation
 		if (!Array.isArray(playerTeam) || !Array.isArray(enemyTeam)) {
@@ -19,6 +41,12 @@ export class BattleEngine {
 		const targetOrder = BattleEngine.ATTACK_ORDER;
 		const playerAttackOrder = BattleEngine.ATTACK_ORDER;
 
+		/**
+		 * Deep clones a team with proper Decimal conversion
+		 * @param {Array<Object>} team - Team to clone
+		 * @returns {Array<Object>} Cloned team
+		 * @throws {Error} If machine is missing battleStats
+		 */
 		const cloneTeam = (team) =>
 			team.map((m) => {
 				if (!m.battleStats) {
@@ -38,8 +66,18 @@ export class BattleEngine {
 		const players = cloneTeam(playerTeam);
 		const enemies = cloneTeam(enemyTeam);
 
+		/**
+		 * Checks if any team member is alive
+		 * @param {Array<Object>} team - Team to check
+		 * @returns {boolean} True if at least one member is alive
+		 */
 		const hasAlive = (team) => team.some((m) => !m.isDead);
 
+		/**
+		 * Gets next valid target based on attack order
+		 * @param {Array<Object>} team - Team to select from
+		 * @returns {Object|null} Next alive target or null
+		 */
 		const getNextTarget = (team) => {
 			for (const idx of targetOrder) {
 				if (idx < team.length && !team[idx].isDead) {
@@ -49,8 +87,18 @@ export class BattleEngine {
 			return null;
 		};
 
+		/**
+		 * Calculates total remaining HP of team
+		 * @param {Array<Object>} team - Team to calculate
+		 * @returns {Decimal} Total HP
+		 */
 		const getTotalHP = (team) => team.reduce((sum, m) => (m.isDead ? sum : sum.add(m.battleStats.health)), ZERO);
 
+		/**
+		 * Executes one attack phase for a team
+		 * @param {Array<Object>} attackers - Attacking team
+		 * @param {Array<Object>} defenders - Defending team
+		 */
 		const attackPhase = (attackers, defenders) => {
 			for (const attackerIdx of playerAttackOrder) {
 				// Stop if all defenders are dead

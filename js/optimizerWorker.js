@@ -1,6 +1,24 @@
 // optimizerWorker.js
 import { Optimizer } from "./optimizer.js";
 
+/**
+ * @typedef {Object} WorkerMessage
+ * @property {string} [mode='campaign'] - Optimization mode: 'campaign' or 'arena'
+ * @property {Array<import('./app.js').Machine>} ownedMachines - Player's machines
+ * @property {Array<import('./app.js').Hero>} ownedHeroes - Player's heroes
+ * @property {number} [maxMission=90] - Maximum mission number to test
+ * @property {number} [globalRarityLevels=0] - Sum of all machine rarity levels
+ * @property {number} [engineerLevel=0] - Engineer level
+ * @property {number} [scarabLevel=0] - Scarab level
+ * @property {Array<{stat: string, values: Object}>} [artifactArray=[]] - Artifact configurations
+ * @property {string} [riftRank=''] - Chaos Rift rank
+ */
+
+/**
+ * Web Worker message handler for optimization calculations
+ * Runs optimization in separate thread to prevent UI blocking
+ * @param {MessageEvent<WorkerMessage>} e - Worker message event
+ */
 self.onmessage = function (e) {
 	try {
 		const {
