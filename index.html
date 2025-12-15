@@ -21,9 +21,10 @@
 				transition: all 0.2s ease;
 			}
 
-      .list-group-item.active, .list-group-item.active * {
-        color: whitesmoke !important;
-      }
+			.list-group-item.active,
+			.list-group-item.active * {
+				color: whitesmoke !important;
+			}
 
 			/* Sticky optimize section gradient */
 			.optimize-section {
@@ -71,7 +72,11 @@
 
 			/* Fade-in animation */
 			.machine-detail-view,
-			.hero-detail-view {
+			.hero-detail-view,
+			.artifacts-view,
+			.tavern-view,
+			.scarab-view,
+			.results-view {
 				animation: fadeIn 0.3s ease-in;
 			}
 
@@ -220,10 +225,10 @@
 					</div>
 
 					<!-- Tavern Content -->
-					<div id="tavernCardsContainer"></div>
+					<div id="tavernCardsContainer" class="tavern-view"></div>
 
 					<!-- Scarab Content -->
-					<div id="scarabCardsContainer" class="d-none"></div>
+					<div id="scarabCardsContainer" class="d-none scarab-view"></div>
 				</section>
 
 				<!-- HEROES TAB -->
@@ -262,7 +267,7 @@
 						</div>
 						<button type="button" class="btn btn-sm btn-outline-danger" id="resetArtifacts">Reset All</button>
 					</div>
-					<div id="artifactsContainer" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3"></div>
+					<div id="artifactsContainer" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 artifacts-view"></div>
 				</section>
 
 				<!-- RESULTS TAB -->
@@ -348,22 +353,23 @@
 						<label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium">Arena Stats</label>
 					</div>
 				</div>
-
-				<div class="row g-3 justify-content-center" id="formationContainer">
-					<!-- Left Column (Positions 5, 4, 3) -->
-					<div class="col-12 col-md-auto order-2 order-md-1">
-						<div class="d-flex flex-column gap-2 left-column">
-							<div class="machine-slot card-hover" data-position="5" style="min-height: 150px"></div>
-							<div class="machine-slot card-hover" data-position="4" style="min-height: 150px"></div>
-							<div class="machine-slot card-hover" data-position="3" style="min-height: 150px"></div>
+				<div class="results-view">
+					<div class="row g-3 justify-content-center" id="formationContainer">
+						<!-- Left Column (Positions 5, 4, 3) -->
+						<div class="col-12 col-md-auto order-2 order-md-1">
+							<div class="d-flex flex-column gap-2 left-column">
+								<div class="machine-slot card-hover" data-position="5" style="min-height: 150px"></div>
+								<div class="machine-slot card-hover" data-position="4" style="min-height: 150px"></div>
+								<div class="machine-slot card-hover" data-position="3" style="min-height: 150px"></div>
+							</div>
 						</div>
-					</div>
 
-					<!-- Right Column (Positions 2, 1) -->
-					<div class="col-12 col-md-auto order-1 order-md-2">
-						<div class="d-flex flex-column gap-2 justify-content-center right-column" style="height: 100%">
-							<div class="machine-slot card-hover" data-position="2" style="min-height: 150px"></div>
-							<div class="machine-slot card-hover" data-position="1" style="min-height: 150px"></div>
+						<!-- Right Column (Positions 2, 1) -->
+						<div class="col-12 col-md-auto order-1 order-md-2">
+							<div class="d-flex flex-column gap-2 justify-content-center right-column" style="height: 100%">
+								<div class="machine-slot card-hover" data-position="2" style="min-height: 150px"></div>
+								<div class="machine-slot card-hover" data-position="1" style="min-height: 150px"></div>
+							</div>
 						</div>
 					</div>
 				</div>
