@@ -29,8 +29,13 @@
 
 			/* Sticky optimize section gradient */
 			.optimize-section {
+        transform: translateZ(0);
+        backface-visibility: hidden;
         will-change: transform;
 				background: linear-gradient(to top, var(--bs-body-bg) 80%, transparent);
+        width: 100%;
+        left: 0;
+        right: 0;
 			}
 
 			/* Mode selector custom styling */
@@ -285,26 +290,6 @@
 				</section>
 			</main>
 
-			<!-- OPTIMIZE SECTION (Sticky) -->
-			<div class="optimize-section py-4 mt-5 sticky-bottom">
-				<div class="d-flex flex-column align-items-center gap-3">
-					<div class="mode-selector gap-2 p-2 rounded-3 shadow">
-						<input type="radio" id="campaignMode" name="optimizeMode" value="campaign" checked />
-						<label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium user-select-none">Campaign</label>
-
-						<input type="radio" id="arenaMode" name="optimizeMode" value="arena" />
-						<label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium user-select-none">Arena</label>
-					</div>
-
-					<button
-						id="optimizeBtn"
-						class="btn btn-warning btn-lg fw-semibold shadow px-5 py-3"
-						style="min-width: 200px; font-size: 1.1rem; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3); transition: all 0.2s ease">
-						Optimize Formation
-					</button>
-				</div>
-			</div>
-
 			<!-- Toast Container -->
 			<div aria-live="polite" aria-atomic="true">
 				<div id="toastRoot" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
@@ -315,6 +300,26 @@
 				<small>© 2025 War Machine Optimizer</small>
 			</footer>
 		</div>
+
+        <!-- OPTIMIZE SECTION (Sticky) -->
+    <div class="optimize-section py-4 sticky-bottom">
+      <div class="d-flex flex-column align-items-center gap-3">
+        <div class="mode-selector gap-2 p-2 rounded-3 shadow">
+          <input type="radio" id="campaignMode" name="optimizeMode" value="campaign" checked />
+          <label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium user-select-none">Campaign</label>
+
+          <input type="radio" id="arenaMode" name="optimizeMode" value="arena" />
+          <label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium user-select-none">Arena</label>
+        </div>
+
+        <button
+          id="optimizeBtn"
+          class="btn btn-warning btn-lg fw-semibold shadow px-5 py-3"
+          style="min-width: 200px; font-size: 1.1rem; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3); transition: all 0.2s ease">
+          Optimize Formation
+        </button>
+      </div>
+    </div>
 
 		<!-- Templates -->
 		<template id="resultTemplate">
