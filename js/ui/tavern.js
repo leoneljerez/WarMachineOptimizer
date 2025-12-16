@@ -112,7 +112,7 @@ function createCardLevelCard(machine, cardType) {
 
 	const label = document.createElement("label");
 	label.className = "input-group-text";
-	label.textContent = "Level";
+	label.textContent = "Card Level";
 	label.htmlFor = inputId;
 
 	const input = document.createElement("input");
