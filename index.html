@@ -109,16 +109,16 @@
 					<div class="modal-content">
 						<div class="modal-header">
 							<h5 class="modal-title">Save / Load Configuration</h5>
-							<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+							<button type="button" class="btn-close user-select-none" data-bs-dismiss="modal"></button>
 						</div>
 						<div class="modal-body">
 							<p class="text-secondary small">Click <strong>Save</strong> to generate JSON, then copy it. Paste saved JSON here and click <strong>Load</strong> to restore.</p>
 							<textarea id="saveLoadBox" class="form-control font-monospace" rows="12" placeholder="generate a save or insert one here..."></textarea>
 						</div>
 						<div class="modal-footer">
-							<button id="saveBtn" type="button" class="btn btn-success">Save</button>
-							<button id="loadBtn" type="button" class="btn btn-primary">Load</button>
-							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+							<button id="saveBtn" type="button" class="btn btn-success user-select-none">Save</button>
+							<button id="loadBtn" type="button" class="btn btn-primary user-select-none">Load</button>
+							<button type="button" class="btn btn-secondary user-select-none" data-bs-dismiss="modal">Close</button>
 						</div>
 					</div>
 				</div>
@@ -128,19 +128,19 @@
 			<nav class="navbar mt-3">
 				<ul class="nav nav-tabs w-100 justify-content-center gap-2 p-2 rounded-3 bg-body-tertiary bg-opacity-25" id="wmTabs">
 					<li class="nav-item">
-						<a class="nav-link active px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#machinesTab">Machines</a>
+						<a class="nav-link active px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#machinesTab">Machines</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#tavernTab">Tavern</a>
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#tavernTab">Tavern</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#heroesTab">Heroes</a>
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#heroesTab">Heroes</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#artifactsTab">Artifacts</a>
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#artifactsTab">Artifacts</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link px-3 py-2 fw-semibold rounded-2" data-bs-toggle="tab" href="#resultsTab">Results</a>
+						<a class="nav-link px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#resultsTab">Results</a>
 					</li>
 				</ul>
 			</nav>
@@ -217,10 +217,10 @@
 					<div class="d-flex justify-content-center mb-4">
 						<div class="mode-selector gap-2 p-2 rounded-3">
 							<input type="radio" id="tavernSubTab" name="tavernMode" value="tavern" checked />
-							<label for="tavernSubTab" class="px-4 py-2 rounded-2 fw-medium">Tavern (Sacred Cards)</label>
+							<label for="tavernSubTab" class="px-4 py-2 rounded-2 fw-medium user-select-none">Tavern (Sacred Cards)</label>
 
 							<input type="radio" id="scarabSubTab" name="tavernMode" value="scarab" />
-							<label for="scarabSubTab" class="px-4 py-2 rounded-2 fw-medium">Scarab's Game (Inscription Cards)</label>
+							<label for="scarabSubTab" class="px-4 py-2 rounded-2 fw-medium user-select-none">Scarab's Game (Inscription Cards)</label>
 						</div>
 					</div>
 
@@ -288,10 +288,10 @@
 				<div class="d-flex flex-column align-items-center gap-3">
 					<div class="mode-selector gap-2 p-2 rounded-3">
 						<input type="radio" id="campaignMode" name="optimizeMode" value="campaign" checked />
-						<label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium">Campaign</label>
+						<label for="campaignMode" class="px-4 py-2 rounded-2 fw-medium user-select-none">Campaign</label>
 
 						<input type="radio" id="arenaMode" name="optimizeMode" value="arena" />
-						<label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium">Arena</label>
+						<label for="arenaMode" class="px-4 py-2 rounded-2 fw-medium user-select-none">Arena</label>
 					</div>
 
 					<button
@@ -348,9 +348,9 @@
 					<h5 class="mb-0">Formation</h5>
 					<div class="mode-selector gap-2 p-2 rounded-3" id="statsToggle">
 						<input type="radio" id="battleStats" name="statsMode" value="battle" checked />
-						<label for="battleStats" class="px-4 py-2 rounded-2 fw-medium">Battle Stats</label>
+						<label for="battleStats" class="px-4 py-2 rounded-2 fw-medium user-select-none">Battle Stats</label>
 						<input type="radio" id="arenaStats" name="statsMode" value="arena" />
-						<label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium">Arena Stats</label>
+						<label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium user-select-none">Arena Stats</label>
 					</div>
 				</div>
 				<div class="results-view">
