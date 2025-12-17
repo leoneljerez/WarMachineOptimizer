@@ -5,67 +5,48 @@
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function renderTavernCards(machines) {
-	const tavernContainer = document.getElementById("tavernCardsContainer");
-	const scarabContainer = document.getElementById("scarabCardsContainer");
+	const sections = [
+		{
+			containerId: "tavernCardsContainer",
+			type: "sacred",
+			resetText: "Reset All Sacred Cards",
+			property: "sacredLevel",
+		},
+		{
+			containerId: "scarabCardsContainer",
+			type: "inscription",
+			resetText: "Reset All Inscription Cards",
+			property: "inscriptionLevel",
+		},
+	];
 
-	tavernContainer.replaceChildren();
-	scarabContainer.replaceChildren();
+	const sortedMachines = machines.toSorted((a, b) => a.name.localeCompare(b.name));
 
-	const sortedMachines = Iterator.from(machines)
-		.toArray()
-		.toSorted((a, b) => a.name.localeCompare(b.name));
+	sections.forEach(({ containerId, type, resetText, property }) => {
+		const container = document.getElementById(containerId);
+		container.replaceChildren();
 
-	// Build Tavern section
-	const tavernResetBtn = createResetButton("Reset All Sacred Cards", () => {
-		if (confirm("Reset all Sacred Card levels to 0?")) {
-			Iterator.from(machines).forEach((machine) => (machine.sacredLevel = 0));
-			renderTavernCards(machines);
-		}
-	});
+		const resetBtn = createResetButton(resetText, () => {
+			if (confirm(`${resetText} to 0?`)) {
+				machines.forEach((m) => (m[property] = 0));
+				renderTavernCards(machines);
+			}
+		});
 
-	const tavernGrid = document.createElement("div");
-	tavernGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 tavern-view";
+		const grid = document.createElement("div");
+		grid.className = `row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 ${type}-view`;
 
-	const tavernFragment = document.createDocumentFragment();
-	Iterator.from(sortedMachines)
-		.map((machine) => {
+		const fragment = document.createDocumentFragment();
+		sortedMachines.forEach((machine) => {
 			const col = document.createElement("div");
 			col.className = "col";
-			const card = createCardLevelCard(machine, "sacred");
-			col.appendChild(card);
-			return col;
-		})
-		.forEach((col) => tavernFragment.appendChild(col));
-	tavernGrid.appendChild(tavernFragment);
+			col.appendChild(createCardLevelCard(machine, type));
+			fragment.appendChild(col);
+		});
+		grid.appendChild(fragment);
 
-	tavernContainer.appendChild(tavernResetBtn);
-	tavernContainer.appendChild(tavernGrid);
-
-	// Build Scarab section
-	const scarabResetBtn = createResetButton("Reset All Inscription Cards", () => {
-		if (confirm("Reset all Inscription Card levels to 0?")) {
-			Iterator.from(machines).forEach((machine) => (machine.sacredLevel = 0));
-			renderTavernCards(machines);
-		}
+		container.append(resetBtn, grid);
 	});
-
-	const scarabGrid = document.createElement("div");
-	scarabGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 scarab-view";
-
-	const scarabFragment = document.createDocumentFragment();
-    Iterator.from(sortedMachines)
-		.map((machine) => {
-			const col = document.createElement("div");
-			col.className = "col";
-			const card = createCardLevelCard(machine, "inscription");
-			col.appendChild(card);
-			return col;
-		})
-		.forEach((col) => scarabFragment.appendChild(col));
-	scarabGrid.appendChild(scarabFragment);
-
-	scarabContainer.appendChild(scarabResetBtn);
-	scarabContainer.appendChild(scarabGrid);
 }
 
 /**
