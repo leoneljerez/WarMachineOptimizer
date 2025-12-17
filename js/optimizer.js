@@ -340,23 +340,16 @@ export class Optimizer {
 
 				if (ourPower.lt(requiredPower.mul(POWER_THRESHOLD))) break;
 
-				const battleTeam = arrangedTeam.map((m) => ({
-					...m,
-					crew: [...m.crew],
-					battleStats: {
-						damage: Calculator.toDecimal(m.battleStats.damage),
-						health: Calculator.toDecimal(m.battleStats.health),
-						maxHealth: Calculator.toDecimal(m.battleStats.maxHealth),
-						armor: Calculator.toDecimal(m.battleStats.armor),
-					},
-				}));
-
-				const result = this.battleEngine.runBattle(battleTeam, enemyFormation, MAX_ROUNDS);
+				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, MAX_ROUNDS);
 
 				if (result.playerWon) {
 					totalStars++;
 					if (difficulty === "easy") lastCleared = mission;
-					lastWinningTeam = arrangedTeam.map((m) => ({ ...m }));
+
+					lastWinningTeam = arrangedTeam.map((m) => ({
+						...m,
+						crew: [...m.crew],
+					}));
 				} else {
 					break;
 				}
