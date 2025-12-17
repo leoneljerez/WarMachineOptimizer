@@ -18,6 +18,9 @@ import Decimal from "../vendor/break_eternity.esm.js";
  * @property {string} mode
  */
 
+// Use WeakMap to avoid memory leaks from direct property assignment
+const machineCardRegistry = new WeakMap();
+
 /**
  * Converts a serialized Decimal to a Decimal instance
  * @param {SerializedDecimal} serialized - Serialized decimal object
@@ -45,7 +48,7 @@ function formatPower(decimal) {
  * @param {string} mode - "battle" or "arena"
  */
 function updateMachineStats(card, mode) {
-	const machine = card.__machine;
+	const machine = machineCardRegistry.get(card);
 	if (!machine) return;
 
 	const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
@@ -80,7 +83,8 @@ function createMachineCard(machine, machineTemplate) {
 	const clone = machineTemplate.content.cloneNode(true);
 	const card = clone.querySelector(".machine-card");
 
-	card.__machine = machine;
+	// Use WeakMap to track machine data without direct property assignment
+	machineCardRegistry.set(card, machine);
 
 	const img = clone.querySelector(".machine-image");
 	img.src = machine.image || "placeholder.png";
@@ -91,15 +95,33 @@ function createMachineCard(machine, machineTemplate) {
 	updateMachineStats(card, "battle");
 
 	const crewDiv = clone.querySelector(".crew");
-	const fragment = document.createDocumentFragment();
+	const crewFragment = document.createDocumentFragment();
 
-	Object.values(machine.crew).forEach((hero) => {
-		fragment.appendChild(createCrewImage(hero));
+	machine.crew.forEach((hero) => {
+		crewFragment.appendChild(createCrewImage(hero));
 	});
 
-	crewDiv.appendChild(fragment);
+	crewDiv.appendChild(crewFragment);
 
 	return clone;
+}
+
+/**
+ * Cleans up old machine cards and event listeners to prevent memory leaks
+ * @param {HTMLElement} container - Results container element
+ */
+function cleanupResults(container) {
+	// Abort any existing event listeners
+	if (container.__statsController) {
+		container.__statsController.abort();
+		container.__statsController = null;
+	}
+
+	// Clean up WeakMap references for old machine cards
+	const oldCards = container.querySelectorAll(".machine-card");
+	oldCards.forEach((card) => {
+		machineCardRegistry.delete(card);
+	});
 }
 
 /**
@@ -112,10 +134,6 @@ function setupStatsToggle(result, container) {
 	if (!toggle) return;
 
 	const controller = new AbortController();
-
-	if (container.__statsController) {
-		container.__statsController.abort();
-	}
 	container.__statsController = controller;
 
 	toggle.addEventListener(
@@ -123,10 +141,12 @@ function setupStatsToggle(result, container) {
 		(e) => {
 			const mode = e.target.value;
 
+			// Update all machine card stats
 			document.querySelectorAll(".machine-card").forEach((card) => {
 				updateMachineStats(card, mode);
 			});
 
+			// Update power display
 			const power = mode === "arena" ? result.arenaPower : result.battlePower;
 			const title = mode === "arena" ? "Arena Power:" : "Battle Power:";
 
@@ -145,11 +165,10 @@ function setupStatsToggle(result, container) {
 export function renderResults(result, optimizeMode = "campaign") {
 	const container = document.getElementById("resultsContainer");
 
-	if (container.__statsController) {
-		container.__statsController.abort();
-		container.__statsController = null;
-	}
+	// Clean up old results and event listeners
+	cleanupResults(container);
 
+	// Clear container
 	container.replaceChildren();
 
 	if (!result) {
@@ -163,12 +182,14 @@ export function renderResults(result, optimizeMode = "campaign") {
 	const template = document.getElementById("resultTemplate");
 	const clone = template.content.cloneNode(true);
 
+	// Set power display based on mode
 	const initialPower = optimizeMode === "arena" ? result.arenaPower : result.battlePower;
 	const initialTitle = optimizeMode === "arena" ? "Arena Power:" : "Battle Power:";
 
 	clone.querySelector(".powerResult").textContent = formatPower(initialPower);
 	clone.querySelector(".powerTitle").textContent = initialTitle;
 
+	// Set stars and mission display
 	if (optimizeMode === "campaign") {
 		clone.querySelector(".totalStars").textContent = result.totalStars || 0;
 		clone.querySelector(".lastCleared").textContent = result.lastCleared || 0;
@@ -177,6 +198,7 @@ export function renderResults(result, optimizeMode = "campaign") {
 		clone.querySelector(".lastCleared").textContent = "N/A";
 	}
 
+	// Set initial radio button state
 	const battleRadio = clone.querySelector("#battleStats");
 	const arenaRadio = clone.querySelector("#arenaStats");
 
@@ -188,28 +210,37 @@ export function renderResults(result, optimizeMode = "campaign") {
 		arenaRadio.checked = false;
 	}
 
+	// Build position map for formation slots
 	const slots = clone.querySelectorAll(".machine-slot[data-position]");
-	const positionMap = {};
+	const positionMap = new Map();
 	slots.forEach((slot) => {
 		const position = slot.getAttribute("data-position");
-		positionMap[position] = slot;
+		positionMap.set(position, slot);
 	});
 
 	const machineTemplate = document.getElementById("machineTemplate");
 
+	// Populate formation slots with machine cards
+	// Note: We're appending to slots within the clone DocumentFragment,
+	// so all DOM manipulations happen before the single insert to container
 	result.formation.forEach((machine, index) => {
-		const slot = positionMap[index + 1];
+		const position = String(index + 1);
+		const slot = positionMap.get(position);
 		if (!slot) return;
 
 		const machineCard = createMachineCard(machine, machineTemplate);
 		slot.appendChild(machineCard);
 	});
 
+	// Single DOM insertion - everything was built in the fragment
 	container.appendChild(clone);
 
+	// Update all machine cards to show correct initial stats
+	const initialMode = optimizeMode === "arena" ? "arena" : "battle";
 	document.querySelectorAll(".machine-card").forEach((card) => {
-		updateMachineStats(card, optimizeMode === "arena" ? "arena" : "battle");
+		updateMachineStats(card, initialMode);
 	});
 
+	// Set up stats toggle event listener
 	setupStatsToggle(result, container);
 }
