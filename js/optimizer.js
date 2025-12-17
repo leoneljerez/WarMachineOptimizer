@@ -234,15 +234,16 @@ export class Optimizer {
 	selectBestFive(optimizedMachines, mode = "campaign") {
 		if (optimizedMachines.length === 0) return [];
 
-		const sorted = optimizedMachines
+		return Iterator.from(optimizedMachines)
 			.map((m) => {
 				const stats = mode === "arena" ? m.arenaStats : m.battleStats;
 				const power = Calculator.computeMachinePower(stats);
 				return { machine: m, power };
 			})
-			.toSorted((a, b) => b.power.cmp(a.power));
-
-		return sorted.slice(0, Math.min(5, sorted.length)).map((x) => x.machine);
+			.toArray()
+			.toSorted((a, b) => b.power.cmp(a.power))
+			.slice(0, 5)
+			.map((x) => x.machine);
 	}
 
 	/**
@@ -259,13 +260,19 @@ export class Optimizer {
 
 		const enemyStats = Calculator.enemyAttributes(mission, difficulty);
 
-		const grouped = Object.groupBy(team, (machine) => {
-			const dmgTaken = Calculator.computeDamageTaken(machine.battleStats.damage, enemyStats.armor);
-
-			if (dmgTaken.eq(0)) return "useless";
-			if (machine.role === "tank") return "tank";
-			return "remaining";
-		});
+		const grouped = Iterator.from(team)
+			.map((machine) => {
+				const dmgTaken = Calculator.computeDamageTaken(machine.battleStats.damage, enemyStats.armor);
+				return {
+					machine,
+					category: dmgTaken.eq(0) ? "useless" : machine.role === "tank" ? "tank" : "remaining",
+				};
+			})
+			.reduce((acc, item) => {
+				if (!acc[item.category]) acc[item.category] = [];
+				acc[item.category].push(item.machine);
+				return acc;
+			}, {});
 
 		const useless = grouped.useless ?? [];
 		const tanks = grouped.tank ?? [];

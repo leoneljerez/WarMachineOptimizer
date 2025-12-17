@@ -13,13 +13,15 @@ export function renderArtifacts(artifacts) {
 
 	const fragment = document.createDocumentFragment();
 
-	stats.forEach((stat) => {
-		const col = document.createElement("div");
-		col.className = "col";
-		const card = createArtifactCard(stat, percentages, artifacts);
-		col.appendChild(card);
-		fragment.appendChild(col);
-	});
+	Iterator.from(stats)
+		.map((stat) => {
+			const col = document.createElement("div");
+			col.className = "col";
+			const card = createArtifactCard(stat, percentages, artifacts);
+			col.appendChild(card);
+			return col;
+		})
+		.forEach((col) => fragment.appendChild(col));
 
 	container.appendChild(fragment);
 }
@@ -46,7 +48,7 @@ function createArtifactCard(stat, percentages, artifacts) {
 	title.className = "card-title mb-0 text-capitalize";
 	title.textContent = stat;
 
-	const total = Object.values(artifacts[stat]).reduce((sum, val) => sum + val, 0);
+	const total = Iterator.from(Object.values(artifacts[stat])).reduce((sum, val) => sum + val, 0);
 	const totalBadge = document.createElement("span");
 	totalBadge.className = "badge bg-primary";
 	totalBadge.textContent = `Total: ${total}`;
@@ -57,6 +59,30 @@ function createArtifactCard(stat, percentages, artifacts) {
 	// Input grid: two columns
 	const grid = document.createElement("div");
 	grid.className = "row g-2";
+
+  /*
+	 * ES2025+ ITERATOR HELPERS with Iterator.range (Stage 3 - Not Stage 4 Yet)
+	 * Once Iterator.range reaches Stage 4 (estimated ES2026/2027), replace with:
+	 * 
+	 * Iterator.from(percentages)
+	 *     .map(pct => {
+	 *         const col = document.createElement("div");
+	 *         col.className = "col-6";
+	 *         
+	 *         const inputGroup = document.createElement("div");
+	 *         inputGroup.className = "input-group input-group-sm";
+	 *         
+	 *         // ... create label and input ...
+	 *         
+	 *         col.appendChild(inputGroup);
+	 *         return col;
+	 *     })
+	 *     .forEach(col => grid.appendChild(col));
+	 * 
+	 * Benefits:
+	 * - Cleaner pipeline for DOM creation
+	 * - More functional and testable
+	 */
 
 	percentages.forEach((pct) => {
 		const col = document.createElement("div");
@@ -85,7 +111,7 @@ function createArtifactCard(stat, percentages, artifacts) {
 			const val = parseInt(e.target.value, 10);
 			artifacts[stat][pct] = isNaN(val) ? 0 : Math.max(0, val);
 
-			const newTotal = Object.values(artifacts[stat]).reduce((sum, v) => sum + v, 0);
+			const newTotal = Iterator.from(Object.values(artifacts[stat])).reduce((sum, v) => sum + v, 0);
 			totalBadge.textContent = `Total: ${newTotal}`;
 		});
 

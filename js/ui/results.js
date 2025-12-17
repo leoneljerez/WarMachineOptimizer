@@ -223,23 +223,21 @@ export function renderResults(result, optimizeMode = "campaign") {
 	// Populate formation slots with machine cards
 	// Note: We're appending to slots within the clone DocumentFragment,
 	// so all DOM manipulations happen before the single insert to container
-	result.formation.forEach((machine, index) => {
-		const position = String(index + 1);
-		const slot = positionMap.get(position);
-		if (!slot) return;
-
-		const machineCard = createMachineCard(machine, machineTemplate);
-		slot.appendChild(machineCard);
-	});
+	Iterator.from(result.formation)
+		.map((machine, index) => ({ machine, position: String(index + 1) }))
+		.filter(({ position }) => positionMap.has(position))
+		.forEach(({ machine, position }) => {
+			const slot = positionMap.get(position);
+			const machineCard = createMachineCard(machine, machineTemplate);
+			slot.appendChild(machineCard);
+		});
 
 	// Single DOM insertion - everything was built in the fragment
 	container.appendChild(clone);
 
 	// Update all machine cards to show correct initial stats
 	const initialMode = optimizeMode === "arena" ? "arena" : "battle";
-	document.querySelectorAll(".machine-card").forEach((card) => {
-		updateMachineStats(card, initialMode);
-	});
+	Iterator.from(document.querySelectorAll(".machine-card")).forEach((card) => updateMachineStats(card, initialMode));
 
 	// Set up stats toggle event listener
 	setupStatsToggle(result, container);

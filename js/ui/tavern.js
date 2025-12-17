@@ -11,12 +11,14 @@ export function renderTavernCards(machines) {
 	tavernContainer.replaceChildren();
 	scarabContainer.replaceChildren();
 
-	const sortedMachines = machines.toSorted((a, b) => a.name.localeCompare(b.name));
+	const sortedMachines = Iterator.from(machines)
+		.toArray()
+		.toSorted((a, b) => a.name.localeCompare(b.name));
 
 	// Build Tavern section
 	const tavernResetBtn = createResetButton("Reset All Sacred Cards", () => {
 		if (confirm("Reset all Sacred Card levels to 0?")) {
-			machines.forEach((machine) => (machine.sacredLevel = 0));
+			Iterator.from(machines).forEach((machine) => (machine.sacredLevel = 0));
 			renderTavernCards(machines);
 		}
 	});
@@ -25,22 +27,24 @@ export function renderTavernCards(machines) {
 	tavernGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 tavern-view";
 
 	const tavernFragment = document.createDocumentFragment();
-	sortedMachines.forEach((machine) => {
-		const col = document.createElement("div");
-		col.className = "col";
-		const card = createCardLevelCard(machine, "sacred");
-		col.appendChild(card);
-		tavernFragment.appendChild(col);
-	});
+	Iterator.from(sortedMachines)
+		.map((machine) => {
+			const col = document.createElement("div");
+			col.className = "col";
+			const card = createCardLevelCard(machine, "sacred");
+			col.appendChild(card);
+			return col;
+		})
+		.forEach((col) => tavernFragment.appendChild(col));
 	tavernGrid.appendChild(tavernFragment);
-    
+
 	tavernContainer.appendChild(tavernResetBtn);
 	tavernContainer.appendChild(tavernGrid);
 
 	// Build Scarab section
 	const scarabResetBtn = createResetButton("Reset All Inscription Cards", () => {
 		if (confirm("Reset all Inscription Card levels to 0?")) {
-			machines.forEach((machine) => (machine.inscriptionLevel = 0));
+			Iterator.from(machines).forEach((machine) => (machine.sacredLevel = 0));
 			renderTavernCards(machines);
 		}
 	});
@@ -49,13 +53,15 @@ export function renderTavernCards(machines) {
 	scarabGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 scarab-view";
 
 	const scarabFragment = document.createDocumentFragment();
-	sortedMachines.forEach((machine) => {
-		const col = document.createElement("div");
-		col.className = "col";
-		const card = createCardLevelCard(machine, "inscription");
-		col.appendChild(card);
-		scarabFragment.appendChild(col);
-	});
+    Iterator.from(sortedMachines)
+		.map((machine) => {
+			const col = document.createElement("div");
+			col.className = "col";
+			const card = createCardLevelCard(machine, "inscription");
+			col.appendChild(card);
+			return col;
+		})
+		.forEach((col) => scarabFragment.appendChild(col));
 	scarabGrid.appendChild(scarabFragment);
 
 	scarabContainer.appendChild(scarabResetBtn);
