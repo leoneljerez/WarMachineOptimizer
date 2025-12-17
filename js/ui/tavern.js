@@ -22,7 +22,7 @@ export function renderTavernCards(machines) {
 	});
 
 	const tavernGrid = document.createElement("div");
-	tavernGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3";
+	tavernGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 tavern-view";
 
 	const tavernFragment = document.createDocumentFragment();
 	sortedMachines.forEach((machine) => {
@@ -33,7 +33,7 @@ export function renderTavernCards(machines) {
 		tavernFragment.appendChild(col);
 	});
 	tavernGrid.appendChild(tavernFragment);
-
+    
 	tavernContainer.appendChild(tavernResetBtn);
 	tavernContainer.appendChild(tavernGrid);
 
@@ -46,7 +46,7 @@ export function renderTavernCards(machines) {
 	});
 
 	const scarabGrid = document.createElement("div");
-	scarabGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3";
+	scarabGrid.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 scarab-view";
 
 	const scarabFragment = document.createDocumentFragment();
 	sortedMachines.forEach((machine) => {

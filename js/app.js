@@ -207,6 +207,37 @@ function switchToResultsTab() {
 }
 
 // ---------------------------
+// Validation
+// ---------------------------
+
+/**
+ * Validates that the user has configured at least some data before optimization
+ * @returns {{valid: boolean, message: string}} Validation result
+ */
+function validateOptimizationInputs() {
+	const ownedMachines = getOwnedMachines();
+	const ownedHeroes = getOwnedHeroes();
+
+	// Check if user has any machines configured
+	if (ownedMachines.length === 0) {
+		return {
+			valid: false,
+			message: "Please configure at least one machine before optimizing. Set its level, rarity, or blueprints in the Machines tab.",
+		};
+	}
+
+	// Check if user has any heroes configured
+	if (ownedHeroes.length === 0) {
+		return {
+			valid: false,
+			message: "Please configure at least one hero before optimizing. Set percentage bonuses in the Heroes tab.",
+		};
+	}
+
+	return { valid: true, message: "" };
+}
+
+// ---------------------------
 // Optimize
 // ---------------------------
 
@@ -248,6 +279,13 @@ function getArtifactArray() {
  * Runs the optimization in a web worker
  */
 function runOptimization() {
+	// Validate inputs before starting
+	const validation = validateOptimizationInputs();
+	if (!validation.valid) {
+		showToast(validation.message, "warning");
+		return;
+	}
+
 	setLoading(true);
 
 	const ownedMachines = getOwnedMachines();
