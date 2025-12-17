@@ -138,28 +138,25 @@ export class Calculator {
 	 * @param {string} difficulty - Difficulty level
 	 * @returns {Array<{name: string, baseStats: Object, battleStats: import('./app.js').MachineStats, isDead: boolean}>} Array of 5 enemy objects
 	 */
-	static getEnemyTeamForMission(missionNumber, difficulty) {
-		const enemyTeam = [];
-		for (let i = 0; i < 5; i++) {
-			const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty);
-			enemyTeam.push({
-				name: `Enemy${i + 1}`,
-				baseStats: {
-					damage: enemyStats.damage,
-					health: enemyStats.health,
-					armor: enemyStats.armor,
-				},
-				battleStats: {
-					damage: enemyStats.damage,
-					health: enemyStats.health,
-					maxHealth: enemyStats.health,
-					armor: enemyStats.armor,
-				},
-				isDead: false,
-			});
-		}
-		return enemyTeam;
-	}
+static getEnemyTeamForMission(missionNumber, difficulty) {
+    const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty);
+    
+    return Array.from({ length: 5 }, (_, i) => ({
+        name: `Enemy${i + 1}`,
+        baseStats: {
+            damage: enemyStats.damage,
+            health: enemyStats.health,
+            armor: enemyStats.armor,
+        },
+        battleStats: {
+            damage: enemyStats.damage,
+            health: enemyStats.health,
+            maxHealth: enemyStats.health,
+            armor: enemyStats.armor,
+        },
+        isDead: false,
+    }));
+}
 
 	/**
 	 * Calculates required power to complete a mission
