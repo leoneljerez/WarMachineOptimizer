@@ -85,10 +85,12 @@ export class Calculator {
 	 * @returns {number} Sum of all rarity levels
 	 */
 	static getGlobalRarityLevels(ownedMachines) {
-		return ownedMachines.reduce((sum, machine) => {
-			const rarity = machine.rarity?.toLowerCase() ?? "common";
-			return sum + (Calculator.RARITY_LEVELS[rarity] ?? 0);
-		}, 0);
+		return Iterator.from(ownedMachines)
+			.map((machine) => {
+				const rarity = machine.rarity?.toLowerCase() ?? "common";
+				return Calculator.RARITY_LEVELS[rarity] ?? 0;
+			})
+			.reduce((sum, level) => sum + level, 0);
 	}
 
 	/**
@@ -138,25 +140,56 @@ export class Calculator {
 	 * @param {string} difficulty - Difficulty level
 	 * @returns {Array<{name: string, baseStats: Object, battleStats: import('./app.js').MachineStats, isDead: boolean}>} Array of 5 enemy objects
 	 */
-static getEnemyTeamForMission(missionNumber, difficulty) {
-    const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty);
-    
-    return Array.from({ length: 5 }, (_, i) => ({
-        name: `Enemy${i + 1}`,
-        baseStats: {
-            damage: enemyStats.damage,
-            health: enemyStats.health,
-            armor: enemyStats.armor,
-        },
-        battleStats: {
-            damage: enemyStats.damage,
-            health: enemyStats.health,
-            maxHealth: enemyStats.health,
-            armor: enemyStats.armor,
-        },
-        isDead: false,
-    }));
-}
+	static getEnemyTeamForMission(missionNumber, difficulty) {
+		const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty);
+
+		/*
+		 * ES2025+ ITERATOR HELPERS (Stage 4 - Production Ready)
+		 * Once browser support reaches 95%+ (estimated Q2 2026), replace with:
+		 *
+		 * return Iterator.range(0, 5)
+		 *     .map(i => ({
+		 *         name: `Enemy${i + 1}`,
+		 *         baseStats: {
+		 *             damage: enemyStats.damage,
+		 *             health: enemyStats.health,
+		 *             armor: enemyStats.armor,
+		 *         },
+		 *         battleStats: {
+		 *             damage: enemyStats.damage,
+		 *             health: enemyStats.health,
+		 *             maxHealth: enemyStats.health,
+		 *             armor: enemyStats.armor,
+		 *         },
+		 *         isDead: false,
+		 *     }))
+		 *     .toArray();
+		 *
+		 * Benefits:
+		 * - Iterator.range is built-in (no Array.from)
+		 * - More declarative
+		 * - Slightly more performant
+		 *
+		 * Note: Iterator.range is Stage 3 (not yet Stage 4)
+		 * Expected in ES2026 or ES2027
+		 */
+
+		return Array.from({ length: 5 }, (_, i) => ({
+			name: `Enemy${i + 1}`,
+			baseStats: {
+				damage: enemyStats.damage,
+				health: enemyStats.health,
+				armor: enemyStats.armor,
+			},
+			battleStats: {
+				damage: enemyStats.damage,
+				health: enemyStats.health,
+				maxHealth: enemyStats.health,
+				armor: enemyStats.armor,
+			},
+			isDead: false,
+		}));
+	}
 
 	/**
 	 * Calculates required power to complete a mission
@@ -186,27 +219,24 @@ static getEnemyTeamForMission(missionNumber, difficulty) {
 	 * @returns {{dmg: Decimal, hp: Decimal, arm: Decimal}} Total bonuses as decimal multipliers
 	 */
 	static computeCrewBonus(crewList) {
-		let totalDmg = new Decimal(0);
-		let totalHp = new Decimal(0);
-		let totalArm = new Decimal(0);
+		const bonuses = Iterator.from(crewList ?? [])
+			.filter((hero) => hero?.percentages)
+			.reduce(
+				(acc, hero) => {
+					const dmgPct = hero.percentages.damage || 0;
+					const hpPct = hero.percentages.health || 0;
+					const armPct = hero.percentages.armor || 0;
 
-		(crewList || []).forEach((hero) => {
-			const dmgPct = hero?.percentages?.damage || 0;
-			const hpPct = hero?.percentages?.health || 0;
-			const armPct = hero?.percentages?.armor || 0;
+					return {
+						dmg: acc.dmg.add(dmgPct > 0 ? dmgPct / 100 : 0),
+						hp: acc.hp.add(hpPct > 0 ? hpPct / 100 : 0),
+						arm: acc.arm.add(armPct > 0 ? armPct / 100 : 0),
+					};
+				},
+				{ dmg: new Decimal(0), hp: new Decimal(0), arm: new Decimal(0) }
+			);
 
-			if (dmgPct > 0) {
-				totalDmg = totalDmg.add(dmgPct / 100);
-			}
-			if (hpPct > 0) {
-				totalHp = totalHp.add(hpPct / 100);
-			}
-			if (armPct > 0) {
-				totalArm = totalArm.add(armPct / 100);
-			}
-		});
-
-		return { dmg: totalDmg, hp: totalHp, arm: totalArm };
+		return bonuses;
 	}
 
 	/**
@@ -242,22 +272,16 @@ static getEnemyTeamForMission(missionNumber, difficulty) {
 	 * @returns {Decimal} Total artifact bonus as decimal multiplier (e.g., 0.5 for 50% increase)
 	 */
 	static computeArtifactBonus(artifactArray, stat) {
-		let total = new Decimal(1);
-
-		(artifactArray || []).forEach((a) => {
-			if (a.stat !== stat || !a.values) return;
-
-			Object.entries(a.values).forEach(([percentStr, quantity]) => {
-				if (!quantity || quantity <= 0) return;
-
+		return Iterator.from(artifactArray ?? [])
+			.filter((a) => a.stat === stat && a.values)
+			.flatMap((a) => Object.entries(a.values))
+			.filter(([, quantity]) => quantity && quantity > 0)
+			.map(([percentStr, quantity]) => {
 				const percent = Number(percentStr);
-				const mult = new Decimal(1).add(percent / 100).pow(quantity);
-
-				total = total.mul(mult);
-			});
-		});
-
-		return total.sub(1);
+				return new Decimal(1).add(percent / 100).pow(quantity);
+			})
+			.reduce((total, mult) => total.mul(mult), new Decimal(1))
+			.sub(1);
 	}
 
 	/**
@@ -275,6 +299,29 @@ static getEnemyTeamForMission(missionNumber, difficulty) {
 
 		// Scarab bonus: min(max(floor((scarabLevel - 3) / 2) + 1, 0) * 0.002, 1)
 		const scarabBonus = Decimal.min(Decimal.max(new Decimal(scarabLevel).sub(3).div(2).floor().add(1), 0).mul(0.002), 1);
+
+		/*
+		 * ES2025+ PATTERN MATCHING (Stage 1 - Not Ready Yet)
+		 * This is a future Stage 1 proposal. DO NOT USE YET.
+		 * Estimated availability: ES2028-2029
+		 *
+		 * Once pattern matching reaches Stage 4, replace switch with:
+		 *
+		 * const riftBonus = match (String(riftRank).toLowerCase()) {
+		 *     when "sapphire" -> new Decimal(0.01),
+		 *     when "emerald" -> new Decimal(0.02),
+		 *     when "ruby" -> new Decimal(0.03),
+		 *     when "platinum" -> new Decimal(0.04),
+		 *     when "diamond" -> new Decimal(0.05),
+		 *     default -> new Decimal(0)
+		 * };
+		 *
+		 * Benefits:
+		 * - Expression instead of statement
+		 * - No fall-through bugs
+		 * - More concise
+		 * - Better type inference (with TypeScript)
+		 */
 
 		// Rift rank bonuses (multiplicative)
 		let riftBonus = new Decimal(0);
@@ -414,22 +461,18 @@ static getEnemyTeamForMission(missionNumber, difficulty) {
 	 * @returns {Decimal} Total squad power
 	 */
 	static computeSquadPower(machines = [], mode = "campaign") {
-		let totalPower = new Decimal(0);
+		//let totalPower = new Decimal(0);
 
-		for (const machine of machines) {
-			// Use the appropriate stats based on mode
-			const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
-
-			if (!stats) {
-				console.warn(`Machine missing ${mode}Stats:`, machine.name);
-				continue;
-			}
-
-			const machinePower = Calculator.computeMachinePower(stats);
-			totalPower = totalPower.add(machinePower);
-		}
-
-		return totalPower;
+		return Iterator.from(machines)
+			.map((machine) => {
+				const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
+				if (!stats) {
+					console.warn(`Machine missing ${mode}Stats:`, machine.name);
+					return new Decimal(0);
+				}
+				return Calculator.computeMachinePower(stats);
+			})
+			.reduce((total, power) => total.add(power), new Decimal(0));
 	}
 
 	/**

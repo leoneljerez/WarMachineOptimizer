@@ -256,51 +256,53 @@ export class Optimizer {
 	arrangeByRole(team, mission = 1, difficulty = "easy") {
 		if (!team || team.length === 0) return [];
 
-		const formation = [];
-
 		const enemyStats = Calculator.enemyAttributes(mission, difficulty);
 
-		const grouped = Iterator.from(team)
-			.map((machine) => {
-				const dmgTaken = Calculator.computeDamageTaken(machine.battleStats.damage, enemyStats.armor);
-				return {
-					machine,
-					category: dmgTaken.eq(0) ? "useless" : machine.role === "tank" ? "tank" : "remaining",
-				};
-			})
-			.reduce((acc, item) => {
-				if (!acc[item.category]) acc[item.category] = [];
-				acc[item.category].push(item.machine);
-				return acc;
-			}, {});
-
-		const useless = grouped.useless ?? [];
-		const tanks = grouped.tank ?? [];
-		let remaining = grouped.remaining ?? [];
-
-		remaining = remaining.toSorted((a, b) => a.battleStats.damage - b.battleStats.damage);
-		const sortedTanks = tanks.toSorted((a, b) => a.battleStats.health - b.battleStats.health);
-
-		let strongestMachine;
-		if (remaining.length > 0) {
-			if (team.length === 5) {
-				strongestMachine = remaining.at(-1);
-				remaining = remaining.slice(0, -1);
+		// Helper: determines if a machine is "useless"
+		const isUseless = (machine) => {
+			if (machine.role === "tank") {
+				// Useless tank: enemy damage > 50% of tank's health
+				const potentialDamage = Calculator.computeDamageTaken(enemyStats.damage, machine.battleStats.armor);
+				return potentialDamage.gt(machine.battleStats.health.mul(0.5));
 			} else {
-				strongestMachine = null;
+				// DPS is useless if it cannot deal damage after enemy armor
+				const dmgDealt = Calculator.computeDamageTaken(machine.battleStats.damage, enemyStats.armor);
+				return dmgDealt.eq(0);
 			}
+		};
+
+		// Map machines with category
+		const machinesWithCategory = Iterator.from(team)
+			.map((machine) => ({
+				machine,
+				category: isUseless(machine) ? "useless" : machine.role === "tank" ? "tank" : "remaining",
+			}))
+			.toArray();
+
+		// Group by category
+		const categorized = machinesWithCategory.reduce((acc, { machine, category }) => {
+			(acc[category] ??= []).push(machine);
+			return acc;
+		}, {});
+
+		// Sort each group
+		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.sub(a.battleStats.health)); // strongest useless first
+		const tanks = (categorized.tank ?? []).toSorted((a, b) => a.battleStats.health.sub(b.battleStats.health)); // weakest tank first
+		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.sub(b.battleStats.damage)); // weakest DPS first
+
+		// Place strongest DPS second-to-last if team length is 5
+		let strongestDPS = null;
+		if (remaining.length > 0 && team.length === 5) {
+			strongestDPS = remaining.at(-1);
+			remaining = remaining.slice(0, -1);
 		}
 
-		if (useless.length > 0) formation.push(...useless);
-		if (sortedTanks.length > 0) formation.push(...sortedTanks);
-		if (remaining.length > 0) formation.push(...remaining);
+		// Build final formation: useless first, tanks next, remaining last
+		const formation = [...useless, ...tanks, ...remaining];
 
-		if (strongestMachine) {
-			if (formation.length > 0) {
-				formation.splice(formation.length - 1, 0, strongestMachine);
-			} else {
-				formation.push(strongestMachine);
-			}
+		if (strongestDPS) {
+			// Insert second-to-last
+			formation.splice(formation.length - 1, 0, strongestDPS);
 		}
 
 		return formation;
