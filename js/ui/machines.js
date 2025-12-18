@@ -59,12 +59,11 @@ export function renderMachines(machines) {
  * @returns {boolean} True if configured
  */
 function isConfiguredMachine(machine) {
-	const { rarity, level, blueprints, inscriptionLevel, sacredLevel } = machine;
+	const { rarity, level, blueprints } = machine;
 	const hasBlueprints = Object.values(blueprints).some((v) => v > 0);
-	const hasCards = inscriptionLevel > 0 || sacredLevel > 0;
 	const hasLevel = level > 0;
 	const hasRarity = rarity.toLowerCase() !== "common";
-	return hasBlueprints || hasCards || hasLevel || hasRarity;
+	return hasBlueprints || hasLevel || hasRarity;
 }
 
 /**
