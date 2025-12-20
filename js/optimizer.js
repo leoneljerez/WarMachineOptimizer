@@ -5,8 +5,9 @@ import Decimal from "./vendor/break_eternity.esm.js";
 
 // Constants
 const REOPTIMIZE_INTERVAL = 5;
-const POWER_THRESHOLD = 0.8;
 const MAX_ROUNDS = 20;
+const MONTE_CARLO_SIMULATIONS = 2000; // Number of simulations per mission/difficulty
+const MONTE_CARLO_WIN_RATE = 0.001; // 0.1% win rate required to consider mission clearable
 
 /**
  * @typedef {Object} OptimizerConfig
@@ -258,20 +259,16 @@ export class Optimizer {
 
 		const enemyStats = Calculator.enemyAttributes(mission, difficulty);
 
-		// Helper: determines if a machine is "useless"
 		const isUseless = (machine) => {
 			if (machine.role === "tank") {
-				// Useless tank: enemy damage > 50% of tank's health
 				const potentialDamage = Calculator.computeDamageTaken(enemyStats.damage, machine.battleStats.armor);
 				return potentialDamage.gt(machine.battleStats.health.mul(0.5));
 			} else {
-				// DPS is useless if it cannot deal damage after enemy armor
 				const dmgDealt = Calculator.computeDamageTaken(machine.battleStats.damage, enemyStats.armor);
 				return dmgDealt.eq(0);
 			}
 		};
 
-		// Map machines with category
 		const machinesWithCategory = Iterator.from(team)
 			.map((machine) => ({
 				machine,
@@ -279,33 +276,142 @@ export class Optimizer {
 			}))
 			.toArray();
 
-		// Group by category
 		const categorized = machinesWithCategory.reduce((acc, { machine, category }) => {
 			(acc[category] ??= []).push(machine);
 			return acc;
 		}, {});
 
-		// Sort each group
-		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.sub(a.battleStats.health)); // strongest useless first
-		const tanks = (categorized.tank ?? []).toSorted((a, b) => a.battleStats.health.sub(b.battleStats.health)); // weakest tank first
-		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.sub(b.battleStats.damage)); // weakest DPS first
+		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.sub(a.battleStats.health));
+		const tanks = (categorized.tank ?? []).toSorted((a, b) => a.battleStats.health.sub(b.battleStats.health));
+		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.sub(b.battleStats.damage));
 
-		// Place strongest DPS second-to-last if team length is 5
 		let strongestDPS = null;
 		if (remaining.length > 0 && team.length === 5) {
 			strongestDPS = remaining.at(-1);
 			remaining = remaining.slice(0, -1);
 		}
 
-		// Build final formation: useless first, tanks next, remaining last
 		const formation = [...useless, ...tanks, ...remaining];
 
 		if (strongestDPS) {
-			// Insert second-to-last
 			formation.splice(formation.length - 1, 0, strongestDPS);
 		}
 
 		return formation;
+	}
+
+	/**
+	 * Runs Monte Carlo simulations with early stopping
+	 * @param {import('./app.js').Machine[]} team - Team to test
+	 * @param {number} mission - Mission number
+	 * @param {string} difficulty - Difficulty level
+	 * @param {number} maxSimulations - Maximum number of simulations to run
+	 * @returns {{clearable: boolean, winRate: number, simulations: number}} Result
+	 */
+	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = MONTE_CARLO_SIMULATIONS) {
+		let wins = 0;
+		let simulations = 0;
+		const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
+
+		// Run ALL simulations - no early stopping for maximum consistency
+		for (let i = 0; i < maxSimulations; i++) {
+			const result = this.battleEngine.runBattleWithAbilities(team, enemyFormation, MAX_ROUNDS);
+			simulations++;
+
+			if (result.playerWon) {
+				wins++;
+			}
+		}
+
+		const winRate = wins / simulations;
+
+		return {
+			clearable: winRate >= MONTE_CARLO_WIN_RATE,
+			winRate,
+			simulations,
+		};
+	}
+
+	/**
+	 * Pushes star levels using Monte Carlo simulations
+	 * @param {import('./app.js').Machine[]} formation - Current best formation
+	 * @param {number} currentStars - Current star count
+	 * @param {Object} lastMissionByDifficulty - Map of difficulty -> last mission cleared (e.g., {easy: 40, normal: 20, hard: 1})
+	 * @param {string[]} difficulties - Difficulty levels
+	 * @returns {{additionalStars: number, lastMissionByDifficulty: Object}} Additional stars earned and updated mission tracker
+	 */
+	pushStarsWithMonteCarlo(formation, currentStars, lastMissionByDifficulty, difficulties = ["easy", "normal", "hard", "insane", "nightmare"]) {
+		if (formation.length === 0) {
+			return { additionalStars: 0, lastMissionByDifficulty };
+		}
+
+		let additionalStars = 0;
+		const updatedLastMissions = { ...lastMissionByDifficulty };
+
+		// Calculate our squad's total power once (it doesn't change)
+		const ourPower = Calculator.computeSquadPower(formation, "campaign");
+
+		// Phase 1: Complete remaining difficulties on already-cleared missions
+		// For each difficulty level, try to push further on missions we've already started
+		for (let diffIdx = 0; diffIdx < difficulties.length; diffIdx++) {
+			const difficulty = difficulties[diffIdx];
+			const lastMission = updatedLastMissions[difficulty] || 0;
+
+			if (lastMission === 0) {
+				// Haven't cleared any missions on this difficulty yet
+				// Try from mission 1
+				const requiredPower = Calculator.requiredPowerForMission(1, difficulty);
+
+				if (ourPower.lt(requiredPower)) {
+					continue; // Skip this difficulty entirely
+				}
+
+				const arranged = this.arrangeByRole(formation, 1, difficulty);
+				const result = this.runMonteCarloSimulation(arranged, 1, difficulty);
+
+				if (result.clearable) {
+					additionalStars++;
+					updatedLastMissions[difficulty] = 1;
+				} else {
+					// Failed mission 1, skip this entire difficulty
+					continue;
+				}
+				continue;
+			}
+
+			// Try pushing this difficulty forward from where we left off
+			let consecutiveFailures = 0;
+			const maxConsecutiveFailures = 2;
+
+			for (let mission = lastMission + 1; mission <= 90; mission++) {
+				// Quick power check
+				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
+
+				if (ourPower.lt(requiredPower)) {
+					break; // Stop trying this difficulty
+				}
+
+				const arranged = this.arrangeByRole(formation, mission, difficulty);
+				const result = this.runMonteCarloSimulation(arranged, mission, difficulty);
+				
+
+				if (result.clearable) {
+					additionalStars++;
+					updatedLastMissions[difficulty] = mission;
+					consecutiveFailures = 0;
+				} else {
+					consecutiveFailures++;
+					if (consecutiveFailures >= maxConsecutiveFailures) {
+						break;
+					}
+				}
+			}
+		}
+
+		return {
+			additionalStars,
+			lastMissionByDifficulty: updatedLastMissions,
+		};
 	}
 
 	/**
@@ -321,13 +427,18 @@ export class Optimizer {
 		let lastCleared = 0;
 		let lastWinningTeam = [];
 
+		// Track last mission cleared per difficulty: {easy: 40, normal: 20, hard: 1, insane: null, nightmare: null}
+		const lastMissionByDifficulty = {};
+		difficulties.forEach((diff) => (lastMissionByDifficulty[diff] = null));
+
 		if (!ownedMachines?.length) {
-			return { totalStars, lastCleared, formation: [] };
+			return { totalStars, lastCleared, formation: [], battlePower: new Decimal(0), arenaPower: new Decimal(0) };
 		}
 
 		let currentBestTeam = null;
 		let lastOptimizedMission = 0;
 
+		// Phase 1: Standard optimization with basic battle simulation
 		for (let mission = 1; mission <= maxMission; mission++) {
 			const shouldReoptimize = !currentBestTeam || mission - lastOptimizedMission >= REOPTIMIZE_INTERVAL;
 
@@ -340,19 +451,26 @@ export class Optimizer {
 				lastOptimizedMission = mission;
 			}
 
+			let missionHasClears = false;
+
 			for (const difficulty of difficulties) {
 				const arrangedTeam = this.arrangeByRole(currentBestTeam, mission, difficulty);
 
-				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 				const ourPower = Calculator.computeSquadPower(arrangedTeam, "campaign");
 
-				if (ourPower.lt(requiredPower.mul(POWER_THRESHOLD))) break;
+				if (ourPower.lt(requiredPower)) {
+					break;
+				}
 
+				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, MAX_ROUNDS);
 
 				if (result.playerWon) {
 					totalStars++;
+					missionHasClears = true;
+					lastMissionByDifficulty[difficulty] = mission;
+
 					if (difficulty === "easy") lastCleared = mission;
 
 					lastWinningTeam = arrangedTeam.map((m) => ({
@@ -363,14 +481,24 @@ export class Optimizer {
 					break;
 				}
 			}
+
+			// Stop if we can't clear any difficulty on this mission
+			if (!missionHasClears && mission > 1) {
+				break;
+			}
 		}
+
+		// Phase 2: Monte Carlo simulation to push stars further
+		const monteCarloResult = this.pushStarsWithMonteCarlo(lastWinningTeam, totalStars, lastMissionByDifficulty, difficulties);
+
+		totalStars += monteCarloResult.additionalStars;
 
 		const battlePower = Calculator.computeSquadPower(lastWinningTeam, "campaign");
 		const arenaPower = Calculator.computeSquadPower(lastWinningTeam, "arena");
 
 		return {
 			totalStars,
-			lastCleared,
+			lastCleared: monteCarloResult.lastMissionByDifficulty,
 			formation: lastWinningTeam,
 			battlePower,
 			arenaPower,

@@ -100,13 +100,15 @@ export class Calculator {
 	 * @returns {number} Overdrive value (decimal multiplier)
 	 */
 	static calculateOverdrive(machine) {
-		const rarity = Calculator.RARITY_LEVELS[machine.rarity];
+		//console.log("machine in overdrive is: ", machine);
+		const rarity = machine.rarity?.toLowerCase() ?? "common";
+		const raritylevel = Calculator.RARITY_LEVELS[rarity];
 		const startingOverdrive = 0.25;
 		const multiplier = 0.03;
 
 		if (rarity === 0) return startingOverdrive;
 
-		return startingOverdrive + rarity * multiplier;
+		return startingOverdrive + (raritylevel * multiplier);
 	}
 
 	/**
@@ -114,15 +116,16 @@ export class Calculator {
 	 * Applies mission scaling (1.2^mission) and milestone scaling (3^(mission/10))
 	 * @param {number} missionNumber - Mission number (1-90)
 	 * @param {string} difficulty - Difficulty level (easy, normal, hard, insane, nightmare)
+	 * @param {number} milestoneBase - 3 or 2 for the power multiplier - 3 for regular (default), 2 for mission power requirement
 	 * @returns {{damage: Decimal, health: Decimal, armor: Decimal}} Enemy stats
 	 */
-	static enemyAttributes(missionNumber, difficulty) {
+	static enemyAttributes(missionNumber, difficulty, milestoneBase = 3) {
 		const diffMultiplier = this.DIFFICULTY_MULTIPLIERS[difficulty];
 		const missionNum = missionNumber - 1;
 		const milestoneCount = Math.floor(missionNum / 10);
 
 		const missionFactor = new Decimal(1.2).pow(missionNum);
-		const milestoneFactor = new Decimal(3).pow(milestoneCount);
+		const milestoneFactor = new Decimal(milestoneBase).pow(milestoneCount);
 
 		const finalMultiplier = diffMultiplier.mul(missionFactor).mul(milestoneFactor);
 
@@ -140,8 +143,8 @@ export class Calculator {
 	 * @param {string} difficulty - Difficulty level
 	 * @returns {Array<{name: string, baseStats: Object, battleStats: import('./app.js').MachineStats, isDead: boolean}>} Array of 5 enemy objects
 	 */
-	static getEnemyTeamForMission(missionNumber, difficulty) {
-		const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty);
+	static getEnemyTeamForMission(missionNumber, difficulty, milestoneBase = 3) {
+		const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty, milestoneBase);
 
 		/*
 		 * ES2025+ ITERATOR HELPERS (Stage 4 - Production Ready)
@@ -199,9 +202,8 @@ export class Calculator {
 	 * @returns {Decimal} Required power value to clear the mission
 	 */
 	static requiredPowerForMission(missionNumber, difficulty) {
-		const enemyTeam = Calculator.getEnemyTeamForMission(missionNumber, difficulty);
-
-		const enemyPower = Calculator.computeMachinePower(enemyTeam[0].battleStats).mul(5);
+		const enemyTeam = Calculator.getEnemyTeamForMission(missionNumber, difficulty, 2);
+		const enemyPower = Calculator.computeSquadPower(enemyTeam, "campaign");
 
 		let reqPct = 0.8;
 		if (difficulty === "easy") {
@@ -209,7 +211,7 @@ export class Calculator {
 			else if (missionNumber <= 30) reqPct = 0.5;
 		}
 
-		return enemyPower.mul(reqPct);
+		return enemyPower.mul(reqPct).div(100).floor().mul(100);
 	}
 
 	/**

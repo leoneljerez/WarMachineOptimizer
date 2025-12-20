@@ -11,7 +11,7 @@ import Decimal from "../vendor/break_eternity.esm.js";
 /**
  * @typedef {Object} OptimizationResult
  * @property {number} totalStars
- * @property {number} lastCleared
+ * @property {Object} lastCleared - Object mapping difficulty to last mission cleared
  * @property {import('../app.js').Machine[]} formation
  * @property {SerializedDecimal} battlePower
  * @property {SerializedDecimal} arenaPower
@@ -107,6 +107,40 @@ function createMachineCard(machine, machineTemplate) {
 }
 
 /**
+ * Creates a difficulty badge element
+ * @param {string} difficulty - Difficulty name
+ * @param {number|null} mission - Last mission cleared (or null)
+ * @returns {HTMLElement} Badge element
+ */
+function createDifficultyBadge(difficulty, mission) {
+	const badge = document.createElement("div");
+	badge.className = "d-flex align-items-center justify-content-between mb-2 p-2 rounded";
+
+	const isCleared = mission !== null && mission > 0;
+
+	badge.style.cssText = `background-color: var(--bs-dark-bg-subtle); border: 1px solid var(--bs-dark-border-subtle);`;
+
+	const label = document.createElement("span");
+	label.className = "fw-semibold text-capitalize";
+	label.textContent = difficulty;
+
+	const value = document.createElement("span");
+	value.className = `badge bg-dark`;
+
+	if (isCleared) {
+		value.textContent = `Mission ${mission}`;
+	} else {
+		value.textContent = "Not Cleared";
+		value.classList.add("opacity-50");
+	}
+
+	badge.appendChild(label);
+	badge.appendChild(value);
+
+	return badge;
+}
+
+/**
  * Cleans up old machine cards and event listeners to prevent memory leaks
  * @param {HTMLElement} container - Results container element
  */
@@ -192,7 +226,22 @@ export function renderResults(result, optimizeMode = "campaign") {
 	// Set stars and mission display
 	if (optimizeMode === "campaign") {
 		clone.querySelector(".totalStars").textContent = result.totalStars || 0;
-		clone.querySelector(".lastCleared").textContent = result.lastCleared || 0;
+
+		// Replace the single lastCleared display with difficulty breakdown
+		const lastClearedContainer = clone.querySelector(".lastCleared");
+		lastClearedContainer.className = ""; // Remove existing classes
+		lastClearedContainer.textContent = ""; // Clear existing content
+
+		// Create difficulty badges
+		const difficulties = ["easy", "normal", "hard", "insane", "nightmare"];
+		const fragment = document.createDocumentFragment();
+
+		difficulties.forEach((difficulty) => {
+			const mission = result.lastCleared?.[difficulty] ?? null;
+			fragment.appendChild(createDifficultyBadge(difficulty, mission));
+		});
+
+		lastClearedContainer.appendChild(fragment);
 	} else {
 		clone.querySelector(".totalStars").textContent = "N/A";
 		clone.querySelector(".lastCleared").textContent = "N/A";
@@ -221,8 +270,6 @@ export function renderResults(result, optimizeMode = "campaign") {
 	const machineTemplate = document.getElementById("machineTemplate");
 
 	// Populate formation slots with machine cards
-	// Note: We're appending to slots within the clone DocumentFragment,
-	// so all DOM manipulations happen before the single insert to container
 	Iterator.from(result.formation)
 		.map((machine, index) => ({ machine, position: String(index + 1) }))
 		.filter(({ position }) => positionMap.has(position))
