@@ -24,7 +24,7 @@ const DIFFICULTIES = [
 	{ key: "normal", label: "Normal", color: "info" },
 	{ key: "hard", label: "Hard", color: "warning" },
 	{ key: "insane", label: "Insane", color: "danger" },
-	{ key: "nightmare", label: "Nightmare", color: "dark" },
+	{ key: "nightmare", label: "Nightmare", color: "light" },
 ];
 
 const MAX_MISSIONS_PER_DIFFICULTY = 90;
