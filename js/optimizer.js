@@ -6,7 +6,7 @@ import Decimal from "./vendor/break_eternity.esm.js";
 // Constants
 const REOPTIMIZE_INTERVAL = 5;
 const MAX_ROUNDS = 20;
-const MONTE_CARLO_SIMULATIONS = 2000; // Number of simulations per mission/difficulty
+const MONTE_CARLO_SIMULATIONS = 2500; // Number of simulations per mission/difficulty
 const MONTE_CARLO_WIN_RATE = 0.001; // 0.1% win rate required to consider mission clearable
 
 /**
