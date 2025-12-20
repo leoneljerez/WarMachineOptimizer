@@ -315,68 +315,7 @@
 			</div>
 		</div>
 
-		<!-- Templates -->
-		<template id="resultTemplate">
-			<div class="result-card mt-4">
-				<div class="row g-3 mb-4">
-					<div class="col-md-4">
-						<div class="card text-center">
-							<div class="card-body">
-								<h6 class="text-secondary mb-1">Total Stars</h6>
-								<div class="fs-3 fw-bold totalStars"></div>
-							</div>
-						</div>
-					</div>
-					<div class="col-md-4">
-						<div class="card text-center">
-							<div class="card-body">
-								<h6 class="text-secondary mb-2">Last Cleared</h6>
-								<div class="fs-3 fw-bold lastCleared"></div>
-							</div>
-						</div>
-					</div>
-					<div class="col-md-4">
-						<div class="card text-center">
-							<div class="card-body">
-								<h6 class="text-secondary mb-1 powerTitle">Battle Power</h6>
-								<div class="fs-3 fw-bold text-warning powerResult"></div>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
-					<h5 class="mb-0">Formation</h5>
-					<div class="mode-selector gap-2 p-2 rounded-3" id="statsToggle">
-						<input type="radio" id="battleStats" name="statsMode" value="battle" checked />
-						<label for="battleStats" class="px-4 py-2 rounded-2 fw-medium user-select-none">Battle Stats</label>
-						<input type="radio" id="arenaStats" name="statsMode" value="arena" />
-						<label for="arenaStats" class="px-4 py-2 rounded-2 fw-medium user-select-none">Arena Stats</label>
-					</div>
-				</div>
-				<div class="results-view">
-					<div class="row g-3 justify-content-center" id="formationContainer">
-						<!-- Left Column (Positions 5, 4, 3) -->
-						<div class="col-12 col-md-auto order-2 order-md-1">
-							<div class="d-flex flex-column gap-2 left-column">
-								<div class="machine-slot card-hover" data-position="5" style="min-height: 150px"></div>
-								<div class="machine-slot card-hover" data-position="4" style="min-height: 150px"></div>
-								<div class="machine-slot card-hover" data-position="3" style="min-height: 150px"></div>
-							</div>
-						</div>
-
-						<!-- Right Column (Positions 2, 1) -->
-						<div class="col-12 col-md-auto order-1 order-md-2">
-							<div class="d-flex flex-column gap-2 justify-content-center right-column" style="height: 100%">
-								<div class="machine-slot card-hover" data-position="2" style="min-height: 150px"></div>
-								<div class="machine-slot card-hover" data-position="1" style="min-height: 150px"></div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</template>
-
+		<!-- Templates -->		
 		<template id="machineTemplate">
 			<div class="machine-card border rounded p-3 mb-2 text-center shadow-sm">
 				<img class="machine-image mb-2 rounded" src="" alt="Machine" style="width: 80px; height: 80px; object-fit: cover" />
