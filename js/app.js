@@ -268,6 +268,17 @@ function getArtifactArray() {
 	}));
 }
 
+// ---------------------------
+// Worker Management
+// ---------------------------
+
+/**
+ * Global reference to current optimization worker
+ * Used to prevent race conditions and allow cancellation
+ * @type {Worker|null}
+ */
+let currentWorker = null;
+
 /**
  * Runs the optimization in a web worker
  */
@@ -279,6 +290,13 @@ function runOptimization() {
 		return;
 	}
 
+	// Terminate existing worker if still running
+	if (currentWorker) {
+		currentWorker.terminate();
+		currentWorker = null;
+		showToast("Previous optimization cancelled", "info");
+	}
+
 	setLoading(true);
 
 	const ownedMachines = getOwnedMachines();
@@ -287,6 +305,7 @@ function runOptimization() {
 	const globalRarityLevels = Calculator.getGlobalRarityLevels(ownedMachines);
 
 	const worker = new Worker("js/optimizerWorker.js", { type: "module" });
+	currentWorker = worker; // Track the worker
 
 	worker.postMessage({
 		mode: store.optimizeMode,
@@ -301,6 +320,7 @@ function runOptimization() {
 	});
 
 	worker.onmessage = function (e) {
+		currentWorker = null; // Clear reference when done
 		const result = e.data;
 
 		if (result.error) {
@@ -317,6 +337,7 @@ function runOptimization() {
 	};
 
 	worker.onerror = function (err) {
+		currentWorker = null; // Clear reference on error
 		const error = new Error("Worker error occurred", { cause: err });
 		console.error(error);
 		showToast("Optimization failed. Please try again.", "danger");
@@ -411,21 +432,34 @@ function setupEventListeners() {
 	const saveLoadBtn = document.getElementById("saveLoadBtn");
 
 	if (saveLoadModal && saveLoadBtn) {
-		// BEFORE aria-hidden gets applied
+		// Track what element opened the modal
+		let modalTrigger = null;
+
+		// Capture the trigger element when modal opens
+		saveLoadModal.addEventListener("show.bs.modal", (e) => {
+			modalTrigger = e.relatedTarget || document.activeElement;
+		});
+
+		// Clear focus from modal when closing
 		saveLoadModal.addEventListener("hide.bs.modal", () => {
 			if (saveLoadModal.contains(document.activeElement)) {
 				document.activeElement.blur();
 			}
 		});
 
-		// AFTER modal is fully hidden
+		// Restore focus to trigger element when modal is fully hidden
 		saveLoadModal.addEventListener("hidden.bs.modal", () => {
-			saveLoadBtn.focus();
+			if (modalTrigger && document.contains(modalTrigger)) {
+				modalTrigger.focus();
+			} else {
+				saveLoadBtn.focus();
+			}
+			modalTrigger = null;
 		});
 
+		// Focus first input when modal opens
 		saveLoadModal.addEventListener("shown.bs.modal", () => {
-			// Focus first input when opened
-			document.getElementById("saveLoadBox").focus();
+			document.getElementById("saveLoadBox")?.focus();
 		});
 	}
 
