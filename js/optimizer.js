@@ -444,7 +444,7 @@ export class Optimizer {
 				}
 
 				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
-				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
+				const result = this.battleEngine.runBattleWithAbilities(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
 
 				if (result.playerWon) {
 					totalStars++;
