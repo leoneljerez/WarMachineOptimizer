@@ -306,6 +306,7 @@ export class Optimizer {
 
 			if (result.playerWon) {
 				wins++;
+				break;			
 			}
 		}
 

@@ -102,7 +102,7 @@ export const AppConfig = {
 	 * Higher = more accurate but slower
 	 * @type {number}
 	 */
-	MONTE_CARLO_SIMULATIONS: 3000,
+	MONTE_CARLO_SIMULATIONS: 10000,
 
 	/**
 	 * Minimum win rate required to consider a mission clearable
