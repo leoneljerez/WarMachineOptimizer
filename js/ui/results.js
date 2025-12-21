@@ -22,12 +22,18 @@ import { AppConfig } from "../config.js";
 // Use WeakMap to avoid memory leaks from direct property assignment
 const machineCardRegistry = new WeakMap();
 
+// Store cleanup functions for better memory management
+const cleanupRegistry = new WeakMap();
+
 /**
  * Converts a serialized Decimal to a Decimal instance
  * @param {SerializedDecimal} serialized - Serialized decimal object
  * @returns {Decimal} Decimal instance
  */
 function toDecimal(serialized) {
+	if (!serialized || typeof serialized !== "object") {
+		return new Decimal(0);
+	}
 	return Decimal.fromComponents(serialized.sign, serialized.layer, serialized.mag);
 }
 
@@ -37,10 +43,11 @@ function toDecimal(serialized) {
  * @returns {string} Formatted string
  */
 function formatPower(decimal) {
-	if (toDecimal(decimal).lessThan(999000000)) {
-		return Math.trunc(toDecimal(decimal).toNumber()).toLocaleString("en-US");
+	const value = toDecimal(decimal);
+	if (value.lessThan(999000000)) {
+		return Math.trunc(value.toNumber()).toLocaleString("en-US");
 	}
-	return toDecimal(decimal).toExponential(2);
+	return value.toExponential(2);
 }
 
 /**
@@ -54,23 +61,38 @@ function updateMachineStats(card, mode) {
 
 	const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
 
-	card.querySelector(".damage .value").textContent = toDecimal(stats.damage).toExponential(2);
-	card.querySelector(".health .value").textContent = toDecimal(stats.health).toExponential(2);
-	card.querySelector(".armor .value").textContent = toDecimal(stats.armor).toExponential(2);
+	// Use cached elements for better performance
+	const damageEl = card.querySelector(".damage .value");
+	const healthEl = card.querySelector(".health .value");
+	const armorEl = card.querySelector(".armor .value");
+
+	if (damageEl) damageEl.textContent = toDecimal(stats.damage).toExponential(2);
+	if (healthEl) healthEl.textContent = toDecimal(stats.health).toExponential(2);
+	if (armorEl) armorEl.textContent = toDecimal(stats.armor).toExponential(2);
 }
 
 /**
- * Creates a crew member image element
+ * Creates a crew member image element with error handling
  * @param {import('../app.js').Hero} hero - Hero object
  * @returns {HTMLImageElement} Image element
  */
 function createCrewImage(hero) {
 	const img = document.createElement("img");
-	img.src = hero.image || "hero-placeholder.png";
+	img.src = hero.image || "img/heroes/placeholder.png";
 	img.alt = hero.name;
 	img.title = hero.name;
 	img.className = "rounded border";
 	img.style.cssText = "width: 30px; height: 30px; object-fit: cover;";
+
+	// Add error handler for missing images
+	img.addEventListener(
+		"error",
+		() => {
+			img.src = "img/heroes/placeholder.png";
+		},
+		{ once: true }
+	);
+
 	return img;
 }
 
@@ -88,19 +110,38 @@ function createMachineCard(machine, machineTemplate) {
 	machineCardRegistry.set(card, machine);
 
 	const img = clone.querySelector(".machine-image");
-	img.src = machine.image || "placeholder.png";
+	img.src = machine.image || "img/machines/placeholder.png";
 	img.alt = machine.name;
+
+	// Add error handler
+	img.addEventListener(
+		"error",
+		() => {
+			img.src = "img/machines/placeholder.png";
+		},
+		{ once: true }
+	);
 
 	clone.querySelector(".machine-name").textContent = `${machine.name} (Lv ${machine.level}, ${machine.rarity})`;
 
+	// Set initial stats (will be updated by updateMachineStats)
 	updateMachineStats(card, "battle");
 
+	// Build crew images using fragment for better performance
 	const crewDiv = clone.querySelector(".crew");
 	const crewFragment = document.createDocumentFragment();
 
-	machine.crew.forEach((hero) => {
-		crewFragment.appendChild(createCrewImage(hero));
-	});
+	if (machine.crew && machine.crew.length > 0) {
+		machine.crew.forEach((hero) => {
+			crewFragment.appendChild(createCrewImage(hero));
+		});
+	} else {
+		// Show empty state
+		const emptyText = document.createElement("span");
+		emptyText.className = "text-secondary small";
+		emptyText.textContent = "No crew";
+		crewFragment.appendChild(emptyText);
+	}
 
 	crewDiv.appendChild(crewFragment);
 
@@ -108,7 +149,89 @@ function createMachineCard(machine, machineTemplate) {
 }
 
 /**
- * Creates a progress bar for campaign progression
+ * Creates a single stat card element
+ * @param {string} title - Card title
+ * @param {string} value - Main value to display
+ * @param {string} subtext - Subtext below value
+ * @param {string} valueClass - CSS class for value styling
+ * @returns {HTMLElement} Card element
+ */
+function createStatCard(title, value, subtext, valueClass = "text-primary") {
+	const col = document.createElement("div");
+	col.className = "col-md-4";
+
+	const card = document.createElement("div");
+	card.className = "card text-center h-100";
+
+	const body = document.createElement("div");
+	body.className = "card-body";
+
+	const titleEl = document.createElement("h6");
+	titleEl.className = "text-secondary mb-2";
+	titleEl.textContent = title;
+
+	const valueEl = document.createElement("div");
+	valueEl.className = `fs-2 fw-bold ${valueClass}`;
+	valueEl.textContent = value;
+
+	const subtextEl = document.createElement("small");
+	subtextEl.className = "text-secondary";
+	subtextEl.textContent = subtext;
+
+	body.append(titleEl, valueEl, subtextEl);
+	card.appendChild(body);
+	col.appendChild(card);
+
+	return col;
+}
+
+/**
+ * Creates a progress bar for a single difficulty
+ * @param {Object} difficulty - Difficulty configuration from AppConfig
+ * @param {number} mission - Mission number cleared
+ * @returns {HTMLElement} Progress row element
+ */
+function createProgressBar(difficulty, mission) {
+	const percentage = (mission / AppConfig.MAX_MISSIONS_PER_DIFFICULTY) * 100;
+
+	const row = document.createElement("div");
+	row.className = "mb-3";
+
+	// Label row
+	const labelRow = document.createElement("div");
+	labelRow.className = "d-flex justify-content-between align-items-center mb-1";
+
+	const label = document.createElement("span");
+	label.className = "fw-semibold text-capitalize";
+	label.textContent = difficulty.label;
+
+	const missionText = document.createElement("span");
+	missionText.className = "text-secondary small";
+	missionText.textContent = mission > 0 ? `${mission} / ${AppConfig.MAX_MISSIONS_PER_DIFFICULTY}` : "Not Started";
+
+	labelRow.append(label, missionText);
+
+	// Progress bar
+	const progressContainer = document.createElement("div");
+	progressContainer.className = "progress";
+	progressContainer.style.height = "8px";
+
+	const progressBar = document.createElement("div");
+	progressBar.className = `progress-bar bg-${difficulty.color}`;
+	progressBar.style.width = `${percentage}%`;
+	progressBar.setAttribute("role", "progressbar");
+	progressBar.setAttribute("aria-valuenow", mission);
+	progressBar.setAttribute("aria-valuemin", "0");
+	progressBar.setAttribute("aria-valuemax", AppConfig.MAX_MISSIONS_PER_DIFFICULTY);
+
+	progressContainer.appendChild(progressBar);
+	row.append(labelRow, progressContainer);
+
+	return row;
+}
+
+/**
+ * Creates a progress bar display for campaign progression
  * @param {Object} lastCleared - Object mapping difficulty to last mission cleared
  * @returns {HTMLElement} Progress display element
  */
@@ -116,49 +239,12 @@ function createProgressionDisplay(lastCleared) {
 	const container = document.createElement("div");
 	container.className = "campaign-progression";
 
+	// Use fragment to batch DOM operations
 	const fragment = document.createDocumentFragment();
 
 	AppConfig.DIFFICULTIES.forEach((diff) => {
 		const mission = lastCleared?.[diff.key] ?? 0;
-		const percentage = (mission / AppConfig.MAX_MISSIONS_PER_DIFFICULTY) * 100;
-
-		// Row container
-		const row = document.createElement("div");
-		row.className = "mb-3";
-
-		// Label and mission count
-		const labelRow = document.createElement("div");
-		labelRow.className = "d-flex justify-content-between align-items-center mb-1";
-
-		const label = document.createElement("span");
-		label.className = "fw-semibold text-capitalize";
-		label.textContent = diff.label;
-
-		const missionText = document.createElement("span");
-		missionText.className = "text-secondary small";
-		missionText.textContent = mission > 0 ? `${mission} / ${AppConfig.MAX_MISSIONS_PER_DIFFICULTY}` : "Not Started";
-
-		labelRow.appendChild(label);
-		labelRow.appendChild(missionText);
-
-		// Progress bar
-		const progressContainer = document.createElement("div");
-		progressContainer.className = "progress";
-		progressContainer.style.height = "8px";
-
-		const progressBar = document.createElement("div");
-		progressBar.className = `progress-bar bg-${diff.color}`;
-		progressBar.style.width = `${percentage}%`;
-		progressBar.setAttribute("role", "progressbar");
-		progressBar.setAttribute("aria-valuenow", mission);
-		progressBar.setAttribute("aria-valuemin", "0");
-		progressBar.setAttribute("aria-valuemax", AppConfig.MAX_MISSIONS_PER_DIFFICULTY);
-
-		progressContainer.appendChild(progressBar);
-
-		row.appendChild(labelRow);
-		row.appendChild(progressContainer);
-		fragment.appendChild(row);
+		fragment.appendChild(createProgressBar(diff, mission));
 	});
 
 	container.appendChild(fragment);
@@ -166,268 +252,105 @@ function createProgressionDisplay(lastCleared) {
 }
 
 /**
- * Creates summary stats cards
+ * Creates summary stats cards for campaign mode
+ * @param {OptimizationResult} result - Optimization result
+ * @returns {HTMLElement} Stats container with three cards
+ */
+function createCampaignStats(result) {
+	const container = document.createElement("div");
+	container.className = "row g-3 mb-4";
+
+	// Find highest cleared mission
+	let highestMission = 0;
+	let highestDifficulty = "None";
+
+	for (let i = AppConfig.DIFFICULTIES.length - 1; i >= 0; i--) {
+		const diff = AppConfig.DIFFICULTIES[i];
+		const mission = result.lastCleared?.[diff.key] ?? 0;
+		if (mission > 0) {
+			highestMission = mission;
+			highestDifficulty = diff.label;
+			break;
+		}
+	}
+
+	// Build all cards using fragment
+	const fragment = document.createDocumentFragment();
+
+	// Total Stars Card
+	fragment.appendChild(createStatCard("Total Stars", String(result.totalStars || 0), `out of ${AppConfig.MAX_TOTAL_STARS}`, "text-warning"));
+
+	// Highest Clear Card
+	fragment.appendChild(createStatCard("Highest Clear", highestMission > 0 ? String(highestMission) : "None", highestDifficulty, ""));
+
+	// Power Card (with special classes for updating)
+	const powerCard = createStatCard("Battle Power", formatPower(result.battlePower), "Total Squad", "text-primary powerResult");
+	powerCard.querySelector("h6").classList.add("powerTitle");
+	fragment.appendChild(powerCard);
+
+	container.appendChild(fragment);
+	return container;
+}
+
+/**
+ * Creates summary stats cards for arena mode
+ * @param {OptimizationResult} result - Optimization result
+ * @returns {HTMLElement} Stats container with one card
+ */
+function createArenaStats(result) {
+	const container = document.createElement("div");
+	container.className = "row g-3 mb-4";
+
+	const powerCard = createStatCard("Arena Power", formatPower(result.arenaPower), "Total Squad", "text-primary powerResult");
+	powerCard.querySelector("h6").classList.add("powerTitle");
+	powerCard.className = "col-12"; // Full width for arena
+
+	container.appendChild(powerCard);
+	return container;
+}
+
+/**
+ * Creates summary stats cards based on mode
  * @param {OptimizationResult} result - Optimization result
  * @param {string} optimizeMode - "campaign" or "arena"
  * @returns {HTMLElement} Stats container
  */
 function createSummaryStats(result, optimizeMode) {
-	const container = document.createElement("div");
-	container.className = "row g-3 mb-4";
-
-	if (optimizeMode === "campaign") {
-		// Total Stars Card
-		const starsCol = document.createElement("div");
-		starsCol.className = "col-md-4";
-
-		const starsCard = document.createElement("div");
-		starsCard.className = "card text-center h-100";
-
-		const starsBody = document.createElement("div");
-		starsBody.className = "card-body";
-
-		const starsTitle = document.createElement("h6");
-		starsTitle.className = "text-secondary mb-2";
-		starsTitle.textContent = "Total Stars";
-
-		const starsValue = document.createElement("div");
-		starsValue.className = "fs-2 fw-bold text-warning";
-		starsValue.textContent = result.totalStars || 0;
-
-		const starsSubtext = document.createElement("small");
-		starsSubtext.className = "text-secondary";
-		starsSubtext.textContent = `out of ${AppConfig.MAX_TOTAL_STARS}`;
-
-		starsBody.appendChild(starsTitle);
-		starsBody.appendChild(starsValue);
-		starsBody.appendChild(starsSubtext);
-		starsCard.appendChild(starsBody);
-		starsCol.appendChild(starsCard);
-
-		// Highest Mission Card
-		let highestMission = 0;
-		let highestDifficulty = "None";
-
-		// Iterate in reverse order (nightmare to easy) to find highest
-		for (let i = AppConfig.DIFFICULTIES.length - 1; i >= 0; i--) {
-			const diff = AppConfig.DIFFICULTIES[i];
-			const mission = result.lastCleared?.[diff.key] ?? 0;
-			if (mission > 0) {
-				highestMission = mission;
-				highestDifficulty = diff.label;
-				break;
-			}
-		}
-
-		const missionCol = document.createElement("div");
-		missionCol.className = "col-md-4";
-
-		const missionCard = document.createElement("div");
-		missionCard.className = "card text-center h-100";
-
-		const missionBody = document.createElement("div");
-		missionBody.className = "card-body";
-
-		const missionTitle = document.createElement("h6");
-		missionTitle.className = "text-secondary mb-2";
-		missionTitle.textContent = "Highest Clear";
-
-		const missionValue = document.createElement("div");
-		missionValue.className = "fs-2 fw-bold";
-		missionValue.textContent = highestMission > 0 ? highestMission : "None";
-
-		const missionSubtext = document.createElement("small");
-		missionSubtext.className = "text-secondary";
-		missionSubtext.textContent = highestDifficulty;
-
-		missionBody.appendChild(missionTitle);
-		missionBody.appendChild(missionValue);
-		missionBody.appendChild(missionSubtext);
-		missionCard.appendChild(missionBody);
-		missionCol.appendChild(missionCard);
-
-		// Power Card
-		const initialPower = result.battlePower;
-		const powerCol = document.createElement("div");
-		powerCol.className = "col-md-4";
-
-		const powerCard = document.createElement("div");
-		powerCard.className = "card text-center h-100";
-
-		const powerBody = document.createElement("div");
-		powerBody.className = "card-body";
-
-		const powerTitle = document.createElement("h6");
-		powerTitle.className = "text-secondary mb-2 powerTitle";
-		powerTitle.textContent = "Battle Power";
-
-		const powerValue = document.createElement("div");
-		powerValue.className = "fs-2 fw-bold text-primary powerResult";
-		powerValue.textContent = formatPower(initialPower);
-
-		const powerSubtext = document.createElement("small");
-		powerSubtext.className = "text-secondary";
-		powerSubtext.textContent = "Total Squad";
-
-		powerBody.appendChild(powerTitle);
-		powerBody.appendChild(powerValue);
-		powerBody.appendChild(powerSubtext);
-		powerCard.appendChild(powerBody);
-		powerCol.appendChild(powerCard);
-
-		container.appendChild(starsCol);
-		container.appendChild(missionCol);
-		container.appendChild(powerCol);
-	} else {
-		// Arena mode - just show power
-		const initialPower = result.arenaPower;
-		const powerCol = document.createElement("div");
-		powerCol.className = "col-12";
-
-		const powerCard = document.createElement("div");
-		powerCard.className = "card text-center";
-
-		const powerBody = document.createElement("div");
-		powerBody.className = "card-body";
-
-		const powerTitle = document.createElement("h6");
-		powerTitle.className = "text-secondary mb-2 powerTitle";
-		powerTitle.textContent = "Arena Power";
-
-		const powerValue = document.createElement("div");
-		powerValue.className = "fs-2 fw-bold text-primary powerResult";
-		powerValue.textContent = formatPower(initialPower);
-
-		const powerSubtext = document.createElement("small");
-		powerSubtext.className = "text-secondary";
-		powerSubtext.textContent = "Total Squad";
-
-		powerBody.appendChild(powerTitle);
-		powerBody.appendChild(powerValue);
-		powerBody.appendChild(powerSubtext);
-		powerCard.appendChild(powerBody);
-		powerCol.appendChild(powerCard);
-
-		container.appendChild(powerCol);
-	}
-
-	return container;
+	return optimizeMode === "campaign" ? createCampaignStats(result) : createArenaStats(result);
 }
 
 /**
- * Cleans up old machine cards and event listeners to prevent memory leaks
- * @param {HTMLElement} container - Results container element
+ * Creates the campaign progression section
+ * @param {Object} lastCleared - Last cleared missions by difficulty
+ * @returns {HTMLElement} Section element
  */
-function cleanupResults(container) {
-	// Abort any existing event listeners
-	if (container.__statsController) {
-		container.__statsController.abort();
-		container.__statsController = null;
-	}
+function createProgressionSection(lastCleared) {
+	const section = document.createElement("div");
+	section.className = "card mb-4";
 
-	// Clean up WeakMap references for old machine cards
-	const oldCards = container.querySelectorAll(".machine-card");
-	oldCards.forEach((card) => {
-		machineCardRegistry.delete(card);
-	});
+	const header = document.createElement("div");
+	header.className = "card-header";
 
-	// Clear container DOM to release references
-	container.replaceChildren();
+	const title = document.createElement("h6");
+	title.className = "mb-0";
+	title.textContent = "Campaign Progression";
+
+	header.appendChild(title);
+
+	const body = document.createElement("div");
+	body.className = "card-body";
+	body.appendChild(createProgressionDisplay(lastCleared));
+
+	section.append(header, body);
+	return section;
 }
 
 /**
- * Sets up the battle/arena stats toggle with proper cleanup
- * @param {OptimizationResult} result - Optimization result
- * @param {HTMLElement} container - Results container element
+ * Creates the stats toggle control
+ * @param {string} optimizeMode - Initial mode ("campaign" or "arena")
+ * @returns {HTMLElement} Toggle control element
  */
-function setupStatsToggle(result, container) {
-	const toggle = document.getElementById("statsToggle");
-	if (!toggle) return;
-
-	const controller = new AbortController();
-	container.__statsController = controller;
-
-	toggle.addEventListener(
-		"change",
-		(e) => {
-			const mode = e.target.value;
-
-			// Update all machine card stats
-			document.querySelectorAll(".machine-card").forEach((card) => {
-				updateMachineStats(card, mode);
-			});
-
-			// Update power display
-			const power = mode === "arena" ? result.arenaPower : result.battlePower;
-			const title = mode === "arena" ? "Arena Power" : "Battle Power";
-
-			const powerResult = document.querySelector(".powerResult");
-			const powerTitle = document.querySelector(".powerTitle");
-
-			if (powerResult) powerResult.textContent = formatPower(power);
-			if (powerTitle) powerTitle.textContent = title;
-		},
-		{ signal: controller.signal }
-	);
-}
-
-/**
- * Main render function for optimization results
- * @param {OptimizationResult} result - Optimization result object
- * @param {string} optimizeMode - "campaign" or "arena"
- */
-export function renderResults(result, optimizeMode = "campaign") {
-	const container = document.getElementById("resultsContainer");
-
-	// Clean up old results and event listeners
-	cleanupResults(container);
-
-	if (!result) {
-		const noResult = document.createElement("p");
-		noResult.className = "text-secondary";
-		noResult.textContent = "No results available.";
-		container.appendChild(noResult);
-		return;
-	}
-
-	// Create main result container
-	const resultCard = document.createElement("div");
-	resultCard.className = "result-card mt-4";
-
-	// Add summary stats
-	resultCard.appendChild(createSummaryStats(result, optimizeMode));
-
-	// Add campaign progression (only for campaign mode)
-	if (optimizeMode === "campaign") {
-		const progressionSection = document.createElement("div");
-		progressionSection.className = "card mb-4";
-
-		const progressionHeader = document.createElement("div");
-		progressionHeader.className = "card-header";
-
-		const progressionTitle = document.createElement("h6");
-		progressionTitle.className = "mb-0";
-		progressionTitle.textContent = "Campaign Progression";
-
-		progressionHeader.appendChild(progressionTitle);
-
-		const progressionBody = document.createElement("div");
-		progressionBody.className = "card-body";
-		progressionBody.appendChild(createProgressionDisplay(result.lastCleared));
-
-		progressionSection.appendChild(progressionHeader);
-		progressionSection.appendChild(progressionBody);
-		resultCard.appendChild(progressionSection);
-	}
-
-	// Formation section header with stats toggle
-	const formationHeader = document.createElement("div");
-	formationHeader.className = "d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2";
-
-	const formationTitle = document.createElement("h5");
-	formationTitle.className = "mb-0";
-	formationTitle.textContent = "Formation";
-
+function createStatsToggle(optimizeMode) {
 	const statsToggle = document.createElement("div");
 	statsToggle.className = "mode-selector gap-2 p-2 rounded-3";
 	statsToggle.id = "statsToggle";
@@ -456,22 +379,48 @@ export function renderResults(result, optimizeMode = "campaign") {
 	arenaLabel.className = "px-4 py-2 rounded-2 fw-medium user-select-none";
 	arenaLabel.textContent = "Arena Stats";
 
-	statsToggle.appendChild(battleRadio);
-	statsToggle.appendChild(battleLabel);
-	statsToggle.appendChild(arenaRadio);
-	statsToggle.appendChild(arenaLabel);
+	statsToggle.append(battleRadio, battleLabel, arenaRadio, arenaLabel);
+	return statsToggle;
+}
 
-	formationHeader.appendChild(formationTitle);
-	formationHeader.appendChild(statsToggle);
-	resultCard.appendChild(formationHeader);
+/**
+ * Creates the formation header with title and toggle
+ * @param {string} optimizeMode - Current optimization mode
+ * @returns {HTMLElement} Header element
+ */
+function createFormationHeader(optimizeMode) {
+	const header = document.createElement("div");
+	header.className = "d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2";
 
-	// Formation grid
-	const formationGrid = document.createElement("div");
-	formationGrid.className = "results-view";
+	const title = document.createElement("h5");
+	title.className = "mb-0";
+	title.textContent = "Formation";
 
-	const formationContainer = document.createElement("div");
-	formationContainer.className = "row g-3 justify-content-center";
-	formationContainer.id = "formationContainer";
+	header.append(title, createStatsToggle(optimizeMode));
+	return header;
+}
+
+/**
+ * Creates a machine slot element
+ * @param {string} position - Position number (1-5)
+ * @returns {HTMLElement} Slot element
+ */
+function createMachineSlot(position) {
+	const slot = document.createElement("div");
+	slot.className = "machine-slot card-hover";
+	slot.setAttribute("data-position", position);
+	slot.style.minHeight = "150px";
+	return slot;
+}
+
+/**
+ * Creates the formation grid structure
+ * @returns {HTMLElement} Formation container
+ */
+function createFormationGrid() {
+	const container = document.createElement("div");
+	container.className = "row g-3 justify-content-center";
+	container.id = "formationContainer";
 
 	// Left Column (Positions 5, 4, 3)
 	const leftCol = document.createElement("div");
@@ -480,24 +429,7 @@ export function renderResults(result, optimizeMode = "campaign") {
 	const leftColumn = document.createElement("div");
 	leftColumn.className = "d-flex flex-column gap-2 left-column";
 
-	const slot5 = document.createElement("div");
-	slot5.className = "machine-slot card-hover";
-	slot5.setAttribute("data-position", "5");
-	slot5.style.minHeight = "150px";
-
-	const slot4 = document.createElement("div");
-	slot4.className = "machine-slot card-hover";
-	slot4.setAttribute("data-position", "4");
-	slot4.style.minHeight = "150px";
-
-	const slot3 = document.createElement("div");
-	slot3.className = "machine-slot card-hover";
-	slot3.setAttribute("data-position", "3");
-	slot3.style.minHeight = "150px";
-
-	leftColumn.appendChild(slot5);
-	leftColumn.appendChild(slot4);
-	leftColumn.appendChild(slot3);
+	leftColumn.append(createMachineSlot("5"), createMachineSlot("4"), createMachineSlot("3"));
 	leftCol.appendChild(leftColumn);
 
 	// Right Column (Positions 2, 1)
@@ -508,28 +440,30 @@ export function renderResults(result, optimizeMode = "campaign") {
 	rightColumn.className = "d-flex flex-column gap-2 justify-content-center right-column";
 	rightColumn.style.height = "100%";
 
-	const slot2 = document.createElement("div");
-	slot2.className = "machine-slot card-hover";
-	slot2.setAttribute("data-position", "2");
-	slot2.style.minHeight = "150px";
-
-	const slot1 = document.createElement("div");
-	slot1.className = "machine-slot card-hover";
-	slot1.setAttribute("data-position", "1");
-	slot1.style.minHeight = "150px";
-
-	rightColumn.appendChild(slot2);
-	rightColumn.appendChild(slot1);
+	rightColumn.append(createMachineSlot("2"), createMachineSlot("1"));
 	rightCol.appendChild(rightColumn);
 
-	formationContainer.appendChild(leftCol);
-	formationContainer.appendChild(rightCol);
-	formationGrid.appendChild(formationContainer);
-	resultCard.appendChild(formationGrid);
+	container.append(leftCol, rightCol);
+	return container;
+}
 
-	// Populate formation slots with machine cards
-	const machineTemplate = document.getElementById("machineTemplate");
-	const slots = formationContainer.querySelectorAll(".machine-slot[data-position]");
+/**
+ * Populates formation slots with machine cards
+ * @param {HTMLElement} container - Formation container
+ * @param {import('../app.js').Machine[]} formation - Formation array
+ * @param {HTMLTemplateElement} machineTemplate - Machine card template
+ */
+function populateFormation(container, formation, machineTemplate) {
+	if (!formation || formation.length === 0) {
+		const emptyMsg = document.createElement("div");
+		emptyMsg.className = "col-12 text-center text-secondary";
+		emptyMsg.textContent = "No machines in formation";
+		container.appendChild(emptyMsg);
+		return;
+	}
+
+	// Build position map
+	const slots = container.querySelectorAll(".machine-slot[data-position]");
 	const positionMap = new Map();
 
 	slots.forEach((slot) => {
@@ -537,21 +471,149 @@ export function renderResults(result, optimizeMode = "campaign") {
 		positionMap.set(position, slot);
 	});
 
-	Iterator.from(result.formation)
-		.map((machine, index) => ({ machine, position: String(index + 1) }))
-		.filter(({ position }) => positionMap.has(position))
-		.forEach(({ machine, position }) => {
-			const slot = positionMap.get(position);
+	// Populate slots
+	formation.forEach((machine, index) => {
+		const position = String(index + 1);
+		const slot = positionMap.get(position);
+
+		if (slot) {
 			const machineCard = createMachineCard(machine, machineTemplate);
 			slot.appendChild(machineCard);
-		});
+		}
+	});
+}
 
-	// Add everything to container in single operation
-	container.appendChild(resultCard);
+/**
+ * Sets up the stats toggle event listener with proper cleanup
+ * @param {OptimizationResult} result - Optimization result
+ * @param {HTMLElement} container - Results container element
+ */
+function setupStatsToggle(result, container) {
+	const toggle = document.getElementById("statsToggle");
+	if (!toggle) return;
+
+	const controller = new AbortController();
+
+	// Store controller for cleanup
+	const existingController = cleanupRegistry.get(container);
+	if (existingController) {
+		existingController.abort();
+	}
+	cleanupRegistry.set(container, controller);
+
+	toggle.addEventListener(
+		"change",
+		(e) => {
+			const mode = e.target.value;
+
+			// Update all machine card stats
+			const machineCards = document.querySelectorAll(".machine-card");
+			machineCards.forEach((card) => {
+				updateMachineStats(card, mode);
+			});
+
+			// Update power display
+			const power = mode === "arena" ? result.arenaPower : result.battlePower;
+			const title = mode === "arena" ? "Arena Power" : "Battle Power";
+
+			const powerResult = document.querySelector(".powerResult");
+			const powerTitle = document.querySelector(".powerTitle");
+
+			if (powerResult) powerResult.textContent = formatPower(power);
+			if (powerTitle) powerTitle.textContent = title;
+		},
+		{ signal: controller.signal }
+	);
+}
+
+/**
+ * Cleans up old machine cards and event listeners to prevent memory leaks
+ * @param {HTMLElement} container - Results container element
+ */
+function cleanupResults(container) {
+	// Abort any existing event listeners
+	const controller = cleanupRegistry.get(container);
+	if (controller) {
+		controller.abort();
+		cleanupRegistry.delete(container);
+	}
+
+	// Clean up WeakMap references for old machine cards
+	const oldCards = container.querySelectorAll(".machine-card");
+	oldCards.forEach((card) => {
+		machineCardRegistry.delete(card);
+	});
+
+	// Clear container DOM to release references
+	container.replaceChildren();
+}
+
+/**
+ * Main render function for optimization results
+ * @param {OptimizationResult} result - Optimization result object
+ * @param {string} optimizeMode - "campaign" or "arena"
+ */
+export function renderResults(result, optimizeMode = "campaign") {
+	const container = document.getElementById("resultsContainer");
+
+	// Clean up old results and event listeners
+	cleanupResults(container);
+
+	if (!result || !result.formation) {
+		const noResult = document.createElement("p");
+		noResult.className = "text-secondary";
+		noResult.textContent = "No results available. Click 'Optimize' to generate results.";
+		container.appendChild(noResult);
+		return;
+	}
+
+	// Build entire result view using fragments for optimal performance
+	const fragment = document.createDocumentFragment();
+
+	// Create main result container
+	const resultCard = document.createElement("div");
+	resultCard.className = "result-card mt-4";
+
+	// Add summary stats
+	resultCard.appendChild(createSummaryStats(result, optimizeMode));
+
+	// Add campaign progression (only for campaign mode)
+	if (optimizeMode === "campaign") {
+		resultCard.appendChild(createProgressionSection(result.lastCleared));
+	}
+
+	// Formation section
+	resultCard.appendChild(createFormationHeader(optimizeMode));
+
+	const formationGrid = document.createElement("div");
+	formationGrid.className = "results-view";
+
+	const formationContainer = createFormationGrid();
+
+	// Get template
+	const machineTemplate = document.getElementById("machineTemplate");
+	if (!machineTemplate) {
+		console.error("Machine template not found");
+		return;
+	}
+
+	// Populate formation
+	populateFormation(formationContainer, result.formation, machineTemplate);
+
+	formationGrid.appendChild(formationContainer);
+	resultCard.appendChild(formationGrid);
+
+	fragment.appendChild(resultCard);
+
+	// Single DOM append for entire result view
+	container.appendChild(fragment);
 
 	// Update all machine cards to show correct initial stats
 	const initialMode = optimizeMode === "arena" ? "arena" : "battle";
-	Iterator.from(document.querySelectorAll(".machine-card")).forEach((card) => updateMachineStats(card, initialMode));
+	const machineCards = document.querySelectorAll(".machine-card");
+	machineCards.forEach((card) => {
+		updateMachineStats(card, initialMode);
+	});
 
 	// Set up stats toggle event listener
 	setupStatsToggle(result, container);

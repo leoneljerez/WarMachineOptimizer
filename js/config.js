@@ -105,13 +105,6 @@ export const AppConfig = {
 	MONTE_CARLO_SIMULATIONS: 20000,
 
 	/**
-	 * Minimum win rate required to consider a mission clearable
-	 * 0.001 = 0.1% win rate
-	 * @type {number}
-	 */
-	MONTE_CARLO_WIN_RATE: 0.001,
-
-	/**
 	 * Maximum consecutive failures before stopping difficulty progression
 	 * @type {number}
 	 */
