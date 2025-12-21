@@ -1,5 +1,6 @@
 // ui/results.js
 import Decimal from "../vendor/break_eternity.esm.js";
+import { AppConfig } from "../config.js";
 
 /**
  * @typedef {Object} SerializedDecimal
@@ -17,18 +18,6 @@ import Decimal from "../vendor/break_eternity.esm.js";
  * @property {SerializedDecimal} arenaPower
  * @property {string} mode
  */
-
-// Constants
-const DIFFICULTIES = [
-	{ key: "easy", label: "Easy", color: "success" },
-	{ key: "normal", label: "Normal", color: "info" },
-	{ key: "hard", label: "Hard", color: "warning" },
-	{ key: "insane", label: "Insane", color: "danger" },
-	{ key: "nightmare", label: "Nightmare", color: "light" },
-];
-
-const MAX_MISSIONS_PER_DIFFICULTY = 90;
-const MAX_TOTAL_STARS = 450; // 5 difficulties × 90 missions
 
 // Use WeakMap to avoid memory leaks from direct property assignment
 const machineCardRegistry = new WeakMap();
@@ -129,9 +118,9 @@ function createProgressionDisplay(lastCleared) {
 
 	const fragment = document.createDocumentFragment();
 
-	DIFFICULTIES.forEach((diff) => {
+	AppConfig.DIFFICULTIES.forEach((diff) => {
 		const mission = lastCleared?.[diff.key] ?? 0;
-		const percentage = (mission / MAX_MISSIONS_PER_DIFFICULTY) * 100;
+		const percentage = (mission / AppConfig.MAX_MISSIONS_PER_DIFFICULTY) * 100;
 
 		// Row container
 		const row = document.createElement("div");
@@ -147,7 +136,7 @@ function createProgressionDisplay(lastCleared) {
 
 		const missionText = document.createElement("span");
 		missionText.className = "text-secondary small";
-		missionText.textContent = mission > 0 ? `${mission} / ${MAX_MISSIONS_PER_DIFFICULTY}` : "Not Started";
+		missionText.textContent = mission > 0 ? `${mission} / ${AppConfig.MAX_MISSIONS_PER_DIFFICULTY}` : "Not Started";
 
 		labelRow.appendChild(label);
 		labelRow.appendChild(missionText);
@@ -163,7 +152,7 @@ function createProgressionDisplay(lastCleared) {
 		progressBar.setAttribute("role", "progressbar");
 		progressBar.setAttribute("aria-valuenow", mission);
 		progressBar.setAttribute("aria-valuemin", "0");
-		progressBar.setAttribute("aria-valuemax", MAX_MISSIONS_PER_DIFFICULTY);
+		progressBar.setAttribute("aria-valuemax", AppConfig.MAX_MISSIONS_PER_DIFFICULTY);
 
 		progressContainer.appendChild(progressBar);
 
@@ -207,7 +196,7 @@ function createSummaryStats(result, optimizeMode) {
 
 		const starsSubtext = document.createElement("small");
 		starsSubtext.className = "text-secondary";
-		starsSubtext.textContent = `out of ${MAX_TOTAL_STARS}`;
+		starsSubtext.textContent = `out of ${AppConfig.MAX_TOTAL_STARS}`;
 
 		starsBody.appendChild(starsTitle);
 		starsBody.appendChild(starsValue);
@@ -220,8 +209,8 @@ function createSummaryStats(result, optimizeMode) {
 		let highestDifficulty = "None";
 
 		// Iterate in reverse order (nightmare to easy) to find highest
-		for (let i = DIFFICULTIES.length - 1; i >= 0; i--) {
-			const diff = DIFFICULTIES[i];
+		for (let i = AppConfig.DIFFICULTIES.length - 1; i >= 0; i--) {
+			const diff = AppConfig.DIFFICULTIES[i];
 			const mission = result.lastCleared?.[diff.key] ?? 0;
 			if (mission > 0) {
 				highestMission = mission;

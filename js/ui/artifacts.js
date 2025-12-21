@@ -1,4 +1,5 @@
 // ui/artifacts.js
+import { AppConfig } from "../config.js";
 
 /**
  * Renders artifact configuration cards
@@ -8,8 +9,8 @@ export function renderArtifacts(artifacts) {
 	const container = document.getElementById("artifactsContainer");
 	container.replaceChildren();
 
-	const stats = ["damage", "health", "armor"];
-	const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
+	const stats = AppConfig.ARTIFACT_STATS;
+	const percentages = AppConfig.ARTIFACT_PERCENTAGES;
 
 	const fragment = document.createDocumentFragment();
 
@@ -60,25 +61,25 @@ function createArtifactCard(stat, percentages, artifacts) {
 	const grid = document.createElement("div");
 	grid.className = "row g-2";
 
-  /*
+	/*
 	 * ES2025+ ITERATOR HELPERS with Iterator.range (Stage 3 - Not Stage 4 Yet)
 	 * Once Iterator.range reaches Stage 4 (estimated ES2026/2027), replace with:
-	 * 
+	 *
 	 * Iterator.from(percentages)
 	 *     .map(pct => {
 	 *         const col = document.createElement("div");
 	 *         col.className = "col-6";
-	 *         
+	 *
 	 *         const inputGroup = document.createElement("div");
 	 *         inputGroup.className = "input-group input-group-sm";
-	 *         
+	 *
 	 *         // ... create label and input ...
-	 *         
+	 *
 	 *         col.appendChild(inputGroup);
 	 *         return col;
 	 *     })
 	 *     .forEach(col => grid.appendChild(col));
-	 * 
+	 *
 	 * Benefits:
 	 * - Cleaner pipeline for DOM creation
 	 * - More functional and testable
@@ -131,7 +132,5 @@ function createArtifactCard(stat, percentages, artifacts) {
  * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
  */
 export function resetAllArtifacts(artifacts) {
-	const stats = ["damage", "health", "armor"];
-	const percentages = [30, 35, 40, 45, 50, 55, 60, 65];
-	stats.forEach((stat) => percentages.forEach((pct) => (artifacts[stat][pct] = 0)));
+	AppConfig.ARTIFACT_STATS.forEach((stat) => AppConfig.ARTIFACT_PERCENTAGES.forEach((pct) => (artifacts[stat][pct] = 0)));
 }

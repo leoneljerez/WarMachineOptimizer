@@ -1,5 +1,6 @@
 // optimizerWorker.js
 import { Optimizer } from "./optimizer.js";
+import { AppConfig } from "./config.js";
 
 /**
  * @typedef {Object} WorkerMessage
@@ -22,10 +23,10 @@ import { Optimizer } from "./optimizer.js";
 self.onmessage = function (e) {
 	try {
 		const {
-			mode = "campaign",
+			mode = AppConfig.DEFAULTS.OPTIMIZE_MODE,
 			ownedMachines: rawMachines,
 			ownedHeroes: rawHeroes,
-			maxMission = 90,
+			maxMission = AppConfig.MAX_MISSIONS_PER_DIFFICULTY,
 			globalRarityLevels = 0,
 			engineerLevel = 0,
 			scarabLevel = 0,

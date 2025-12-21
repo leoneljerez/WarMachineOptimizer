@@ -1,6 +1,7 @@
 // battleengine.js
 import { Calculator } from "./calculator.js";
 import Decimal from "./vendor/break_eternity.esm.js";
+import { AppConfig } from "./config.js";
 
 /**
  * Battle simulation engine for War Machine Optimizer
@@ -11,7 +12,7 @@ export class BattleEngine {
 	static ZERO = new Decimal(0);
 
 	/** @type {number[]} Attack order for targeting (positions 0-4) */
-	static ATTACK_ORDER = [0, 1, 2, 4, 3];
+	static ATTACK_ORDER = AppConfig.ATTACK_ORDER;
 
 	/**
 	 * Selects targets based on ability targeting type
@@ -172,7 +173,7 @@ export class BattleEngine {
 	 * }} Battle result
 	 * @throws {Error} If teams are invalid or missing battleStats
 	 */
-	runBattle(playerTeam, enemyTeam, maxRounds = 20) {
+	runBattle(playerTeam, enemyTeam, maxRounds = AppConfig.MAX_BATTLE_ROUNDS) {
 		// Input validation
 		if (!Array.isArray(playerTeam) || !Array.isArray(enemyTeam)) {
 			throw new Error("Teams must be arrays");
@@ -307,7 +308,7 @@ export class BattleEngine {
 	 * @param {number} [maxRounds=20] - Maximum rounds
 	 * @returns {Object} Battle result
 	 */
-	runBattleWithAbilities(playerTeam, enemyTeam, maxRounds = 20) {
+	runBattleWithAbilities(playerTeam, enemyTeam, maxRounds = AppConfig.MAX_BATTLE_ROUNDS) {
 		if (!Array.isArray(playerTeam) || !Array.isArray(enemyTeam)) {
 			throw new Error("Teams must be arrays");
 		}

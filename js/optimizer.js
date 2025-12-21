@@ -2,12 +2,7 @@
 import { Calculator } from "./calculator.js";
 import { BattleEngine } from "./battleengine.js";
 import Decimal from "./vendor/break_eternity.esm.js";
-
-// Constants
-const REOPTIMIZE_INTERVAL = 5;
-const MAX_ROUNDS = 20;
-const MONTE_CARLO_SIMULATIONS = 2500; // Number of simulations per mission/difficulty
-const MONTE_CARLO_WIN_RATE = 0.001; // 0.1% win rate required to consider mission clearable
+import { AppConfig } from "./config.js";
 
 /**
  * @typedef {Object} OptimizerConfig
@@ -85,19 +80,10 @@ export class Optimizer {
 
 		let score = 0;
 
-		if (mode === "campaign") {
-			if (role === "tank") {
-				score = hpGain * 5.0 + armGain * 3.0 + dmgGain * 0.3;
-			} else {
-				score = dmgGain * 10.0 + hpGain * 0.55 + armGain * 0.3;
-			}
-		} else {
-			if (role === "tank") {
-				score = hpGain * 5.0 + armGain * 3.0 + dmgGain * 0.3;
-			} else {
-				score = dmgGain * 10.0 + hpGain * 0.55 + armGain * 0.3;
-			}
-		}
+		const weights = mode === "campaign" ? AppConfig.HERO_SCORING.CAMPAIGN : AppConfig.HERO_SCORING.ARENA;
+		const roleWeights = role === "tank" ? weights.TANK : weights.DPS;
+
+		score = dmgGain * roleWeights.damage + hpGain * roleWeights.health + armGain * roleWeights.armor;
 
 		return score;
 	}
@@ -308,14 +294,14 @@ export class Optimizer {
 	 * @param {number} maxSimulations - Maximum number of simulations to run
 	 * @returns {{clearable: boolean, winRate: number, simulations: number}} Result
 	 */
-	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = MONTE_CARLO_SIMULATIONS) {
+	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS) {
 		let wins = 0;
 		let simulations = 0;
 		const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 
 		// Run ALL simulations - no early stopping for maximum consistency
 		for (let i = 0; i < maxSimulations; i++) {
-			const result = this.battleEngine.runBattleWithAbilities(team, enemyFormation, MAX_ROUNDS);
+			const result = this.battleEngine.runBattleWithAbilities(team, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
 			simulations++;
 
 			if (result.playerWon) {
@@ -326,7 +312,7 @@ export class Optimizer {
 		const winRate = wins / simulations;
 
 		return {
-			clearable: winRate >= MONTE_CARLO_WIN_RATE,
+			clearable: winRate >= AppConfig.MONTE_CARLO_WIN_RATE,
 			winRate,
 			simulations,
 		};
@@ -340,7 +326,7 @@ export class Optimizer {
 	 * @param {string[]} difficulties - Difficulty levels
 	 * @returns {{additionalStars: number, lastMissionByDifficulty: Object}} Additional stars earned and updated mission tracker
 	 */
-	pushStarsWithMonteCarlo(formation, currentStars, lastMissionByDifficulty, difficulties = ["easy", "normal", "hard", "insane", "nightmare"]) {
+	pushStarsWithMonteCarlo(formation, currentStars, lastMissionByDifficulty, difficulties = AppConfig.DIFFICULTY_KEYS) {
 		if (formation.length === 0) {
 			return { additionalStars: 0, lastMissionByDifficulty };
 		}
@@ -383,7 +369,7 @@ export class Optimizer {
 			let consecutiveFailures = 0;
 			const maxConsecutiveFailures = 2;
 
-			for (let mission = lastMission + 1; mission <= 90; mission++) {
+			for (let mission = lastMission + 1; mission <= AppConfig.MAX_MISSIONS_PER_DIFFICULTY; mission++) {
 				// Quick power check
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 
@@ -393,7 +379,6 @@ export class Optimizer {
 
 				const arranged = this.arrangeByRole(formation, mission, difficulty);
 				const result = this.runMonteCarloSimulation(arranged, mission, difficulty);
-				
 
 				if (result.clearable) {
 					additionalStars++;
@@ -422,7 +407,7 @@ export class Optimizer {
 	 * @param {string[]} config.difficulties - Difficulty levels to test
 	 * @returns {CampaignResult} Optimization result
 	 */
-	optimizeCampaignMaxStars({ ownedMachines, maxMission = 90, difficulties = ["easy", "normal", "hard", "insane", "nightmare"] }) {
+	optimizeCampaignMaxStars({ ownedMachines, maxMission = AppConfig.MAX_MISSIONS_PER_DIFFICULTY, difficulties = AppConfig.DIFFICULTY_KEYS }) {
 		let totalStars = 0;
 		let lastCleared = 0;
 		let lastWinningTeam = [];
@@ -440,7 +425,7 @@ export class Optimizer {
 
 		// Phase 1: Standard optimization with basic battle simulation
 		for (let mission = 1; mission <= maxMission; mission++) {
-			const shouldReoptimize = !currentBestTeam || mission - lastOptimizedMission >= REOPTIMIZE_INTERVAL;
+			const shouldReoptimize = !currentBestTeam || mission - lastOptimizedMission >= AppConfig.REOPTIMIZE_INTERVAL;
 
 			if (shouldReoptimize) {
 				const allOptimized = this.optimizeCrewGlobally(ownedMachines, "campaign");
@@ -464,7 +449,7 @@ export class Optimizer {
 				}
 
 				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
-				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, MAX_ROUNDS);
+				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
 
 				if (result.playerWon) {
 					totalStars++;

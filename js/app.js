@@ -10,14 +10,7 @@ import { abilitiesData } from "./data/abilities.js";
 import { Calculator } from "./calculator.js";
 import { SaveLoad } from "./saveload.js";
 import { showToast } from "./ui/notifications.js";
-
-// ---------------------------
-// Constants
-// ---------------------------
-const DEFAULT_ENGINEER_LEVEL = 0;
-const DEFAULT_SCARAB_LEVEL = 0;
-const DEFAULT_RIFT_RANK = "bronze";
-const DEFAULT_OPTIMIZE_MODE = "campaign";
+import { AppConfig } from "./config.js";
 
 /**
  * @typedef {Object} MachineBlueprints
@@ -112,15 +105,15 @@ function createInitialStore() {
 		machines: machinesData.map((machine) => ({
 			...machine,
 			ability: abilitiesData[machine.ability.key],
-			rarity: "Common",
-			level: 0,
+			rarity: AppConfig.DEFAULTS.RARITY,
+			level: AppConfig.DEFAULTS.LEVEL,
 			blueprints: {
-				damage: 0,
-				health: 0,
-				armor: 0,
+				damage: AppConfig.DEFAULTS.BLUEPRINT_LEVEL,
+				health: AppConfig.DEFAULTS.BLUEPRINT_LEVEL,
+				armor: AppConfig.DEFAULTS.BLUEPRINT_LEVEL,
 			},
-			inscriptionLevel: 0,
-			sacredLevel: 0,
+			inscriptionLevel: AppConfig.DEFAULTS.CARD_LEVEL,
+			sacredLevel: AppConfig.DEFAULTS.CARD_LEVEL,
 			battleStats: {
 				damage: 0,
 				health: 0,
@@ -138,20 +131,20 @@ function createInitialStore() {
 		heroes: heroesData.map((hero) => ({
 			...hero,
 			percentages: {
-				damage: 0,
-				health: 0,
-				armor: 0,
+				damage: AppConfig.DEFAULTS.HERO_PERCENTAGE,
+				health: AppConfig.DEFAULTS.HERO_PERCENTAGE,
+				armor: AppConfig.DEFAULTS.HERO_PERCENTAGE,
 			},
 		})),
 		artifacts: {
-			damage: { 30: 0, 35: 0, 40: 0, 45: 0, 50: 0, 55: 0, 60: 0, 65: 0 },
-			health: { 30: 0, 35: 0, 40: 0, 45: 0, 50: 0, 55: 0, 60: 0, 65: 0 },
-			armor: { 30: 0, 35: 0, 40: 0, 45: 0, 50: 0, 55: 0, 60: 0, 65: 0 },
+			damage: Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0])),
+			health: Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0])),
+			armor: Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0])),
 		},
-		engineerLevel: DEFAULT_ENGINEER_LEVEL,
-		scarabLevel: DEFAULT_SCARAB_LEVEL,
-		riftRank: DEFAULT_RIFT_RANK,
-		optimizeMode: DEFAULT_OPTIMIZE_MODE,
+		engineerLevel: AppConfig.DEFAULTS.ENGINEER_LEVEL,
+		scarabLevel: AppConfig.DEFAULTS.SCARAB_LEVEL,
+		riftRank: AppConfig.DEFAULTS.RIFT_RANK,
+		optimizeMode: AppConfig.DEFAULTS.OPTIMIZE_MODE,
 	};
 }
 
@@ -459,6 +452,23 @@ function setupEventListeners() {
 	}
 }
 
+function populateRiftRankSelect() {
+	const riftSelect = document.getElementById("riftRank");
+	if (!riftSelect) return;
+
+	// Clear existing options
+	riftSelect.replaceChildren();
+
+	// Add options from config
+	AppConfig.RIFT_RANKS.forEach((rank) => {
+		const option = document.createElement("option");
+		option.value = rank.key;
+		option.textContent = rank.label;
+		option.selected = rank.key === store.riftRank;
+		riftSelect.appendChild(option);
+	});
+}
+
 // ---------------------------
 // Init
 // ---------------------------
@@ -466,6 +476,7 @@ function setupEventListeners() {
  * Initializes the application
  */
 function init() {
+	populateRiftRankSelect();
 	// Render initial UI
 	renderMachines(store.machines);
 	renderHeroes(store.heroes);

@@ -1,7 +1,6 @@
 // ui/machines.js
 import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
-
-const RARITIES = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Titan", "Angel", "Celestial"];
+import { AppConfig } from "../config.js";
 
 /**
  * Renders the machine list and sets up selection
@@ -110,7 +109,7 @@ function createMachineDetailView(machine, updateListStats) {
 		createFormRow(
 			"Rarity",
 			createSelect(
-				RARITIES,
+				AppConfig.RARITY_LABELS,
 				machine.rarity,
 				(e) => {
 					machine.rarity = e.target.value;
@@ -141,9 +140,9 @@ function createMachineDetailView(machine, updateListStats) {
  * @param {import('../app.js').Machine} machine - Machine object
  */
 function resetMachine(machine) {
-	machine.rarity = "Common";
-	machine.level = 0;
-	machine.blueprints.damage = 0;
-	machine.blueprints.health = 0;
-	machine.blueprints.armor = 0;
+	machine.rarity = AppConfig.RARITY_LABELS[0];
+	machine.level = AppConfig.DEFAULTS.LEVEL;
+	machine.blueprints.damage = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
+	machine.blueprints.health = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
+	machine.blueprints.armor = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
 }
