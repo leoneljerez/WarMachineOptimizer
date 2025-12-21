@@ -295,7 +295,7 @@ export class Optimizer {
 	 * @returns {{clearable: boolean, winRate: number, simulations: number}} Result
 	 */
 	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS) {
-		let wins = 0;
+		let wins = false;
 		let simulations = 0;
 		const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 
@@ -305,15 +305,15 @@ export class Optimizer {
 			simulations++;
 
 			if (result.playerWon) {
-				wins++;
+				wins = true;
 				break;			
 			}
 		}
 
-		const winRate = wins / simulations;
+		const winRate = wins;
 
 		return {
-			clearable: winRate >= AppConfig.MONTE_CARLO_WIN_RATE,
+			clearable: winRate,
 			winRate,
 			simulations,
 		};
