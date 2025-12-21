@@ -296,13 +296,12 @@ export class Optimizer {
 	 */
 	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS) {
 		let wins = false;
-		let simulations = 0;
+
 		const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 
 		// Run ALL simulations - no early stopping for maximum consistency
 		for (let i = 0; i < maxSimulations; i++) {
 			const result = this.battleEngine.runBattleWithAbilities(team, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
-			simulations++;
 
 			if (result.playerWon) {
 				wins = true;
@@ -310,24 +309,19 @@ export class Optimizer {
 			}
 		}
 
-		const winRate = wins;
-
 		return {
-			clearable: winRate,
-			winRate,
-			simulations,
+			clearable: wins,
 		};
 	}
 
 	/**
 	 * Pushes star levels using Monte Carlo simulations
 	 * @param {import('./app.js').Machine[]} formation - Current best formation
-	 * @param {number} currentStars - Current star count
 	 * @param {Object} lastMissionByDifficulty - Map of difficulty -> last mission cleared (e.g., {easy: 40, normal: 20, hard: 1})
 	 * @param {string[]} difficulties - Difficulty levels
 	 * @returns {{additionalStars: number, lastMissionByDifficulty: Object}} Additional stars earned and updated mission tracker
 	 */
-	pushStarsWithMonteCarlo(formation, currentStars, lastMissionByDifficulty, difficulties = AppConfig.DIFFICULTY_KEYS) {
+	pushStarsWithMonteCarlo(formation, lastMissionByDifficulty, difficulties = AppConfig.DIFFICULTY_KEYS) {
 		if (formation.length === 0) {
 			return { additionalStars: 0, lastMissionByDifficulty };
 		}
@@ -475,7 +469,7 @@ export class Optimizer {
 		}
 
 		// Phase 2: Monte Carlo simulation to push stars further
-		const monteCarloResult = this.pushStarsWithMonteCarlo(lastWinningTeam, totalStars, lastMissionByDifficulty, difficulties);
+		const monteCarloResult = this.pushStarsWithMonteCarlo(lastWinningTeam, lastMissionByDifficulty, difficulties);
 
 		totalStars += monteCarloResult.additionalStars;
 
