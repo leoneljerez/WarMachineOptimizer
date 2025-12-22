@@ -238,38 +238,34 @@ export class Optimizer {
 	 * @param {import('./app.js').Machine[]} team - Team to arrange
 	 * @param {number} mission - Mission number
 	 * @param {string} difficulty - Difficulty level
+	 * @param {Object|null} enemyStats - Pre-calculated enemy stats (optional, for performance)
 	 * @returns {import('./app.js').Machine[]} Arranged team
 	 */
-	arrangeByRole(team, mission = 1, difficulty = "easy") {
+	arrangeByRole(team, mission = 1, difficulty = "easy", enemyStats = null) {
 		if (!team || team.length === 0) return [];
 
-		const enemyStats = Calculator.enemyAttributes(mission, difficulty);
+		// Calculate only if not provided (maintains backward compatibility)
+		const stats = enemyStats || Calculator.enemyAttributes(mission, difficulty);
 
-		const isUseless = (machine) => {
+		// Pre-categorize machines
+		const categorized = team.reduce((acc, machine) => {
+			let category;
+
 			if (machine.role === "tank") {
-				const potentialDamage = Calculator.computeDamageTaken(enemyStats.damage, machine.battleStats.armor);
-				return potentialDamage.gt(machine.battleStats.health.mul(0.5));
+				const potentialDamage = Calculator.computeDamageTaken(stats.damage, machine.battleStats.armor);
+				category = potentialDamage.gt(machine.battleStats.health.mul(0.5)) ? "useless" : "tank";
 			} else {
-				const dmgDealt = Calculator.computeDamageTaken(machine.battleStats.damage, enemyStats.armor);
-				return dmgDealt.eq(0);
+				const dmgDealt = Calculator.computeDamageTaken(machine.battleStats.damage, stats.armor);
+				category = dmgDealt.eq(0) ? "useless" : "remaining";
 			}
-		};
 
-		const machinesWithCategory = Iterator.from(team)
-			.map((machine) => ({
-				machine,
-				category: isUseless(machine) ? "useless" : machine.role === "tank" ? "tank" : "remaining",
-			}))
-			.toArray();
-
-		const categorized = machinesWithCategory.reduce((acc, { machine, category }) => {
 			(acc[category] ??= []).push(machine);
 			return acc;
 		}, {});
 
-		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.sub(a.battleStats.health));
-		const tanks = (categorized.tank ?? []).toSorted((a, b) => a.battleStats.health.sub(b.battleStats.health));
-		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.sub(b.battleStats.damage));
+		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.cmp(a.battleStats.health));
+		const tanks = (categorized.tank ?? []).toSorted((a, b) => a.battleStats.health.cmp(b.battleStats.health));
+		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.cmp(b.battleStats.damage));
 
 		let strongestDPS = null;
 		if (remaining.length > 0 && team.length === 5) {
@@ -292,25 +288,29 @@ export class Optimizer {
 	 * @param {number} mission - Mission number
 	 * @param {string} difficulty - Difficulty level
 	 * @param {number} maxSimulations - Maximum number of simulations to run
-	 * @returns {{clearable: boolean, winRate: number, simulations: number}} Result
+	 * @param {Array<Object>|null} enemyFormation - Pre-calculated enemy formation (optional, for performance)
+	 * @returns {{clearable: boolean, simulations: number, winRate: number}} Result
 	 */
-	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS) {
-		let wins = false;
+	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation = null) {
+		// Calculate only if not provided (maintains backward compatibility)
+		const enemies = enemyFormation || Calculator.getEnemyTeamForMission(mission, difficulty);
 
-		const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
-
-		// Run ALL simulations - no early stopping for maximum consistency
 		for (let i = 0; i < maxSimulations; i++) {
-			const result = this.battleEngine.runBattleWithAbilities(team, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
+			const result = this.battleEngine.runBattleWithAbilities(team, enemies, AppConfig.MAX_BATTLE_ROUNDS);
 
 			if (result.playerWon) {
-				wins = true;
-				break;			
+				return {
+					clearable: true,
+					simulations: i + 1,
+					winRate: 1 / (i + 1),
+				};
 			}
 		}
 
 		return {
-			clearable: wins,
+			clearable: false,
+			simulations: maxSimulations,
+			winRate: 0,
 		};
 	}
 
@@ -369,11 +369,24 @@ export class Optimizer {
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 
 				if (ourPower.lt(requiredPower)) {
-					break; // Stop trying this difficulty
+					break;
 				}
 
-				const arranged = this.arrangeByRole(formation, mission, difficulty);
-				const result = this.runMonteCarloSimulation(arranged, mission, difficulty);
+				// Calculate enemy formation once
+				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
+
+				// Extract stats from enemy formation
+				const enemyStats = {
+					damage: enemyFormation[0].baseStats.damage,
+					health: enemyFormation[0].baseStats.health,
+					armor: enemyFormation[0].baseStats.armor,
+				};
+
+				// Pass enemyStats to arrangeByRole
+				const arranged = this.arrangeByRole(formation, mission, difficulty, enemyStats);
+
+				// Pass enemyFormation to Monte Carlo simulation
+				const result = this.runMonteCarloSimulation(arranged, mission, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
 
 				if (result.clearable) {
 					additionalStars++;
@@ -434,7 +447,18 @@ export class Optimizer {
 			let missionHasClears = false;
 
 			for (const difficulty of difficulties) {
-				const arrangedTeam = this.arrangeByRole(currentBestTeam, mission, difficulty);
+				// Calculate enemy formation once
+				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
+
+				// Extract stats from enemy formation (all enemies are identical)
+				const enemyStats = {
+					damage: enemyFormation[0].baseStats.damage,
+					health: enemyFormation[0].baseStats.health,
+					armor: enemyFormation[0].baseStats.armor,
+				};
+
+				// Pass enemyStats to avoid recalculation
+				const arrangedTeam = this.arrangeByRole(currentBestTeam, mission, difficulty, enemyStats);
 
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 				const ourPower = Calculator.computeSquadPower(arrangedTeam, "campaign");
@@ -443,7 +467,7 @@ export class Optimizer {
 					break;
 				}
 
-				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
+				// Reuse enemyFormation for battle
 				const result = this.battleEngine.runBattleWithAbilities(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
 
 				if (result.playerWon) {
