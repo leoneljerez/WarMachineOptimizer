@@ -1,6 +1,6 @@
 // ui/results.js
-import Decimal from "../vendor/break_eternity.esm.js";
 import { AppConfig } from "../config.js";
+import { Calculator } from "../calculator.js";
 
 /**
  * @typedef {Object} SerializedDecimal
@@ -26,24 +26,12 @@ const machineCardRegistry = new WeakMap();
 const cleanupRegistry = new WeakMap();
 
 /**
- * Converts a serialized Decimal to a Decimal instance
- * @param {SerializedDecimal} serialized - Serialized decimal object
- * @returns {Decimal} Decimal instance
- */
-function toDecimal(serialized) {
-	if (!serialized || typeof serialized !== "object") {
-		return new Decimal(0);
-	}
-	return Decimal.fromComponents(serialized.sign, serialized.layer, serialized.mag);
-}
-
-/**
  * Formats a Decimal as a localized integer string or exponential notation
  * @param {SerializedDecimal} decimal - Serialized decimal to format
  * @returns {string} Formatted string
  */
 function formatPower(decimal) {
-	const value = toDecimal(decimal);
+	const value = Calculator.toDecimal(decimal);
 	if (value.lessThan(999000000)) {
 		return Math.trunc(value.toNumber()).toLocaleString("en-US");
 	}
@@ -66,9 +54,9 @@ function updateMachineStats(card, mode) {
 	const healthEl = card.querySelector(".health .value");
 	const armorEl = card.querySelector(".armor .value");
 
-	if (damageEl) damageEl.textContent = toDecimal(stats.damage).toExponential(2);
-	if (healthEl) healthEl.textContent = toDecimal(stats.health).toExponential(2);
-	if (armorEl) armorEl.textContent = toDecimal(stats.armor).toExponential(2);
+	if (damageEl) damageEl.textContent = Calculator.toDecimal(stats.damage).toExponential(2);
+	if (healthEl) healthEl.textContent = Calculator.toDecimal(stats.health).toExponential(2);
+	if (armorEl) armorEl.textContent = Calculator.toDecimal(stats.armor).toExponential(2);
 }
 
 /**

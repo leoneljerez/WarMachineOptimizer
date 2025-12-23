@@ -16,7 +16,10 @@ export class Calculator {
 	static toDecimal(value) {
 		if (value instanceof Decimal) {
 			return value;
+		} else if (value && typeof value === "object" && "sign" in value && "layer" in value && "mag" in value) {
+			return Decimal.fromComponents(value.sign, value.layer, value.mag);
 		}
+
 		return new Decimal(value);
 	}
 
