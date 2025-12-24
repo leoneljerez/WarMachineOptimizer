@@ -370,7 +370,7 @@ export class Calculator {
 				console.warn(`Machine missing ${mode}Stats:`, machine.name);
 				continue;
 			}
-			total = total.add(Calculator.computeMachinePower(stats));
+			total = total.add(Calculator.computeMachinePower(stats)).floor();
 		}
 		return total;
 	}
