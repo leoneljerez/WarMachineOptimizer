@@ -122,8 +122,8 @@ function createMachineDetailView(machine, updateListStats) {
 		createFormRow("Level", createNumberInput(machine, "level", updateListStats, 0, 1, `${machineId}-level`), "col-md-6"),
 	]);
 
-	// Blueprint Level section
-	const blueprintSection = createSection("Blueprint Level", [
+	// Blueprint Levels section
+	const blueprintSection = createSection("Blueprint Levels", [
 		createFormRow("Damage", createNumberInput(machine.blueprints, "damage", updateListStats, 0, 1, `${machineId}-bp-damage`), "col-md-4"),
 		createFormRow("Health", createNumberInput(machine.blueprints, "health", updateListStats, 0, 1, `${machineId}-bp-health`), "col-md-4"),
 		createFormRow("Armor", createNumberInput(machine.blueprints, "armor", updateListStats, 0, 1, `${machineId}-bp-armor`), "col-md-4"),
