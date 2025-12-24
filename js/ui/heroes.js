@@ -111,9 +111,9 @@ function createHeroDetailView(hero, updateListStats) {
 	const heroId = `hero-${hero.id}`;
 
 	const percentSection = createSection("Crew Bonus", [
-		createFormRow("Damage %", createNumberInput(hero.percentages, "damage", updateListStats, 0, 1, `${heroId}-damage-pct`), "col-md-4"),
-		createFormRow("Health %", createNumberInput(hero.percentages, "health", updateListStats, 0, 1, `${heroId}-health-pct`), "col-md-4"),
-		createFormRow("Armor %", createNumberInput(hero.percentages, "armor", updateListStats, 0, 1, `${heroId}-armor-pct`), "col-md-4"),
+		createFormRow("Damage %", createNumberInput(hero.percentages, "damage", updateListStats, 0, 20, `${heroId}-damage-pct`), "col-md-4"),
+		createFormRow("Health %", createNumberInput(hero.percentages, "health", updateListStats, 0, 20, `${heroId}-health-pct`), "col-md-4"),
+		createFormRow("Armor %", createNumberInput(hero.percentages, "armor", updateListStats, 0, 20, `${heroId}-armor-pct`), "col-md-4"),
 	]);
 
 	form.appendChild(percentSection);
