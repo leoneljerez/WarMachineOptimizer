@@ -132,8 +132,8 @@ export class Optimizer {
 	 * @returns {import('./app.js').Machine[]} Machines with optimized crew
 	 */
 	optimizeCrewGlobally(machines, mode = "campaign") {
-		const availableHeroes = [...this.heroes];
-		const assignedHeroIds = new Set();
+		// Clone hero pool (will shrink as we assign)
+		let availableHeroes = [...this.heroes];
 
 		const machineStates = machines.map((machine) => {
 			const stats = this.calculateAllStats(machine, []);
@@ -148,20 +148,19 @@ export class Optimizer {
 
 		const sortedStates = machineStates.toSorted((a, b) => b.power.cmp(a.power));
 
-		const grouped = Object.groupBy(sortedStates, (ms) => (ms.machine.role === "tank" ? "tank" : "dps"));
+		// Partition tanks/dps in single pass
+		const { tanks, dps } = sortedStates.reduce(
+			(acc, ms) => {
+				(ms.machine.role === "tank" ? acc.tanks : acc.dps).push(ms);
+				return acc;
+			},
+			{ tanks: [], dps: [] }
+		);
 
-		const dpsMachines = grouped.dps ?? [];
-		const tankMachines = grouped.tank ?? [];
-
+		// Priority order
 		const priorityOrder = [];
-
-		if (dpsMachines.length > 0) {
-			priorityOrder.push(dpsMachines[0]);
-		}
-
-		if (tankMachines.length > 0) {
-			priorityOrder.push(tankMachines[0]);
-		}
+		if (dps.length > 0) priorityOrder.push(dps[0]);
+		if (tanks.length > 0) priorityOrder.push(tanks[0]);
 
 		const priorityIds = new Set(priorityOrder.map((ms) => ms.machine.id));
 		for (const ms of sortedStates) {
@@ -170,16 +169,16 @@ export class Optimizer {
 			}
 		}
 
+		// Assign crew - heroes are removed from pool after assignment
 		for (const machineState of priorityOrder) {
-			while (machineState.crew.length < this.maxSlots) {
+			while (machineState.crew.length < this.maxSlots && availableHeroes.length > 0) {
 				const currentStats = mode === "arena" ? machineState.stats.arenaStats : machineState.stats.battleStats;
 
 				let bestHeroIdx = -1;
 				let bestScore = 0;
 
+				// Only iterate through remaining heroes
 				for (let i = 0; i < availableHeroes.length; i++) {
-					if (assignedHeroIds.has(availableHeroes[i].id)) continue;
-
 					const score = this.scoreHeroForMachine(availableHeroes[i], machineState.machine, currentStats, mode);
 
 					if (score > bestScore) {
@@ -188,19 +187,17 @@ export class Optimizer {
 					}
 				}
 
-				if (bestHeroIdx === -1 || bestScore === 0) {
-					break;
-				}
+				if (bestHeroIdx === -1 || bestScore === 0) break;
 
 				const hero = availableHeroes[bestHeroIdx];
 				machineState.crew.push(hero);
-				assignedHeroIds.add(hero.id);
 
+				// Remove hero from pool
+				availableHeroes[bestHeroIdx] = availableHeroes[availableHeroes.length - 1];
+				availableHeroes.pop();
+
+				// Recalculate stats with new crew member
 				machineState.stats = this.calculateAllStats(machineState.machine, machineState.crew);
-
-				if (assignedHeroIds.size >= availableHeroes.length) {
-					break;
-				}
 			}
 		}
 
@@ -244,7 +241,7 @@ export class Optimizer {
 	arrangeByRole(team, mission = 1, difficulty = "easy", enemyStats = null) {
 		if (!team || team.length === 0) return [];
 
-		// Calculate only if not provided (maintains backward compatibility)
+		// Calculate only if not provided
 		const stats = enemyStats || Calculator.enemyAttributes(mission, difficulty);
 
 		// Pre-categorize machines
@@ -292,11 +289,11 @@ export class Optimizer {
 	 * @returns {{clearable: boolean, simulations: number, winRate: number}} Result
 	 */
 	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation = null) {
-		// Calculate only if not provided (maintains backward compatibility)
+		// Calculate only if not provided
 		const enemies = enemyFormation || Calculator.getEnemyTeamForMission(mission, difficulty);
 
 		for (let i = 0; i < maxSimulations; i++) {
-			const result = this.battleEngine.runBattleWithAbilities(team, enemies, AppConfig.MAX_BATTLE_ROUNDS);
+			const result = this.battleEngine.runBattle(team, enemies, AppConfig.MAX_BATTLE_ROUNDS, true);
 
 			if (result.playerWon) {
 				return {
@@ -328,64 +325,49 @@ export class Optimizer {
 
 		let additionalStars = 0;
 		const updatedLastMissions = { ...lastMissionByDifficulty };
-
-		// Calculate our squad's total power once (it doesn't change)
 		const ourPower = Calculator.computeSquadPower(formation, "campaign");
 
-		// Phase 1: Complete remaining difficulties on already-cleared missions
-		// For each difficulty level, try to push further on missions we've already started
 		for (let diffIdx = 0; diffIdx < difficulties.length; diffIdx++) {
 			const difficulty = difficulties[diffIdx];
 			const lastMission = updatedLastMissions[difficulty] || 0;
 
 			if (lastMission === 0) {
-				// Haven't cleared any missions on this difficulty yet
-				// Try from mission 1
 				const requiredPower = Calculator.requiredPowerForMission(1, difficulty);
+				if (ourPower.lt(requiredPower)) continue;
 
-				if (ourPower.lt(requiredPower)) {
-					continue; // Skip this difficulty entirely
-				}
-
-				const arranged = this.arrangeByRole(formation, 1, difficulty);
-				const result = this.runMonteCarloSimulation(arranged, 1, difficulty);
-
-				if (result.clearable) {
-					additionalStars++;
-					updatedLastMissions[difficulty] = 1;
-				} else {
-					// Failed mission 1, skip this entire difficulty
-					continue;
-				}
-				continue;
-			}
-
-			// Try pushing this difficulty forward from where we left off
-			let consecutiveFailures = 0;
-			const maxConsecutiveFailures = 2;
-
-			for (let mission = lastMission + 1; mission <= AppConfig.MAX_MISSIONS_PER_DIFFICULTY; mission++) {
-				// Quick power check
-				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
-
-				if (ourPower.lt(requiredPower)) {
-					break;
-				}
-
-				// Calculate enemy formation once
-				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
-
-				// Extract stats from enemy formation
+				const enemyFormation = Calculator.getEnemyTeamForMission(1, difficulty);
 				const enemyStats = {
 					damage: enemyFormation[0].baseStats.damage,
 					health: enemyFormation[0].baseStats.health,
 					armor: enemyFormation[0].baseStats.armor,
 				};
 
-				// Pass enemyStats to arrangeByRole
-				const arranged = this.arrangeByRole(formation, mission, difficulty, enemyStats);
+				const arranged = this.arrangeByRole(formation, 1, difficulty, enemyStats);				
+				const result = this.runMonteCarloSimulation(arranged, 1, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
 
-				// Pass enemyFormation to Monte Carlo simulation
+				if (result.clearable) {
+					additionalStars++;
+					updatedLastMissions[difficulty] = 1;
+				} else {
+					continue;
+				}
+			}
+
+			let consecutiveFailures = 0;
+			const maxConsecutiveFailures = AppConfig.MAX_CONSECUTIVE_FAILURES;
+
+			for (let mission = lastMission + 1; mission <= AppConfig.MAX_MISSIONS_PER_DIFFICULTY; mission++) {
+				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
+				if (ourPower.lt(requiredPower)) break;
+
+				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
+				const enemyStats = {
+					damage: enemyFormation[0].baseStats.damage,
+					health: enemyFormation[0].baseStats.health,
+					armor: enemyFormation[0].baseStats.armor,
+				};
+
+				const arranged = this.arrangeByRole(formation, mission, difficulty, enemyStats);
 				const result = this.runMonteCarloSimulation(arranged, mission, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
 
 				if (result.clearable) {
@@ -394,9 +376,7 @@ export class Optimizer {
 					consecutiveFailures = 0;
 				} else {
 					consecutiveFailures++;
-					if (consecutiveFailures >= maxConsecutiveFailures) {
-						break;
-					}
+					if (consecutiveFailures >= maxConsecutiveFailures) break;
 				}
 			}
 		}
@@ -468,7 +448,7 @@ export class Optimizer {
 				}
 
 				// Reuse enemyFormation for battle
-				const result = this.battleEngine.runBattleWithAbilities(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS);
+				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS, true);
 
 				if (result.playerWon) {
 					totalStars++;

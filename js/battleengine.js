@@ -11,9 +11,6 @@ export class BattleEngine {
 	/** @type {Decimal} */
 	static ZERO = new Decimal(0);
 
-	/** @type {number[]} Attack order for targeting (positions 0-4) */
-	static ATTACK_ORDER = AppConfig.ATTACK_ORDER;
-
 	/**
 	 * Selects targets based on ability targeting type
 	 * @param {Array<Object>} team - Team to select from
@@ -159,21 +156,14 @@ export class BattleEngine {
 	}
 
 	/**
-	 * Runs a complete battle simulation between two teams
-	 * @param {Array<import('./app.js').Machine>} playerTeam - Player's team of machines
-	 * @param {Array<Object>} enemyTeam - Enemy team (from Calculator.getEnemyTeamForMission)
-	 * @param {number} [maxRounds=20] - Maximum number of combat rounds
-	 * @returns {{
-	 *   playerWon: boolean,
-	 *   rounds: number,
-	 *   playerTeam: Array<Object>,
-	 *   enemyTeam: Array<Object>,
-	 *   playerTotalHP: Decimal,
-	 *   enemyTotalHP: Decimal
-	 * }} Battle result
-	 * @throws {Error} If teams are invalid or missing battleStats
+	 * battle simulation
+	 * @param {Array<Object>} playerTeam - Player's team
+	 * @param {Array<Object>} enemyTeam - Enemy team
+	 * @param {number} maxRounds - Maximum rounds
+	 * @param {boolean} enableAbilities - Whether to trigger abilities
+	 * @returns {Object} Battle result
 	 */
-	runBattle(playerTeam, enemyTeam, maxRounds = AppConfig.MAX_BATTLE_ROUNDS) {
+	runBattle(playerTeam, enemyTeam, maxRounds = AppConfig.MAX_BATTLE_ROUNDS, enableAbilities = true) {
 		// Input validation
 		if (!Array.isArray(playerTeam) || !Array.isArray(enemyTeam)) {
 			throw new Error("Teams must be arrays");
@@ -183,150 +173,15 @@ export class BattleEngine {
 		}
 
 		const ZERO = BattleEngine.ZERO;
-		const targetOrder = BattleEngine.ATTACK_ORDER;
-		const playerAttackOrder = BattleEngine.ATTACK_ORDER;
+		const targetOrder = AppConfig.ATTACK_ORDER;
 
-		/**
-		 * Deep clones a team with proper Decimal conversion
-		 * @param {Array<Object>} team - Team to clone
-		 * @returns {Array<Object>} Cloned team
-		 * @throws {Error} If machine is missing battleStats
-		 */
+		// Clone teams
 		const cloneTeam = (team) =>
 			team.map((m) => {
 				if (!m.battleStats) {
 					throw new Error(`Machine missing battleStats: ${JSON.stringify(m)}`);
 				}
 				return {
-					...m,
-					battleStats: {
-						health: Calculator.toDecimal(m.battleStats.health),
-						maxHealth: Calculator.toDecimal(m.battleStats.maxHealth || m.battleStats.health),
-						damage: Calculator.toDecimal(m.battleStats.damage),
-						armor: Calculator.toDecimal(m.battleStats.armor),
-					},
-					isDead: false,
-				};
-			});
-
-		const players = cloneTeam(playerTeam);
-		const enemies = cloneTeam(enemyTeam);
-
-		/**
-		 * Checks if any team member is alive
-		 * @param {Array<Object>} team - Team to check
-		 * @returns {boolean} True if at least one member is alive
-		 */
-		const hasAlive = (team) => team.some((m) => !m.isDead);
-
-		/**
-		 * Gets next valid target based on attack order
-		 * @param {Array<Object>} team - Team to select from
-		 * @returns {Object|null} Next alive target or null
-		 */
-		const getNextTarget = (team) => {
-			for (const idx of targetOrder) {
-				if (idx < team.length && !team[idx].isDead) {
-					return team[idx];
-				}
-			}
-			return null;
-		};
-
-		/**
-		 * Calculates total remaining HP of team
-		 * @param {Array<Object>} team - Team to calculate
-		 * @returns {Decimal} Total HP
-		 */
-		const getTotalHP = (team) => team.reduce((sum, m) => (m.isDead ? sum : sum.add(m.battleStats.health)), ZERO);
-
-		/**
-		 * Executes one attack phase for a team
-		 * @param {Array<Object>} attackers - Attacking team
-		 * @param {Array<Object>} defenders - Defending team
-		 */
-		const attackPhase = (attackers, defenders) => {
-			for (const attackerIdx of playerAttackOrder) {
-				// Stop if all defenders are dead
-				if (!hasAlive(defenders)) break;
-
-				if (attackerIdx >= attackers.length || attackers[attackerIdx].isDead) {
-					continue;
-				}
-
-				const attacker = attackers[attackerIdx];
-				const target = getNextTarget(defenders);
-				if (!target) break;
-
-				const damage = Calculator.computeDamageTaken(attacker.battleStats.damage, target.battleStats.armor);
-
-				// Check for miss (zero damage)
-				if (damage.eq(0)) {
-					continue;
-				}
-
-				// Subtract damage
-				const newHealth = target.battleStats.health.sub(damage).max(0);
-
-				// Check if dead
-				if (newHealth.eq(0)) {
-					target.battleStats.health = ZERO;
-					target.isDead = true;
-				} else {
-					target.battleStats.health = newHealth;
-				}
-			}
-		};
-
-		let round = 0;
-		while (round < maxRounds && hasAlive(players) && hasAlive(enemies)) {
-			attackPhase(players, enemies);
-
-			if (!hasAlive(enemies)) break;
-
-			attackPhase(enemies, players);
-
-			round++;
-		}
-
-		const playerWon = !hasAlive(enemies) && hasAlive(players);
-
-		return {
-			playerWon,
-			rounds: round,
-			playerTeam: players,
-			enemyTeam: enemies,
-			playerTotalHP: getTotalHP(players),
-			enemyTotalHP: getTotalHP(enemies),
-		};
-	}
-
-	/**
-	 * Runs a battle simulation with abilities enabled
-	 * @param {Array<import('./app.js').Machine>} playerTeam - Player's team
-	 * @param {Array<Object>} enemyTeam - Enemy team
-	 * @param {number} [maxRounds=20] - Maximum rounds
-	 * @returns {Object} Battle result
-	 */
-	runBattleWithAbilities(playerTeam, enemyTeam, maxRounds = AppConfig.MAX_BATTLE_ROUNDS) {
-		if (!Array.isArray(playerTeam) || !Array.isArray(enemyTeam)) {
-			throw new Error("Teams must be arrays");
-		}
-		if (playerTeam.length === 0 || enemyTeam.length === 0) {
-			throw new Error("Teams must have at least one member");
-		}
-
-		const ZERO = BattleEngine.ZERO;
-		const targetOrder = BattleEngine.ATTACK_ORDER;
-
-		const cloneTeam = (team) =>
-			team.map((m) => {
-				if (!m.battleStats) {
-					throw new Error(`Machine missing battleStats: ${JSON.stringify(m)}`);
-				}
-
-				// Deep clone to avoid mutations
-				const cloned = {
 					...m,
 					ability: m.ability ? { ...m.ability } : null,
 					battleStats: {
@@ -337,15 +192,13 @@ export class BattleEngine {
 					},
 					isDead: false,
 				};
-
-				return cloned;
 			});
 
 		const players = cloneTeam(playerTeam);
 		const enemies = cloneTeam(enemyTeam);
 
+		// Helper functions
 		const hasAlive = (team) => team.some((m) => !m.isDead);
-
 		const getNextTarget = (team) => {
 			for (const idx of targetOrder) {
 				if (idx < team.length && !team[idx].isDead) {
@@ -354,10 +207,10 @@ export class BattleEngine {
 			}
 			return null;
 		};
-
 		const getTotalHP = (team) => team.reduce((sum, m) => (m.isDead ? sum : sum.add(m.battleStats.health)), ZERO);
 
-		const attackPhaseWithAbilities = (attackers, defenders, attackersTeam, defendersTeam) => {
+		// Attack phase (handles both with and without abilities)
+		const attackPhase = (attackers, defenders, attackersTeam, defendersTeam) => {
 			for (const attackerIdx of targetOrder) {
 				if (!hasAlive(defenders)) break;
 				if (attackerIdx >= attackers.length || attackers[attackerIdx].isDead) {
@@ -373,7 +226,6 @@ export class BattleEngine {
 
 				if (!damage.eq(0)) {
 					const newHealth = target.battleStats.health.sub(damage).max(0);
-
 					if (newHealth.eq(0)) {
 						target.battleStats.health = ZERO;
 						target.isDead = true;
@@ -382,13 +234,10 @@ export class BattleEngine {
 					}
 				}
 
-				// Check if ability triggers (overdrive chance)
-				// Only for player machines (enemies don't have the ability property)
-				if (attacker.ability && attackersTeam === players) {
+				// Ability trigger (only if enabled and attacker has ability)
+				if (enableAbilities && attacker.ability && attackersTeam === players) {
 					const overdrive = Calculator.calculateOverdrive(attacker);
-					const roll = Math.random();
-
-					if (roll < overdrive) {
+					if (Math.random() < overdrive) {
 						try {
 							BattleEngine.executeAbility(attacker, attackersTeam, defendersTeam);
 						} catch (error) {
@@ -400,14 +249,12 @@ export class BattleEngine {
 			}
 		};
 
+		// Battle loop
 		let round = 0;
 		while (round < maxRounds && hasAlive(players) && hasAlive(enemies)) {
-			attackPhaseWithAbilities(players, enemies, players, enemies);
-
+			attackPhase(players, enemies, players, enemies);
 			if (!hasAlive(enemies)) break;
-
-			attackPhaseWithAbilities(enemies, players, enemies, players);
-
+			attackPhase(enemies, players, enemies, players);
 			round++;
 		}
 

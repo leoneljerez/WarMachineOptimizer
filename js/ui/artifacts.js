@@ -14,15 +14,13 @@ export function renderArtifacts(artifacts) {
 
 	const fragment = document.createDocumentFragment();
 
-	Iterator.from(stats)
-		.map((stat) => {
-			const col = document.createElement("div");
-			col.className = "col";
-			const card = createArtifactCard(stat, percentages, artifacts);
-			col.appendChild(card);
-			return col;
-		})
-		.forEach((col) => fragment.appendChild(col));
+	for (let i = 0; i < stats.length; i++) {
+		const col = document.createElement("div");
+		col.className = "col";
+		const card = createArtifactCard(stats[i], percentages, artifacts);
+		col.appendChild(card);
+		fragment.appendChild(col);
+	}
 
 	container.appendChild(fragment);
 }

@@ -8,6 +8,9 @@ import { AppConfig } from "./config.js";
  * @class
  */
 export class Calculator {
+	/** @type {Decimal} */
+	static ZERO = new Decimal(0);
+
 	/**
 	 * Ensures that any value is converted to a Decimal object
 	 * @param {*} value - Value to convert (number, string, or Decimal)
@@ -46,12 +49,12 @@ export class Calculator {
 	 * @returns {number} Sum of all rarity levels
 	 */
 	static getGlobalRarityLevels(ownedMachines) {
-		return Iterator.from(ownedMachines)
-			.map((machine) => {
-				const rarity = machine.rarity?.toLowerCase() ?? "common";
-				return AppConfig.getRarityLevel(rarity);
-			})
-			.reduce((sum, level) => sum + level, 0);
+		let sum = 0;
+		for (let i = 0; i < ownedMachines.length; i++) {
+			const rarity = ownedMachines[i].rarity?.toLowerCase() ?? "common";
+			sum += AppConfig.getRarityLevel(rarity);
+		}
+		return sum;
 	}
 
 	/**
@@ -153,24 +156,28 @@ export class Calculator {
 	 * @returns {{dmg: Decimal, hp: Decimal, arm: Decimal}} Total bonuses as decimal multipliers
 	 */
 	static computeCrewBonus(crewList) {
-		const bonuses = Iterator.from(crewList ?? [])
-			.filter((hero) => hero?.percentages)
-			.reduce(
-				(acc, hero) => {
-					const dmgPct = hero.percentages.damage || 0;
-					const hpPct = hero.percentages.health || 0;
-					const armPct = hero.percentages.armor || 0;
+		if (!crewList || crewList.length === 0) {
+			return { dmg: this.ZERO, hp: this.ZERO, arm: this.ZERO };
+		}
 
-					return {
-						dmg: acc.dmg.add(dmgPct > 0 ? dmgPct / 100 : 0),
-						hp: acc.hp.add(hpPct > 0 ? hpPct / 100 : 0),
-						arm: acc.arm.add(armPct > 0 ? armPct / 100 : 0),
-					};
-				},
-				{ dmg: new Decimal(0), hp: new Decimal(0), arm: new Decimal(0) }
-			);
+		let dmg = this.ZERO;
+		let hp = this.ZERO;
+		let arm = this.ZERO;
 
-		return bonuses;
+		for (let i = 0; i < crewList.length; i++) {
+			const hero = crewList[i];
+			if (!hero?.percentages) continue;
+
+			const dmgPct = hero.percentages.damage || 0;
+			const hpPct = hero.percentages.health || 0;
+			const armPct = hero.percentages.armor || 0;
+
+			if (dmgPct > 0) dmg = dmg.add(dmgPct / 100);
+			if (hpPct > 0) hp = hp.add(hpPct / 100);
+			if (armPct > 0) arm = arm.add(armPct / 100);
+		}
+
+		return { dmg, hp, arm };
 	}
 
 	/**
@@ -205,16 +212,24 @@ export class Calculator {
 	 * @returns {Decimal} Total artifact bonus as decimal multiplier
 	 */
 	static computeArtifactBonus(artifactArray, stat) {
-		return Iterator.from(artifactArray ?? [])
-			.filter((a) => a.stat === stat && a.values)
-			.flatMap((a) => Object.entries(a.values))
-			.filter(([, quantity]) => quantity && quantity > 0)
-			.map(([percentStr, quantity]) => {
+		let total = new Decimal(1);
+
+		for (let i = 0; i < artifactArray.length; i++) {
+			const artifact = artifactArray[i];
+			if (artifact.stat !== stat || !artifact.values) continue;
+
+			const entries = Object.entries(artifact.values);
+			for (let j = 0; j < entries.length; j++) {
+				const [percentStr, quantity] = entries[j];
+				if (!quantity || quantity <= 0) continue;
+
 				const percent = Number(percentStr);
-				return new Decimal(1).add(percent / 100).pow(quantity);
-			})
-			.reduce((total, mult) => total.mul(mult), new Decimal(1))
-			.sub(1);
+				const multiplier = new Decimal(1).add(percent / 100).pow(quantity);
+				total = total.mul(multiplier);
+			}
+		}
+
+		return total.sub(1);
 	}
 
 	/**
@@ -347,16 +362,17 @@ export class Calculator {
 	 * @returns {Decimal} Total squad power
 	 */
 	static computeSquadPower(machines = [], mode = "campaign") {
-		return Iterator.from(machines)
-			.map((machine) => {
-				const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
-				if (!stats) {
-					console.warn(`Machine missing ${mode}Stats:`, machine.name);
-					return new Decimal(0);
-				}
-				return Calculator.computeMachinePower(stats);
-			})
-			.reduce((total, power) => total.add(power), new Decimal(0));
+		let total = new Decimal(0);
+		for (let i = 0; i < machines.length; i++) {
+			const machine = machines[i];
+			const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
+			if (!stats) {
+				console.warn(`Machine missing ${mode}Stats:`, machine.name);
+				continue;
+			}
+			total = total.add(Calculator.computeMachinePower(stats));
+		}
+		return total;
 	}
 
 	/**

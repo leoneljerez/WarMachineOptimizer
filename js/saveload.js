@@ -138,8 +138,11 @@ function applyLoadedData(store, data) {
 	store.scarabLevel = data.scarabLevel;
 	store.riftRank = data.riftRank;
 
+	const machineMap = new Map(store.machines.map((m) => [String(m.id), m]));
+	const heroMap = new Map(store.heroes.map((h) => [String(h.id), h]));
+
 	data.machines.forEach((savedMachine) => {
-		const machine = store.machines.find((m) => String(m.id) === String(savedMachine.id));
+		const machine = machineMap.get(String(savedMachine.id));
 		if (machine) {
 			machine.rarity = savedMachine.rarity;
 			machine.level = savedMachine.level;
@@ -152,7 +155,7 @@ function applyLoadedData(store, data) {
 	});
 
 	data.heroes.forEach((savedHero) => {
-		const hero = store.heroes.find((h) => String(h.id) === String(savedHero.id));
+		const hero = heroMap.get(String(savedHero.id));
 		if (hero) {
 			hero.percentages.damage = savedHero.percentages.damage;
 			hero.percentages.health = savedHero.percentages.health;
