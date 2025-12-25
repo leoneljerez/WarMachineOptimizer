@@ -132,8 +132,9 @@ export class Optimizer {
 	 * @returns {import('./app.js').Machine[]} Machines with optimized crew
 	 */
 	optimizeCrewGlobally(machines, mode = "campaign") {
-		// Clone hero pool (will shrink as we assign)
-		let availableHeroes = [...this.heroes];
+		// Use Set for O(1) removal instead of array splice
+		const availableHeroIds = new Set(this.heroes.map((h) => h.id));
+		const heroMap = new Map(this.heroes.map((h) => [h.id, h]));
 
 		const machineStates = machines.map((machine) => {
 			const stats = this.calculateAllStats(machine, []);
@@ -147,13 +148,12 @@ export class Optimizer {
 		});
 
 		machineStates.sort((a, b) => b.power.cmp(a.power));
-		const sortedStates = machineStates;
 
-		// Partition tanks/dps in single pass
+		// Partition tanks/dps
 		const tanks = [];
 		const dps = [];
-		for (let i = 0; i < sortedStates.length; i++) {
-			const ms = sortedStates[i];
+		for (let i = 0; i < machineStates.length; i++) {
+			const ms = machineStates[i];
 			if (ms.machine.role === "tank") {
 				tanks.push(ms);
 			} else {
@@ -167,45 +167,45 @@ export class Optimizer {
 		if (tanks.length > 0) priorityOrder.push(tanks[0]);
 
 		const priorityIds = new Set(priorityOrder.map((ms) => ms.machine.id));
-		for (const ms of sortedStates) {
+		for (let i = 0; i < machineStates.length; i++) {
+			const ms = machineStates[i];
 			if (!priorityIds.has(ms.machine.id)) {
 				priorityOrder.push(ms);
 			}
 		}
 
-		// Assign crew - heroes are removed from pool after assignment
-		for (const machineState of priorityOrder) {
-			while (machineState.crew.length < this.maxSlots && availableHeroes.length > 0) {
+		// Assign crew
+		for (let i = 0; i < priorityOrder.length; i++) {
+			const machineState = priorityOrder[i];
+
+			while (machineState.crew.length < this.maxSlots && availableHeroIds.size > 0) {
 				const currentStats = mode === "arena" ? machineState.stats.arenaStats : machineState.stats.battleStats;
 
-				let bestHeroIdx = -1;
+				let bestHeroId = null;
 				let bestScore = 0;
 
-				// Only iterate through remaining heroes
-				for (let i = 0; i < availableHeroes.length; i++) {
-					const score = this.scoreHeroForMachine(availableHeroes[i], machineState.machine, currentStats, mode);
+				// Iterate through available hero IDs
+				for (const heroId of availableHeroIds) {
+					const hero = heroMap.get(heroId);
+					const score = this.scoreHeroForMachine(hero, machineState.machine, currentStats, mode);
 
 					if (score > bestScore) {
 						bestScore = score;
-						bestHeroIdx = i;
+						bestHeroId = heroId;
 					}
 				}
 
-				if (bestHeroIdx === -1 || bestScore === 0) break;
+				if (bestHeroId === null || bestScore === 0) break;
 
-				const hero = availableHeroes[bestHeroIdx];
+				const hero = heroMap.get(bestHeroId);
 				machineState.crew.push(hero);
+				availableHeroIds.delete(bestHeroId);
 
-				// Remove hero from pool
-				availableHeroes[bestHeroIdx] = availableHeroes[availableHeroes.length - 1];
-				availableHeroes.pop();
-
-				// Recalculate stats with new crew member
 				machineState.stats = this.calculateAllStats(machineState.machine, machineState.crew);
 			}
 		}
 
-		return sortedStates.map((ms) => ({
+		return machineStates.map((ms) => ({
 			...ms.machine,
 			crew: ms.crew,
 			battleStats: ms.stats.battleStats,
