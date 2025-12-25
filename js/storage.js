@@ -50,7 +50,7 @@ export function autoSave(store) {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
 	} catch (error) {
 		console.error("Auto-save failed:", error);
-		// Don't show toast for auto-save failures to avoid annoying users
+		showToast("Auto-save failed", "danger");
 	}
 }
 
