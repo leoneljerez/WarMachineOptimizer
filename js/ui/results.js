@@ -532,6 +532,7 @@ function cleanupResults(container) {
 		machineCardRegistry.delete(card);
 	});
 
+	cleanupRegistry.delete(container);
 	// Clear container DOM to release references
 	container.replaceChildren();
 }
