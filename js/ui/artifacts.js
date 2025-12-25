@@ -54,7 +54,11 @@ function createArtifactCard(stat, percentages, artifacts) {
 	title.className = "card-title mb-0 text-capitalize";
 	title.textContent = stat;
 
-	const total = Iterator.from(Object.values(artifacts[stat])).reduce((sum, val) => sum + val, 0);
+	const values = Object.values(artifacts[stat]);
+	let total = 0;
+	for (let i = 0; i < values.length; i++) {
+		total += values[i];
+	}
 	const totalBadge = document.createElement("span");
 	totalBadge.className = "badge bg-primary";
 	totalBadge.textContent = `Total: ${total}`;

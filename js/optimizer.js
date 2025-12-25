@@ -146,16 +146,20 @@ export class Optimizer {
 			};
 		});
 
-		const sortedStates = machineStates.toSorted((a, b) => b.power.cmp(a.power));
+		machineStates.sort((a, b) => b.power.cmp(a.power));
+		const sortedStates = machineStates;
 
 		// Partition tanks/dps in single pass
-		const { tanks, dps } = sortedStates.reduce(
-			(acc, ms) => {
-				(ms.machine.role === "tank" ? acc.tanks : acc.dps).push(ms);
-				return acc;
-			},
-			{ tanks: [], dps: [] }
-		);
+		const tanks = [];
+		const dps = [];
+		for (let i = 0; i < sortedStates.length; i++) {
+			const ms = sortedStates[i];
+			if (ms.machine.role === "tank") {
+				tanks.push(ms);
+			} else {
+				dps.push(ms);
+			}
+		}
 
 		// Priority order
 		const priorityOrder = [];
@@ -218,16 +222,15 @@ export class Optimizer {
 	selectBestFive(optimizedMachines, mode = "campaign") {
 		if (optimizedMachines.length === 0) return [];
 
-		return Iterator.from(optimizedMachines)
-			.map((m) => {
-				const stats = mode === "arena" ? m.arenaStats : m.battleStats;
-				const power = Calculator.computeMachinePower(stats);
-				return { machine: m, power };
-			})
-			.toArray()
-			.toSorted((a, b) => b.power.cmp(a.power))
-			.slice(0, 5)
-			.map((x) => x.machine);
+		const machinesWithPower = optimizedMachines.map((m) => {
+			const stats = mode === "arena" ? m.arenaStats : m.battleStats;
+			const power = Calculator.computeMachinePower(stats);
+			return { machine: m, power };
+		});
+
+		machinesWithPower.sort((a, b) => b.power.cmp(a.power));
+
+		return machinesWithPower.slice(0, 5).map((x) => x.machine);
 	}
 
 	/**
@@ -342,7 +345,7 @@ export class Optimizer {
 					armor: enemyFormation[0].baseStats.armor,
 				};
 
-				const arranged = this.arrangeByRole(formation, 1, difficulty, enemyStats);				
+				const arranged = this.arrangeByRole(formation, 1, difficulty, enemyStats);
 				const result = this.runMonteCarloSimulation(arranged, 1, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
 
 				if (result.clearable) {

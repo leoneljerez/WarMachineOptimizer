@@ -27,7 +27,7 @@ export function renderTavernCards(machines) {
 		},
 	];
 
-	const sortedMachines = machines.toSorted((a, b) => a.name.localeCompare(b.name));
+	const sortedMachines = [...machines].sort((a, b) => a.name.localeCompare(b.name));
 
 	sections.forEach(({ containerId, type, resetText, property }) => {
 		const container = document.getElementById(containerId);

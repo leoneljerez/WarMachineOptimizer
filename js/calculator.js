@@ -11,18 +11,30 @@ export class Calculator {
 	/** @type {Decimal} */
 	static ZERO = new Decimal(0);
 
+	static enemyStatsCache = new Map();
+
 	/**
 	 * Ensures that any value is converted to a Decimal object
 	 * @param {*} value - Value to convert (number, string, or Decimal)
 	 * @returns {Decimal} Decimal instance
 	 */
 	static toDecimal(value) {
+		// already a Decimal instance
 		if (value instanceof Decimal) {
 			return value;
-		} else if (value && typeof value === "object" && "sign" in value && "layer" in value && "mag" in value) {
+		}
+
+		// primitive number
+		if (typeof value === "number") {
+			return new Decimal(value);
+		}
+
+		// Serialized Decimal from worker/storage
+		if (value && typeof value === "object" && "mag" in value) {
 			return Decimal.fromComponents(value.sign, value.layer, value.mag);
 		}
 
+		// Fallback for strings and edge cases
 		return new Decimal(value);
 	}
 
@@ -81,6 +93,13 @@ export class Calculator {
 	 * @returns {{damage: Decimal, health: Decimal, armor: Decimal}} Enemy stats
 	 */
 	static enemyAttributes(missionNumber, difficulty, milestoneBase = AppConfig.MILESTONE_SCALE_FACTOR) {
+		const cacheKey = `${missionNumber}:${difficulty}:${milestoneBase}`;
+
+		const cached = Calculator.enemyStatsCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+
 		const diffMultiplier = AppConfig.getDifficultyMultiplier(difficulty);
 		const missionNum = missionNumber - 1;
 		const milestoneCount = Math.floor(missionNum / 10);
@@ -90,11 +109,14 @@ export class Calculator {
 
 		const finalMultiplier = diffMultiplier.mul(missionFactor).mul(milestoneFactor);
 
-		return {
+		const result = {
 			damage: AppConfig.BASE_ENEMY_STATS.damage.mul(finalMultiplier),
 			health: AppConfig.BASE_ENEMY_STATS.health.mul(finalMultiplier),
 			armor: AppConfig.BASE_ENEMY_STATS.armor.mul(finalMultiplier),
 		};
+
+		Calculator.enemyStatsCache.set(cacheKey, result);
+		return result;
 	}
 
 	/**
@@ -218,9 +240,10 @@ export class Calculator {
 			const artifact = artifactArray[i];
 			if (artifact.stat !== stat || !artifact.values) continue;
 
-			const entries = Object.entries(artifact.values);
-			for (let j = 0; j < entries.length; j++) {
-				const [percentStr, quantity] = entries[j];
+			const keys = Object.keys(artifact.values);
+			for (let j = 0; j < keys.length; j++) {
+				const percentStr = keys[j];
+				const quantity = artifact.values[percentStr];
 				if (!quantity || quantity <= 0) continue;
 
 				const percent = Number(percentStr);
@@ -363,9 +386,11 @@ export class Calculator {
 	 */
 	static computeSquadPower(machines = [], mode = "campaign") {
 		let total = new Decimal(0);
+		const useArena = mode === "arena";
+
 		for (let i = 0; i < machines.length; i++) {
 			const machine = machines[i];
-			const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
+			const stats = useArena ? machine.arenaStats : machine.battleStats;
 			if (!stats) {
 				console.warn(`Machine missing ${mode}Stats:`, machine.name);
 				continue;
