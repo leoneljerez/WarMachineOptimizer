@@ -87,6 +87,13 @@ function createMachineDetailView(machine, updateListStats) {
 	const wrapper = document.createElement("div");
 	wrapper.className = "machine-detail-view";
 
+	// Import triggerAutoSave dynamically to avoid circular dependency
+	const triggerAutoSave = async () => {
+		const { triggerAutoSave: fn } = await import("../app.js");
+		const { store } = await import("../app.js");
+		fn(store);
+	};
+
 	const header = createDetailHeader({
 		image: machine.image,
 		name: machine.name,
@@ -95,6 +102,7 @@ function createMachineDetailView(machine, updateListStats) {
 				resetMachine(machine);
 				wrapper.replaceWith(createMachineDetailView(machine, updateListStats));
 				updateListStats();
+				triggerAutoSave();
 			}
 		},
 	});
@@ -103,6 +111,11 @@ function createMachineDetailView(machine, updateListStats) {
 	form.className = "machine-form";
 
 	const machineId = `machine-${machine.id}`;
+
+	const updateAndSave = () => {
+		updateListStats();
+		triggerAutoSave();
+	};
 
 	// General section
 	const generalSection = createSection("General", [
@@ -113,20 +126,20 @@ function createMachineDetailView(machine, updateListStats) {
 				machine.rarity,
 				(e) => {
 					machine.rarity = e.target.value;
-					updateListStats();
+					updateAndSave();
 				},
 				`${machineId}-rarity`
 			),
 			"col-md-6"
 		),
-		createFormRow("Level", createNumberInput(machine, "level", updateListStats, 0, 1, `${machineId}-level`), "col-md-6"),
+		createFormRow("Level", createNumberInput(machine, "level", updateAndSave, 0, 1, `${machineId}-level`), "col-md-6"),
 	]);
 
 	// Blueprint Levels section
 	const blueprintSection = createSection("Blueprint Levels", [
-		createFormRow("Damage", createNumberInput(machine.blueprints, "damage", updateListStats, 0, 1, `${machineId}-bp-damage`), "col-md-4"),
-		createFormRow("Health", createNumberInput(machine.blueprints, "health", updateListStats, 0, 1, `${machineId}-bp-health`), "col-md-4"),
-		createFormRow("Armor", createNumberInput(machine.blueprints, "armor", updateListStats, 0, 1, `${machineId}-bp-armor`), "col-md-4"),
+		createFormRow("Damage", createNumberInput(machine.blueprints, "damage", updateAndSave, 0, 1, `${machineId}-bp-damage`), "col-md-4"),
+		createFormRow("Health", createNumberInput(machine.blueprints, "health", updateAndSave, 0, 1, `${machineId}-bp-health`), "col-md-4"),
+		createFormRow("Armor", createNumberInput(machine.blueprints, "armor", updateAndSave, 0, 1, `${machineId}-bp-armor`), "col-md-4"),
 	]);
 
 	form.append(generalSection, blueprintSection);

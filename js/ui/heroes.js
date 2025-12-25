@@ -93,6 +93,13 @@ function createHeroDetailView(hero, updateListStats) {
 	const wrapper = document.createElement("div");
 	wrapper.className = "hero-detail-view";
 
+	// Import triggerAutoSave dynamically to avoid circular dependency
+	const triggerAutoSave = async () => {
+		const { triggerAutoSave: fn } = await import("../app.js");
+		const { store } = await import("../app.js");
+		fn(store);
+	};
+
 	const header = createDetailHeader({
 		image: hero.image,
 		name: hero.name,
@@ -101,6 +108,7 @@ function createHeroDetailView(hero, updateListStats) {
 				resetHero(hero);
 				wrapper.replaceWith(createHeroDetailView(hero, updateListStats));
 				updateListStats();
+				triggerAutoSave();
 			}
 		},
 	});
@@ -110,10 +118,15 @@ function createHeroDetailView(hero, updateListStats) {
 
 	const heroId = `hero-${hero.id}`;
 
+	const updateAndSave = () => {
+		updateListStats();
+		triggerAutoSave();
+	};
+
 	const percentSection = createSection("Crew Bonus", [
-		createFormRow("Damage %", createNumberInput(hero.percentages, "damage", updateListStats, 0, 20, `${heroId}-damage-pct`), "col-md-4"),
-		createFormRow("Health %", createNumberInput(hero.percentages, "health", updateListStats, 0, 20, `${heroId}-health-pct`), "col-md-4"),
-		createFormRow("Armor %", createNumberInput(hero.percentages, "armor", updateListStats, 0, 20, `${heroId}-armor-pct`), "col-md-4"),
+		createFormRow("Damage %", createNumberInput(hero.percentages, "damage", updateAndSave, 0, 20, `${heroId}-damage-pct`), "col-md-4"),
+		createFormRow("Health %", createNumberInput(hero.percentages, "health", updateAndSave, 0, 20, `${heroId}-health-pct`), "col-md-4"),
+		createFormRow("Armor %", createNumberInput(hero.percentages, "armor", updateAndSave, 0, 20, `${heroId}-armor-pct`), "col-md-4"),
 	]);
 
 	form.appendChild(percentSection);

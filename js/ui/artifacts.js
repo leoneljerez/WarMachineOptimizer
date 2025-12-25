@@ -33,6 +33,13 @@ export function renderArtifacts(artifacts) {
  * @returns {HTMLElement} Card element
  */
 function createArtifactCard(stat, percentages, artifacts) {
+	// Import triggerAutoSave dynamically to avoid circular dependency
+	const triggerAutoSave = async () => {
+		const { triggerAutoSave: fn } = await import("../app.js");
+		const { store } = await import("../app.js");
+		fn(store);
+	};
+
 	const card = document.createElement("div");
 	card.className = "card h-100 card-hover bg-body-tertiary bg-opacity-25";
 
@@ -58,30 +65,6 @@ function createArtifactCard(stat, percentages, artifacts) {
 	// Input grid: two columns
 	const grid = document.createElement("div");
 	grid.className = "row g-2";
-
-	/*
-	 * ES2025+ ITERATOR HELPERS with Iterator.range (Stage 3 - Not Stage 4 Yet)
-	 * Once Iterator.range reaches Stage 4 (estimated ES2026/2027), replace with:
-	 *
-	 * Iterator.from(percentages)
-	 *     .map(pct => {
-	 *         const col = document.createElement("div");
-	 *         col.className = "col-6";
-	 *
-	 *         const inputGroup = document.createElement("div");
-	 *         inputGroup.className = "input-group input-group-sm";
-	 *
-	 *         // ... create label and input ...
-	 *
-	 *         col.appendChild(inputGroup);
-	 *         return col;
-	 *     })
-	 *     .forEach(col => grid.appendChild(col));
-	 *
-	 * Benefits:
-	 * - Cleaner pipeline for DOM creation
-	 * - More functional and testable
-	 */
 
 	percentages.forEach((pct) => {
 		const col = document.createElement("div");
@@ -112,6 +95,8 @@ function createArtifactCard(stat, percentages, artifacts) {
 
 			const newTotal = Iterator.from(Object.values(artifacts[stat])).reduce((sum, v) => sum + v, 0);
 			totalBadge.textContent = `Total: ${newTotal}`;
+
+			triggerAutoSave();
 		});
 
 		inputGroup.append(label, input);

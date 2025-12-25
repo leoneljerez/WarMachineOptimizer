@@ -5,6 +5,13 @@
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function renderTavernCards(machines) {
+	// Import triggerAutoSave dynamically to avoid circular dependency
+	const triggerAutoSave = async () => {
+		const { triggerAutoSave: fn } = await import("../app.js");
+		const { store } = await import("../app.js");
+		fn(store);
+	};
+
 	const sections = [
 		{
 			containerId: "tavernCardsContainer",
@@ -30,6 +37,7 @@ export function renderTavernCards(machines) {
 			if (confirm(`${resetText} to 0?`)) {
 				machines.forEach((m) => (m[property] = 0));
 				renderTavernCards(machines);
+				triggerAutoSave();
 			}
 		});
 
@@ -40,7 +48,7 @@ export function renderTavernCards(machines) {
 		sortedMachines.forEach((machine) => {
 			const col = document.createElement("div");
 			col.className = "col";
-			col.appendChild(createCardLevelCard(machine, type));
+			col.appendChild(createCardLevelCard(machine, type, triggerAutoSave));
 			fragment.appendChild(col);
 		});
 		grid.appendChild(fragment);
@@ -73,9 +81,10 @@ function createResetButton(text, onClick) {
  * Creates a card for managing a machine's card level
  * @param {import('../app.js').Machine} machine - Machine object
  * @param {string} cardType - "sacred" or "inscription"
+ * @param {Function} triggerAutoSave - Function to trigger auto-save
  * @returns {HTMLElement} Card element
  */
-function createCardLevelCard(machine, cardType) {
+function createCardLevelCard(machine, cardType, triggerAutoSave) {
 	const card = document.createElement("div");
 	card.className = "card h-100 card-hover";
 
@@ -116,6 +125,7 @@ function createCardLevelCard(machine, cardType) {
 	input.addEventListener("input", (e) => {
 		const val = parseInt(e.target.value, 10);
 		machine[propertyName] = isNaN(val) ? 0 : Math.max(0, val);
+		triggerAutoSave();
 	});
 
 	inputGroup.appendChild(label);

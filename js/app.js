@@ -9,98 +9,34 @@ import { heroesData } from "./data/heroes.js";
 import { abilitiesData } from "./data/abilities.js";
 import { Calculator } from "./calculator.js";
 import { SaveLoad } from "./saveload.js";
+import { autoSave, autoLoad, resetAll } from "./storage.js";
 import { showToast } from "./ui/notifications.js";
 import { AppConfig } from "./config.js";
 
-/**
- * @typedef {Object} MachineBlueprints
- * @property {number} damage - Damage blueprint level
- * @property {number} health - Health blueprint level
- * @property {number} armor - Armor blueprint level
- */
+// Store auto-save debounce timer
+let autoSaveTimer = null;
 
 /**
- * @typedef {Object} MachineStats
- * @property {number|import('./vendor/break_eternity.esm.js').default} damage
- * @property {number|import('./vendor/break_eternity.esm.js').default} health
- * @property {number|import('./vendor/break_eternity.esm.js').default} armor
- * @property {number|import('./vendor/break_eternity.esm.js').default} maxHealth
+ * Debounced auto-save function
+ * @param {Store} store - Application store
  */
-
-/**
- * @typedef {Object} Machine
- * @property {number} id
- * @property {string} name
- * @property {string} role
- * @property {string[]} tags
- * @property {string} image
- * @property {Object} ability
- * @property {MachineStats} baseStats
- * @property {string} rarity
- * @property {number} level
- * @property {MachineBlueprints} blueprints
- * @property {number} inscriptionLevel
- * @property {number} sacredLevel
- * @property {MachineStats} battleStats
- * @property {MachineStats} arenaStats
- * @property {Hero[]} crew
- */
-
-/**
- * @typedef {Object} HeroPercentages
- * @property {number} damage
- * @property {number} health
- * @property {number} armor
- */
-
-/**
- * @typedef {Object} Hero
- * @property {number} id
- * @property {string} name
- * @property {string} role
- * @property {string} image
- * @property {HeroPercentages} percentages
- */
-
-/**
- * @typedef {Object} ArtifactValues
- * @property {number} 30
- * @property {number} 35
- * @property {number} 40
- * @property {number} 45
- * @property {number} 50
- * @property {number} 55
- * @property {number} 60
- * @property {number} 65
- */
-
-/**
- * @typedef {Object} Artifacts
- * @property {ArtifactValues} damage
- * @property {ArtifactValues} health
- * @property {ArtifactValues} armor
- */
-
-/**
- * @typedef {Object} Store
- * @property {Machine[]} machines
- * @property {Hero[]} heroes
- * @property {Artifacts} artifacts
- * @property {number} engineerLevel
- * @property {number} scarabLevel
- * @property {string} riftRank
- * @property {string} optimizeMode
- */
-
-// ---------------------------
-// Data Store
-// ---------------------------
+function triggerAutoSave(store) {
+	// Clear existing timer
+	if (autoSaveTimer) {
+		clearTimeout(autoSaveTimer);
+	}
+	
+	// Set new timer (saves 500ms after last change)
+	autoSaveTimer = setTimeout(() => {
+		autoSave(store);
+	}, 500);
+}
 
 /**
  * Creates the initial application store
  * @returns {Store}
  */
-function createInitialStore() {
+export function createInitialStore() {
 	return {
 		machines: machinesData.map((machine) => ({
 			...machine,
@@ -150,10 +86,6 @@ function createInitialStore() {
 
 export const store = createInitialStore();
 
-// ---------------------------
-// UI
-// ---------------------------
-
 /**
  * Sets the loading state of the UI
  * @param {boolean} isLoading
@@ -199,10 +131,6 @@ function switchToResultsTab() {
 	}
 }
 
-// ---------------------------
-// Validation
-// ---------------------------
-
 /**
  * Validates that the user has configured at least some data before optimization
  * @returns {{valid: boolean, message: string}} Validation result
@@ -211,7 +139,6 @@ function validateOptimizationInputs() {
 	const ownedMachines = getOwnedMachines();
 	const ownedHeroes = getOwnedHeroes();
 
-	// Check if user has any machines configured
 	if (ownedMachines.length === 0) {
 		return {
 			valid: false,
@@ -219,7 +146,6 @@ function validateOptimizationInputs() {
 		};
 	}
 
-	// Check if user has any heroes configured
 	if (ownedHeroes.length === 0) {
 		return {
 			valid: false,
@@ -229,10 +155,6 @@ function validateOptimizationInputs() {
 
 	return { valid: true, message: "" };
 }
-
-// ---------------------------
-// Optimize
-// ---------------------------
 
 /**
  * Gets all owned machines (non-default configuration)
@@ -268,13 +190,8 @@ function getArtifactArray() {
 	}));
 }
 
-// ---------------------------
-// Worker Management
-// ---------------------------
-
 /**
  * Global reference to current optimization worker
- * Used to prevent race conditions and allow cancellation
  * @type {Worker|null}
  */
 let currentWorker = null;
@@ -283,14 +200,12 @@ let currentWorker = null;
  * Runs the optimization in a web worker
  */
 function runOptimization() {
-	// Validate inputs before starting
 	const validation = validateOptimizationInputs();
 	if (!validation.valid) {
 		showToast(validation.message, "warning");
 		return;
 	}
 
-	// Terminate existing worker if still running
 	if (currentWorker) {
 		currentWorker.terminate();
 		currentWorker = null;
@@ -305,7 +220,7 @@ function runOptimization() {
 	const globalRarityLevels = Calculator.getGlobalRarityLevels(ownedMachines);
 
 	const worker = new Worker("js/optimizerWorker.js", { type: "module" });
-	currentWorker = worker; // Track the worker
+	currentWorker = worker;
 
 	worker.postMessage({
 		mode: store.optimizeMode,
@@ -320,7 +235,7 @@ function runOptimization() {
 	});
 
 	worker.onmessage = function (e) {
-		currentWorker = null; // Clear reference when done
+		currentWorker = null;
 		const result = e.data;
 
 		if (result.error) {
@@ -337,17 +252,13 @@ function runOptimization() {
 	};
 
 	worker.onerror = function (err) {
-		currentWorker = null; // Clear reference on error
+		currentWorker = null;
 		const error = new Error("Worker error occurred", { cause: err });
 		console.error(error);
 		showToast("Optimization failed. Please try again.", "danger");
 		setLoading(false);
 	};
 }
-
-// ---------------------------
-// Event Listeners
-// ---------------------------
 
 /**
  * Sets up all event listeners for the application
@@ -359,6 +270,7 @@ function setupEventListeners() {
 		engineerInput.value = store.engineerLevel;
 		engineerInput.addEventListener("input", (e) => {
 			store.engineerLevel = parseInt(e.target.value) || 0;
+			triggerAutoSave(store);
 		});
 	}
 
@@ -368,6 +280,7 @@ function setupEventListeners() {
 		scarabInput.value = store.scarabLevel;
 		scarabInput.addEventListener("input", (e) => {
 			store.scarabLevel = parseInt(e.target.value) || 0;
+			triggerAutoSave(store);
 		});
 	}
 
@@ -377,6 +290,7 @@ function setupEventListeners() {
 		riftInput.value = store.riftRank;
 		riftInput.addEventListener("change", (e) => {
 			store.riftRank = e.target.value;
+			triggerAutoSave(store);
 		});
 	}
 
@@ -432,22 +346,25 @@ function setupEventListeners() {
 	const saveLoadBtn = document.getElementById("saveLoadBtn");
 
 	if (saveLoadModal && saveLoadBtn) {
-		// Track what element opened the modal
 		let modalTrigger = null;
 
-		// Capture the trigger element when modal opens
 		saveLoadModal.addEventListener("show.bs.modal", (e) => {
 			modalTrigger = e.relatedTarget || document.activeElement;
 		});
 
-		// Clear focus from modal when closing
+		// Clear textarea when modal closes
 		saveLoadModal.addEventListener("hide.bs.modal", () => {
+			// Clear the textarea content
+			const textarea = document.getElementById("saveLoadBox");
+			if (textarea) {
+				textarea.value = "";
+			}
+			
 			if (saveLoadModal.contains(document.activeElement)) {
 				document.activeElement.blur();
 			}
 		});
 
-		// Restore focus to trigger element when modal is fully hidden
 		saveLoadModal.addEventListener("hidden.bs.modal", () => {
 			if (modalTrigger && document.contains(modalTrigger)) {
 				modalTrigger.focus();
@@ -457,7 +374,6 @@ function setupEventListeners() {
 			modalTrigger = null;
 		});
 
-		// Focus first input when modal opens
 		saveLoadModal.addEventListener("shown.bs.modal", () => {
 			document.getElementById("saveLoadBox")?.focus();
 		});
@@ -472,7 +388,10 @@ function setupEventListeners() {
 	}
 
 	if (loadBtn) {
-		loadBtn.addEventListener("click", () => SaveLoad.load(store));
+		loadBtn.addEventListener("click", () => {
+			SaveLoad.load(store);
+			triggerAutoSave(store);
+		});
 	}
 
 	const resetArtifactsBtn = document.getElementById("resetArtifacts");
@@ -481,6 +400,17 @@ function setupEventListeners() {
 			if (confirm("Reset all artifact values to 0?")) {
 				resetAllArtifacts(store.artifacts);
 				renderArtifacts(store.artifacts);
+				triggerAutoSave(store);
+			}
+		});
+	}
+
+	// Reset All button
+	const resetAllBtn = document.getElementById("resetAllBtn");
+	if (resetAllBtn) {
+		resetAllBtn.addEventListener("click", () => {
+			if (confirm("Reset ALL data to default values? This cannot be undone.")) {
+				resetAll(store, createInitialStore);
 			}
 		});
 	}
@@ -490,10 +420,8 @@ function populateRiftRankSelect() {
 	const riftSelect = document.getElementById("riftRank");
 	if (!riftSelect) return;
 
-	// Clear existing options
 	riftSelect.replaceChildren();
 
-	// Add options from config
 	AppConfig.RIFT_RANKS.forEach((rank) => {
 		const option = document.createElement("option");
 		option.value = rank.key;
@@ -503,14 +431,18 @@ function populateRiftRankSelect() {
 	});
 }
 
-// ---------------------------
-// Init
-// ---------------------------
 /**
  * Initializes the application
  */
 function init() {
 	populateRiftRankSelect();
+	
+	// Try to load saved data
+	const loaded = autoLoad(store);
+	if (loaded) {
+		showToast("Previous session restored", "info");
+	}
+
 	// Render initial UI
 	renderMachines(store.machines);
 	renderHeroes(store.heroes);
@@ -531,3 +463,6 @@ if (document.readyState === "loading") {
 }
 
 init();
+
+// Export triggerAutoSave for use in UI modules
+export { triggerAutoSave };
