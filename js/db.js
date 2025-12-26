@@ -11,8 +11,8 @@ class WMDatabase extends Dexie {
 
 		// Version 1 - Initial schema
 		this.version(1).stores({
-			// Global configuration
-			config: "key",
+			// General settings (single record with key 'settings')
+			general: "key",
 
 			// Machine configurations (primary key: id)
 			machines: "id, rarity, level, sacredLevel, inscriptionLevel",
@@ -23,80 +23,44 @@ class WMDatabase extends Dexie {
 			// Artifact configurations (primary key: stat)
 			artifacts: "stat",
 
-			// Optimization results cache (auto-increment id, indexed by mode and timestamp)
-			results: "++id, mode, timestamp, [mode+timestamp]",
-		});
-
-		// Dexie 4 hooks - auto-update timestamps
-		this.config.hook("creating", (primKey, obj) => {
-			obj.timestamp = Date.now();
-		});
-
-		// eslint-disable-next-line no-unused-vars
-		this.config.hook("updating", (mods, primKey) => {
-			mods.timestamp = Date.now();
-		});
-
-		this.results.hook("creating", (primKey, obj) => {
-			if (!obj.timestamp) {
-				obj.timestamp = Date.now();
-			}
+			// Optimization results cache (auto-increment id, indexed by mode)
+			results: "++id, mode",
 		});
 	}
 
 	// ========================================
-	// Configuration Methods
+	// General Settings Methods
 	// ========================================
 
 	/**
-	 * Saves global configuration value
-	 * @param {string} key - Config key
-	 * @param {*} value - Config value
+	 * Saves all general settings at once
+	 * @param {Object} settings - Settings object
+	 * @param {number} settings.engineerLevel
+	 * @param {number} settings.scarabLevel
+	 * @param {string} settings.riftRank
 	 */
-	async saveConfig(key, value) {
-		await this.config.put({ key, value });
+	async saveGeneral(settings) {
+		await this.general.put({
+			key: "settings",
+			engineerLevel: settings.engineerLevel,
+			scarabLevel: settings.scarabLevel,
+			riftRank: settings.riftRank,
+		});
 	}
 
 	/**
-	 * Gets a configuration value
-	 * @param {string} key - Config key
-	 * @returns {Promise<*>} Config value or undefined
+	 * Loads general settings
+	 * @returns {Promise<Object|null>} Settings object or null
 	 */
-	async getConfig(key) {
-		const record = await this.config.get(key);
-		return record?.value;
-	}
+	async loadGeneral() {
+		const record = await this.general.get("settings");
+		if (!record) return null;
 
-	/**
-	 * Saves multiple config values at once
-	 * @param {Object} configs - Object with key-value pairs
-	 */
-	async saveConfigs(configs) {
-		const records = Object.keys(configs).map((key) => ({
-			key,
-			value: configs[key],
-		}));
-
-		await this.config.bulkPut(records);
-	}
-
-	/**
-	 * Gets multiple config values at once
-	 * @param {string[]} keys - Array of config keys
-	 * @returns {Promise<Object>} Object with key-value pairs
-	 */
-	async getConfigs(keys) {
-		const records = await this.config.bulkGet(keys);
-		const result = {};
-
-		for (let i = 0; i < keys.length; i++) {
-			const record = records[i];
-			if (record) {
-				result[keys[i]] = record.value;
-			}
-		}
-
-		return result;
+		return {
+			engineerLevel: record.engineerLevel,
+			scarabLevel: record.scarabLevel,
+			riftRank: record.riftRank,
+		};
 	}
 
 	// ========================================
@@ -200,8 +164,7 @@ class WMDatabase extends Dexie {
 	// ========================================
 
 	/**
-	 * Saves optimization result with automatic timestamp
-	 * Only keeps the last result per mode (replaces previous)
+	 * Saves optimization result (replaces any existing result for this mode)
 	 * @param {string} mode - "campaign" or "arena"
 	 * @param {Object} result - Optimization result
 	 */
@@ -215,7 +178,6 @@ class WMDatabase extends Dexie {
 			await this.results.add({
 				mode,
 				result,
-				timestamp: Date.now(),
 			});
 		});
 	}
@@ -226,9 +188,8 @@ class WMDatabase extends Dexie {
 	 * @returns {Promise<Object|null>} Most recent result or null
 	 */
 	async getLatestResult(mode) {
-		const result = await this.results.where("mode").equals(mode).reverse().sortBy("timestamp");
-
-		return result.length > 0 ? result[0].result : null;
+		const result = await this.results.where("mode").equals(mode).first();
+		return result ? result.result : null;
 	}
 
 	// ========================================
@@ -246,9 +207,9 @@ class WMDatabase extends Dexie {
 	 * @param {Object} state.artifacts
 	 */
 	async saveState(state) {
-		await this.transaction("rw", [this.config, this.machines, this.heroes, this.artifacts], async () => {
-			// Save configs
-			await this.saveConfigs({
+		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
+			// Save general settings
+			await this.saveGeneral({
 				engineerLevel: state.engineerLevel,
 				scarabLevel: state.scarabLevel,
 				riftRank: state.riftRank,
@@ -268,12 +229,14 @@ class WMDatabase extends Dexie {
 		const count = await this.machines.count();
 		if (count === 0) return null;
 
-		const [configs, machines, heroes, artifacts] = await Promise.all([this.getConfigs(["engineerLevel", "scarabLevel", "riftRank"]), this.loadMachines(), this.loadHeroes(), this.loadArtifacts()]);
+		const [general, machines, heroes, artifacts] = await Promise.all([this.loadGeneral(), this.loadMachines(), this.loadHeroes(), this.loadArtifacts()]);
+
+		if (!general) return null;
 
 		return {
-			engineerLevel: configs.engineerLevel,
-			scarabLevel: configs.scarabLevel,
-			riftRank: configs.riftRank,
+			engineerLevel: general.engineerLevel,
+			scarabLevel: general.scarabLevel,
+			riftRank: general.riftRank,
 			machines,
 			heroes,
 			artifacts,
@@ -296,11 +259,18 @@ class WMDatabase extends Dexie {
 			return JSON.stringify(
 				{
 					version: 1,
-					timestamp: Date.now(),
-					config: [],
+					general: {
+						engineerLevel: 0,
+						scarabLevel: 0,
+						riftRank: "bronze",
+					},
 					machines: [],
 					heroes: [],
-					artifacts: [],
+					artifacts: {
+						damage: {},
+						health: {},
+						armor: {},
+					},
 				},
 				null,
 				2
@@ -309,18 +279,14 @@ class WMDatabase extends Dexie {
 
 		const data = {
 			version: 1,
-			timestamp: Date.now(),
-			config: [
-				{ key: "engineerLevel", value: state.engineerLevel },
-				{ key: "scarabLevel", value: state.scarabLevel },
-				{ key: "riftRank", value: state.riftRank },
-			],
+			general: {
+				engineerLevel: state.engineerLevel,
+				scarabLevel: state.scarabLevel,
+				riftRank: state.riftRank,
+			},
 			machines: state.machines,
 			heroes: state.heroes,
-			artifacts: Object.keys(state.artifacts).map((stat) => ({
-				stat,
-				values: state.artifacts[stat],
-			})),
+			artifacts: state.artifacts,
 		};
 
 		return JSON.stringify(data, null, 2);
@@ -340,21 +306,27 @@ class WMDatabase extends Dexie {
 		}
 
 		// Validate structure
-		if (!Array.isArray(data.machines) || !Array.isArray(data.heroes) || !Array.isArray(data.artifacts)) {
+		if (!data.general || typeof data.general !== "object") {
+			throw new Error("Invalid general settings");
+		}
+
+		if (!Array.isArray(data.machines) || !Array.isArray(data.heroes)) {
 			throw new Error("Invalid save data structure");
 		}
 
+		if (!data.artifacts || typeof data.artifacts !== "object") {
+			throw new Error("Invalid artifacts data");
+		}
+
 		// Import in single transaction for atomicity
-		await this.transaction("rw", [this.config, this.machines, this.heroes, this.artifacts], async () => {
+		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
 			// Clear existing data
-			await Promise.all([this.config.clear(), this.machines.clear(), this.heroes.clear(), this.artifacts.clear()]);
+			await Promise.all([this.general.clear(), this.machines.clear(), this.heroes.clear(), this.artifacts.clear()]);
 
 			// Import new data
 			const promises = [];
 
-			if (data.config && data.config.length > 0) {
-				promises.push(this.config.bulkAdd(data.config));
-			}
+			promises.push(this.saveGeneral(data.general));
 
 			if (data.machines.length > 0) {
 				promises.push(this.machines.bulkAdd(data.machines));
@@ -364,9 +336,7 @@ class WMDatabase extends Dexie {
 				promises.push(this.heroes.bulkAdd(data.heroes));
 			}
 
-			if (data.artifacts.length > 0) {
-				promises.push(this.artifacts.bulkAdd(data.artifacts));
-			}
+			promises.push(this.saveArtifacts(data.artifacts));
 
 			await Promise.all(promises);
 		});
@@ -380,8 +350,8 @@ class WMDatabase extends Dexie {
 	 * Clears all data (for reset functionality)
 	 */
 	async clearAllData() {
-		await this.transaction("rw", [this.config, this.machines, this.heroes, this.artifacts], async () => {
-			await Promise.all([this.config.clear(), this.machines.clear(), this.heroes.clear(), this.artifacts.clear()]);
+		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
+			await Promise.all([this.general.clear(), this.machines.clear(), this.heroes.clear(), this.artifacts.clear()]);
 		});
 	}
 
@@ -390,8 +360,8 @@ class WMDatabase extends Dexie {
 	 * @returns {Promise<Object>} Statistics object
 	 */
 	async getStats() {
-		const [configCount, machineCount, heroCount, artifactCount, resultCount] = await Promise.all([
-			this.config.count(),
+		const [generalCount, machineCount, heroCount, artifactCount, resultCount] = await Promise.all([
+			this.general.count(),
 			this.machines.count(),
 			this.heroes.count(),
 			this.artifacts.count(),
@@ -399,7 +369,7 @@ class WMDatabase extends Dexie {
 		]);
 
 		return {
-			configs: configCount,
+			general: generalCount,
 			machines: machineCount,
 			heroes: heroCount,
 			artifacts: artifactCount,

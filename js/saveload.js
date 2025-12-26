@@ -7,55 +7,114 @@ import { renderTavernCards } from "./ui/tavern.js";
 import { showToast } from "./ui/notifications.js";
 
 /**
- * Detects if save data is legacy format (your old saves)
+ * Detects save format version
  * @param {Object} data - Parsed save data
- * @returns {boolean} True if legacy format
+ * @returns {"legacy"|"intermediate"|"final"} Format type
  */
-function isLegacyFormat(data) {
-	// Legacy format has engineerLevel, scarabLevel, riftRank at root level
-	// New format wraps them in config array
-	return (
-		typeof data.engineerLevel === "number" &&
-		typeof data.scarabLevel === "number" &&
-		typeof data.riftRank === "string" &&
-		!data.version
-	);
+function detectSaveFormat(data) {
+	// Legacy format (original localStorage format)
+	if (typeof data.engineerLevel === "number" && typeof data.scarabLevel === "number" && typeof data.riftRank === "string" && !data.version && data.artifacts && !Array.isArray(data.artifacts)) {
+		return "legacy";
+	}
+
+	// Intermediate format (first Dexie version with timestamp and config array)
+	if (data.version === 1 && Array.isArray(data.config) && data.timestamp) {
+		return "intermediate";
+	}
+
+	// Final format (current version with general object)
+	if (data.version === 1 && data.general && typeof data.general === "object") {
+		return "final";
+	}
+
+	return "unknown";
 }
 
 /**
- * Converts legacy save format to new format
+ * Converts legacy format to final format
  * @param {Object} legacyData - Legacy save data
- * @returns {Object} New format save data
+ * @returns {Object} Final format save data
  */
-function convertLegacyToNewFormat(legacyData) {
+function convertLegacyToFinal(legacyData) {
 	return {
 		version: 1,
-		timestamp: Date.now(),
-		config: [
-			{ key: "engineerLevel", value: legacyData.engineerLevel },
-			{ key: "scarabLevel", value: legacyData.scarabLevel },
-			{ key: "riftRank", value: legacyData.riftRank },
-		],
+		general: {
+			engineerLevel: legacyData.engineerLevel,
+			scarabLevel: legacyData.scarabLevel,
+			riftRank: legacyData.riftRank,
+		},
 		machines: legacyData.machines,
 		heroes: legacyData.heroes,
-		artifacts: Object.keys(legacyData.artifacts).map((stat) => ({
-			stat,
-			values: legacyData.artifacts[stat],
-		})),
+		artifacts: legacyData.artifacts,
+	};
+}
+
+/**
+ * Converts intermediate format to final format
+ * @param {Object} intermediateData - Intermediate save data
+ * @returns {Object} Final format save data
+ */
+function convertIntermediateToFinal(intermediateData) {
+	// Extract config array into general object
+	const configMap = new Map(intermediateData.config.map((c) => [c.key, c.value]));
+
+	// Convert artifacts array back to object structure
+	const artifacts = {};
+	for (let i = 0; i < intermediateData.artifacts.length; i++) {
+		const artifact = intermediateData.artifacts[i];
+		artifacts[artifact.stat] = artifact.values;
+	}
+
+	return {
+		version: 1,
+		general: {
+			engineerLevel: configMap.get("engineerLevel") || 0,
+			scarabLevel: configMap.get("scarabLevel") || 0,
+			riftRank: configMap.get("riftRank") || "bronze",
+		},
+		machines: intermediateData.machines,
+		heroes: intermediateData.heroes,
+		artifacts,
 	};
 }
 
 /**
  * Validates loaded save data structure
  * @param {Object} data - Data to validate
+ * @param {string} format - Format type
  * @returns {string[]} Array of error messages
  */
-function validateSaveData(data) {
+function validateSaveData(data, format) {
 	const errors = [];
 
-	// Allow legacy format
-	if (isLegacyFormat(data)) {
-		// Validate legacy format
+	// Format-specific validation
+	if (format === "final") {
+		if (!data.general || typeof data.general !== "object") {
+			errors.push("Invalid general settings");
+		} else {
+			if (typeof data.general.engineerLevel !== "number") {
+				errors.push("Invalid engineerLevel");
+			}
+			if (typeof data.general.scarabLevel !== "number") {
+				errors.push("Invalid scarabLevel");
+			}
+			if (typeof data.general.riftRank !== "string") {
+				errors.push("Invalid riftRank");
+			}
+		}
+
+		if (!data.artifacts || typeof data.artifacts !== "object" || Array.isArray(data.artifacts)) {
+			errors.push("Invalid artifacts structure (should be object, not array)");
+		}
+	} else if (format === "intermediate") {
+		if (!Array.isArray(data.config)) {
+			errors.push("Invalid config array");
+		}
+
+		if (!Array.isArray(data.artifacts)) {
+			errors.push("Invalid artifacts array");
+		}
+	} else if (format === "legacy") {
 		if (typeof data.engineerLevel !== "number") {
 			errors.push("Invalid engineerLevel");
 		}
@@ -65,26 +124,9 @@ function validateSaveData(data) {
 		if (typeof data.riftRank !== "string") {
 			errors.push("Invalid riftRank");
 		}
-	} else {
-		// Validate new format
-		if (data.version !== 1) {
-			errors.push("Incompatible save data version");
-		}
-
-		if (!data.timestamp || typeof data.timestamp !== "number") {
-			errors.push("Invalid or missing timestamp");
-		}
-
-		if (!Array.isArray(data.config)) {
-			errors.push("config must be an array");
-		}
-
-		if (!Array.isArray(data.artifacts)) {
-			errors.push("artifacts must be an array in new format");
-		}
 	}
 
-	// Validate machines (same in both formats)
+	// Common validation (all formats)
 	if (!Array.isArray(data.machines)) {
 		errors.push("machines must be an array");
 	} else {
@@ -105,7 +147,6 @@ function validateSaveData(data) {
 		}
 	}
 
-	// Validate heroes (same in both formats)
 	if (!Array.isArray(data.heroes)) {
 		errors.push("heroes must be an array");
 	} else {
@@ -124,17 +165,15 @@ function validateSaveData(data) {
 }
 
 /**
- * Applies loaded data to store
+ * Applies loaded data to store (final format)
  * @param {import('./app.js').Store} store - Application store
- * @param {Object} data - Save data to apply (new format)
+ * @param {Object} data - Save data (final format)
  */
 function applyLoadedDataToStore(store, data) {
-	// Apply config
-	const configMap = new Map(data.config.map((c) => [c.key, c.value]));
-
-	if (configMap.has("engineerLevel")) store.engineerLevel = configMap.get("engineerLevel");
-	if (configMap.has("scarabLevel")) store.scarabLevel = configMap.get("scarabLevel");
-	if (configMap.has("riftRank")) store.riftRank = configMap.get("riftRank");
+	// Apply general settings
+	store.engineerLevel = data.general.engineerLevel;
+	store.scarabLevel = data.general.scarabLevel;
+	store.riftRank = data.general.riftRank;
 
 	// Apply machines
 	const machineMap = new Map(store.machines.map((m) => [m.id, m]));
@@ -167,16 +206,16 @@ function applyLoadedDataToStore(store, data) {
 	}
 
 	// Apply artifacts
-	for (let i = 0; i < data.artifacts.length; i++) {
-		const artifact = data.artifacts[i];
-		const stat = artifact.stat;
-		const percentages = Object.keys(artifact.values);
+	const stats = Object.keys(data.artifacts);
+	for (let i = 0; i < stats.length; i++) {
+		const stat = stats[i];
+		const percentages = Object.keys(data.artifacts[stat]);
 
 		for (let j = 0; j < percentages.length; j++) {
 			const pct = percentages[j];
 			const numKey = Number(pct);
 			if (!isNaN(numKey)) {
-				store.artifacts[stat][numKey] = artifact.values[pct];
+				store.artifacts[stat][numKey] = data.artifacts[stat][pct];
 			}
 		}
 	}
@@ -206,7 +245,6 @@ export const SaveLoad = {
 	 * Saves the current store to JSON using Dexie export
 	 * @param {import('./app.js').Store} store - Application store
 	 */
-	// eslint-disable-next-line no-unused-vars
 	async save(store) {
 		try {
 			const json = await db.exportData();
@@ -219,8 +257,8 @@ export const SaveLoad = {
 	},
 
 	/**
-	 * Loads JSON data into the store using Dexie import
-	 * Supports both legacy and new save formats
+	 * Loads JSON data into the store
+	 * Supports legacy, intermediate, and final save formats
 	 * @param {import('./app.js').Store} store - Application store
 	 */
 	async load(store) {
@@ -235,36 +273,46 @@ export const SaveLoad = {
 		try {
 			let data = JSON.parse(content);
 
-			// Validate data structure
-			const errors = validateSaveData(data);
-			if (errors.length > 0) {
-				console.error("Invalid save data:", errors);
-				showToast(`Invalid save data: ${errors[0]}`, "danger");
+			// Detect format
+			const format = detectSaveFormat(data);
+
+			if (format === "unknown") {
+				showToast("Unknown save format. Cannot load this data.", "danger");
 				return;
 			}
 
-			// Convert legacy format to new format if needed
-			let wasLegacy = false;
-			if (isLegacyFormat(data)) {
-				console.log("Detected legacy save format - converting to new format");
-				data = convertLegacyToNewFormat(data);
-				wasLegacy = true;
+			// Validate before conversion
+			const preValidationErrors = validateSaveData(data, format);
+			if (preValidationErrors.length > 0) {
+				console.error("Invalid save data:", preValidationErrors);
+				showToast(`Invalid save data: ${preValidationErrors[0]}`, "danger");
+				return;
+			}
+
+			// Convert to final format if needed
+			let convertedData = data;
+			let conversionMessage = "";
+
+			if (format === "legacy") {
+				console.log("Converting legacy format to final format");
+				convertedData = convertLegacyToFinal(data);
+				conversionMessage = " (converted from legacy format)";
+			} else if (format === "intermediate") {
+				console.log("Converting intermediate format to final format");
+				convertedData = convertIntermediateToFinal(data);
+				conversionMessage = " (converted from intermediate format)";
 			}
 
 			// Import to database
-			await db.importData(JSON.stringify(data));
+			await db.importData(JSON.stringify(convertedData));
 
 			// Apply to store
-			applyLoadedDataToStore(store, data);
+			applyLoadedDataToStore(store, convertedData);
 
 			// Update UI
 			updateUIAfterLoad(store);
 
-			if (wasLegacy) {
-				showToast("Legacy save loaded and converted to new format!", "success");
-			} else {
-				showToast("Data loaded successfully!", "success");
-			}
+			showToast(`Data loaded successfully${conversionMessage}!`, "success");
 			textarea.value = "";
 		} catch (error) {
 			if (error instanceof SyntaxError) {
