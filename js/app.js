@@ -21,14 +21,12 @@ let autoSaveTimer = null;
  * @param {Store} store - Application store
  */
 function triggerAutoSave(store) {
-	// Clear existing timer
 	if (autoSaveTimer) {
 		clearTimeout(autoSaveTimer);
 	}
-	
-	// Set new timer (saves 500ms after last change)
-	autoSaveTimer = setTimeout(() => {
-		autoSave(store);
+
+	autoSaveTimer = setTimeout(async () => {
+		await autoSave(store);
 	}, 500);
 }
 
@@ -162,12 +160,11 @@ function validateOptimizationInputs() {
  */
 function getOwnedMachines() {
 	return store.machines.filter((machine) => {
-		const { rarity, level, blueprints, inscriptionLevel, sacredLevel } = machine;
+		const { rarity, level, blueprints } = machine;
 		const hasBlueprints = Object.values(blueprints).some((v) => v > 0);
-		const hasCards = inscriptionLevel > 0 || sacredLevel > 0;
 		const hasLevel = level > 0;
 		const hasRarity = rarity.toLowerCase() !== "common";
-		return hasBlueprints || hasCards || hasLevel || hasRarity;
+		return hasBlueprints || hasLevel || hasRarity;
 	});
 }
 
@@ -234,7 +231,7 @@ function runOptimization() {
 		riftRank: store.riftRank,
 	});
 
-	worker.onmessage = function (e) {
+	worker.onmessage = async function (e) {
 		currentWorker = null;
 		const result = e.data;
 
@@ -359,7 +356,7 @@ function setupEventListeners() {
 			if (textarea) {
 				textarea.value = "";
 			}
-			
+
 			if (saveLoadModal.contains(document.activeElement)) {
 				document.activeElement.blur();
 			}
@@ -434,11 +431,11 @@ function populateRiftRankSelect() {
 /**
  * Initializes the application
  */
-function init() {
+async function init() {
 	populateRiftRankSelect();
-	
+
 	// Try to load saved data
-	const loaded = autoLoad(store);
+	const loaded = await autoLoad(store);
 	if (loaded) {
 		showToast("Previous session restored", "info");
 	}
@@ -462,7 +459,7 @@ if (document.readyState === "loading") {
 	});
 }
 
-init();
+await init();
 
 // Export triggerAutoSave for use in UI modules
 export { triggerAutoSave };
