@@ -1,5 +1,5 @@
 // db.js
-import Dexie from "https://cdn.jsdelivr.net/npm/dexie@4.0.10/+esm";
+import Dexie from "./vendor/dexie.min.mjs";
 import { AppConfig } from "./config.js";
 
 /**
