@@ -1,5 +1,6 @@
 // saveload.js
 import { db } from "./db.js";
+import { AppConfig } from "./config.js";
 import { renderArtifacts } from "./ui/artifacts.js";
 import { renderHeroes } from "./ui/heroes.js";
 import { renderMachines } from "./ui/machines.js";
@@ -9,7 +10,7 @@ import { showToast } from "./ui/notifications.js";
 /**
  * Detects save format version
  * @param {Object} data - Parsed save data
- * @returns {"legacy"|"intermediate"|"final"} Format type
+ * @returns {"legacy"|"intermediate"|"final"|"unknown"} Format type
  */
 function detectSaveFormat(data) {
 	// Legacy format (original localStorage format)
@@ -37,7 +38,8 @@ function detectSaveFormat(data) {
  */
 function convertLegacyToFinal(legacyData) {
 	return {
-		version: 1,
+		version: 2,
+		appVersion: AppConfig.APP_VERSION,
 		general: {
 			engineerLevel: legacyData.engineerLevel,
 			scarabLevel: legacyData.scarabLevel,
@@ -67,13 +69,43 @@ function convertIntermediateToFinal(intermediateData) {
 
 	return {
 		version: 1,
+		appVersion: AppConfig.APP_VERSION,
 		general: {
-			engineerLevel: configMap.get("engineerLevel") || 0,
-			scarabLevel: configMap.get("scarabLevel") || 0,
-			riftRank: configMap.get("riftRank") || "bronze",
+			engineerLevel: configMap.get("engineerLevel") || AppConfig.DEFAULTS.ENGINEER_LEVEL,
+			scarabLevel: configMap.get("scarabLevel") || AppConfig.DEFAULTS.SCARAB_LEVEL,
+			riftRank: configMap.get("riftRank") || AppConfig.DEFAULTS.RIFT_RANK,
 		},
 		machines: intermediateData.machines,
 		heroes: intermediateData.heroes,
+		artifacts,
+	};
+}
+
+/**
+ * Fills in missing data with defaults (for forward compatibility)
+ * @param {Object} data - Save data
+ * @returns {Object} Data with defaults filled in
+ */
+function fillMissingDefaults(data) {
+	// Ensure all artifact stats exist
+	const artifacts = { ...data.artifacts };
+	for (let i = 0; i < AppConfig.ARTIFACT_STATS.length; i++) {
+		const stat = AppConfig.ARTIFACT_STATS[i];
+		if (!artifacts[stat]) {
+			artifacts[stat] = Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0]));
+		} else {
+			// Ensure all percentages exist for this stat
+			for (let j = 0; j < AppConfig.ARTIFACT_PERCENTAGES.length; j++) {
+				const pct = AppConfig.ARTIFACT_PERCENTAGES[j];
+				if (artifacts[stat][pct] === undefined) {
+					artifacts[stat][pct] = 0;
+				}
+			}
+		}
+	}
+
+	return {
+		...data,
 		artifacts,
 	};
 }
@@ -104,7 +136,7 @@ function validateSaveData(data, format) {
 		}
 
 		if (!data.artifacts || typeof data.artifacts !== "object" || Array.isArray(data.artifacts)) {
-			errors.push("Invalid artifacts structure (should be object, not array)");
+			errors.push("Invalid artifacts structure");
 		}
 	} else if (format === "intermediate") {
 		if (!Array.isArray(data.config)) {
@@ -126,7 +158,7 @@ function validateSaveData(data, format) {
 		}
 	}
 
-	// Common validation (all formats)
+	// Common validation
 	if (!Array.isArray(data.machines)) {
 		errors.push("machines must be an array");
 	} else {
@@ -209,8 +241,13 @@ function applyLoadedDataToStore(store, data) {
 	const stats = Object.keys(data.artifacts);
 	for (let i = 0; i < stats.length; i++) {
 		const stat = stats[i];
-		const percentages = Object.keys(data.artifacts[stat]);
 
+		// Ensure this stat exists in store
+		if (!store.artifacts[stat]) {
+			store.artifacts[stat] = {};
+		}
+
+		const percentages = Object.keys(data.artifacts[stat]);
 		for (let j = 0; j < percentages.length; j++) {
 			const pct = percentages[j];
 			const numKey = Number(pct);
@@ -243,8 +280,9 @@ function updateUIAfterLoad(store) {
 export const SaveLoad = {
 	/**
 	 * Saves the current store to JSON using Dexie export
-	 * @param {import('./app.js').Store} store - Application store
+	 * @param {import('./app.js').Store} store - Application store (unused - reads from DB)
 	 */
+	// eslint-disable-next-line no-unused-vars
 	async save(store) {
 		try {
 			const json = await db.exportData();
@@ -291,17 +329,29 @@ export const SaveLoad = {
 
 			// Convert to final format if needed
 			let convertedData = data;
-			let conversionMessage = "";
+			let wasConverted = false;
+			let needsUpdate = false;
 
 			if (format === "legacy") {
 				console.log("Converting legacy format to final format");
 				convertedData = convertLegacyToFinal(data);
-				conversionMessage = " (converted from legacy format)";
+				wasConverted = true;
+				needsUpdate = true;
 			} else if (format === "intermediate") {
 				console.log("Converting intermediate format to final format");
 				convertedData = convertIntermediateToFinal(data);
-				conversionMessage = " (converted from intermediate format)";
+				wasConverted = true;
+				needsUpdate = true;
 			}
+
+			// Check if save is from older app version
+			if (convertedData.appVersion && convertedData.appVersion !== AppConfig.APP_VERSION) {
+				console.log(`Save is from version ${convertedData.appVersion}, current is ${AppConfig.APP_VERSION}`);
+				needsUpdate = true;
+			}
+
+			// Fill in any missing defaults (for forward compatibility)
+			convertedData = fillMissingDefaults(convertedData);
 
 			// Import to database
 			await db.importData(JSON.stringify(convertedData));
@@ -312,7 +362,21 @@ export const SaveLoad = {
 			// Update UI
 			updateUIAfterLoad(store);
 
-			showToast(`Data loaded successfully${conversionMessage}!`, "success");
+			// Show appropriate message
+			let message = "Data loaded successfully!";
+			if (wasConverted) {
+				message = "Data loaded and converted to current format!";
+			}
+
+			showToast(message, "success");
+
+			if (needsUpdate) {
+				// Show follow-up toast recommending new save
+				setTimeout(() => {
+					showToast("Tip: Generate a new save to use the latest format.", "info");
+				}, 1500);
+			}
+
 			textarea.value = "";
 		} catch (error) {
 			if (error instanceof SyntaxError) {

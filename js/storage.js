@@ -13,6 +13,26 @@ import { showToast } from "./ui/notifications.js";
  */
 export async function autoSave(store) {
 	try {
+		// Verify we have an active profile before saving
+		const activeProfile = await db.getActiveProfile();
+		if (!activeProfile) {
+			console.warn("No active profile - skipping auto-save");
+			return;
+		}
+
+		console.log("Auto-saving to profile:", activeProfile.id, activeProfile.name);
+
+		// Validate data before saving
+		if (!store.machines || !Array.isArray(store.machines)) {
+			throw new Error("Invalid machines data");
+		}
+		if (!store.heroes || !Array.isArray(store.heroes)) {
+			throw new Error("Invalid heroes data");
+		}
+		if (!store.artifacts || typeof store.artifacts !== "object") {
+			throw new Error("Invalid artifacts data");
+		}
+
 		await db.saveState({
 			engineerLevel: store.engineerLevel,
 			scarabLevel: store.scarabLevel,
@@ -21,12 +41,18 @@ export async function autoSave(store) {
 			heroes: store.heroes,
 			artifacts: store.artifacts,
 		});
+
+		console.log("Auto-save successful");
+
+		// Reset error flag on success
+		autoSave._hasShownError = false;
 	} catch (error) {
 		console.error("Auto-save failed:", error);
+		console.error("Error details:", error.message, error.stack);
 
 		// Only show toast on first failure to avoid spam
 		if (!autoSave._hasShownError) {
-			showToast("Auto-save failed. Check browser storage permissions.", "warning");
+			showToast(`Auto-save failed: ${error.message}`, "warning");
 			autoSave._hasShownError = true;
 		}
 	}

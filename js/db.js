@@ -1,237 +1,163 @@
 // db.js
 import Dexie from "https://cdn.jsdelivr.net/npm/dexie@4.0.10/+esm";
+import { AppConfig } from "./config.js";
 
 /**
- * War Machine Optimizer Database
- * Uses Dexie.js 4.2.1 for IndexedDB management
+ * War Machine Optimizer Database with Profile Support
  */
 class WMDatabase extends Dexie {
 	constructor() {
 		super("WarMachineOptimizer");
 
-		// Version 1 - Initial schema
+		// Single version with profile support
 		this.version(1).stores({
-			// General settings (single record with key 'settings')
-			general: "key",
-
-			// Machine configurations (primary key: id)
-			machines: "id, rarity, level, sacredLevel, inscriptionLevel",
-
-			// Hero configurations (primary key: id)
-			heroes: "id",
-
-			// Artifact configurations (primary key: stat)
-			artifacts: "stat",
-
-			// Optimization results cache (auto-increment id, indexed by mode)
-			results: "++id, mode",
+			profiles: "++id, name, isActive",
+			general: "profileId",
+			machines: "[profileId+id], profileId, id",
+			heroes: "[profileId+id], profileId, id",
+			artifacts: "[profileId+stat], profileId, stat",
+			results: "++id, [profileId+mode], profileId, mode",
 		});
 	}
 
 	// ========================================
-	// General Settings Methods
+	// Profile Management
 	// ========================================
 
-	/**
-	 * Saves all general settings at once
-	 * @param {Object} settings - Settings object
-	 * @param {number} settings.engineerLevel
-	 * @param {number} settings.scarabLevel
-	 * @param {string} settings.riftRank
-	 */
-	async saveGeneral(settings) {
-		await this.general.put({
-			key: "settings",
-			engineerLevel: settings.engineerLevel,
-			scarabLevel: settings.scarabLevel,
-			riftRank: settings.riftRank,
-		});
+	async getActiveProfile() {
+		return await this.profiles.where("isActive").equals(1).first();
 	}
 
-	/**
-	 * Loads general settings
-	 * @returns {Promise<Object|null>} Settings object or null
-	 */
-	async loadGeneral() {
-		const record = await this.general.get("settings");
-		if (!record) return null;
-
-		return {
-			engineerLevel: record.engineerLevel,
-			scarabLevel: record.scarabLevel,
-			riftRank: record.riftRank,
-		};
+	async getAllProfiles() {
+		return await this.profiles.toArray();
 	}
 
-	// ========================================
-	// Machine Methods
-	// ========================================
-
-	/**
-	 * Saves all machine configurations in bulk
-	 * @param {Array<Object>} machines - Machine array
-	 */
-	async saveMachines(machines) {
-		const records = machines.map((machine) => ({
-			id: machine.id,
-			rarity: machine.rarity,
-			level: machine.level,
-			blueprints: {
-				damage: machine.blueprints.damage,
-				health: machine.blueprints.health,
-				armor: machine.blueprints.armor,
-			},
-			inscriptionLevel: machine.inscriptionLevel || 0,
-			sacredLevel: machine.sacredLevel || 0,
-		}));
-
-		await this.machines.bulkPut(records);
-	}
-
-	/**
-	 * Loads all machine configurations
-	 * @returns {Promise<Array<Object>>} Machine configurations
-	 */
-	async loadMachines() {
-		return await this.machines.toArray();
-	}
-
-	// ========================================
-	// Hero Methods
-	// ========================================
-
-	/**
-	 * Saves all hero configurations in bulk
-	 * @param {Array<Object>} heroes - Hero array
-	 */
-	async saveHeroes(heroes) {
-		const records = heroes.map((hero) => ({
-			id: hero.id,
-			percentages: {
-				damage: hero.percentages.damage,
-				health: hero.percentages.health,
-				armor: hero.percentages.armor,
-			},
-		}));
-
-		await this.heroes.bulkPut(records);
-	}
-
-	/**
-	 * Loads all hero configurations
-	 * @returns {Promise<Array<Object>>} Hero configurations
-	 */
-	async loadHeroes() {
-		return await this.heroes.toArray();
-	}
-
-	// ========================================
-	// Artifact Methods
-	// ========================================
-
-	/**
-	 * Saves artifact configurations
-	 * @param {Object} artifacts - Artifact object {damage: {30: 5, 35: 3}, health: {...}, armor: {...}}
-	 */
-	async saveArtifacts(artifacts) {
-		const records = Object.keys(artifacts).map((stat) => ({
-			stat,
-			values: artifacts[stat],
-		}));
-
-		await this.artifacts.bulkPut(records);
-	}
-
-	/**
-	 * Loads artifact configurations
-	 * @returns {Promise<Object>} Artifact object {damage: {...}, health: {...}, armor: {...}}
-	 */
-	async loadArtifacts() {
-		const records = await this.artifacts.toArray();
-
-		// Convert back to original structure
-		const artifacts = {};
-		for (let i = 0; i < records.length; i++) {
-			const record = records[i];
-			artifacts[record.stat] = record.values;
+	async createProfile(name) {
+		const count = await this.profiles.count();
+		if (count >= AppConfig.MAX_PROFILES) {
+			throw new Error(`Maximum ${AppConfig.MAX_PROFILES} profiles allowed`);
 		}
 
-		return artifacts;
+		const isActive = count === 0 ? 1 : 0;
+		const profileId = await this.profiles.add({ name, isActive });
+
+		// Initialize empty data
+		await this.general.put({
+			profileId,
+			engineerLevel: AppConfig.DEFAULTS.ENGINEER_LEVEL,
+			scarabLevel: AppConfig.DEFAULTS.SCARAB_LEVEL,
+			riftRank: AppConfig.DEFAULTS.RIFT_RANK,
+		});
+
+		const artifactRecords = AppConfig.ARTIFACT_STATS.map((stat) => ({
+			profileId,
+			stat,
+			values: Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0])),
+		}));
+		await this.artifacts.bulkPut(artifactRecords);
+
+		return profileId;
 	}
 
-	// ========================================
-	// Result Caching Methods
-	// ========================================
-
-	/**
-	 * Saves optimization result (replaces any existing result for this mode)
-	 * @param {string} mode - "campaign" or "arena"
-	 * @param {Object} result - Optimization result
-	 */
-	async saveResult(mode, result) {
-		// Use transaction for atomic operations
-		await this.transaction("rw", this.results, async () => {
-			// Delete all existing results for this mode
-			await this.results.where("mode").equals(mode).delete();
-
-			// Add new result
-			await this.results.add({
-				mode,
-				result,
-			});
+	async switchProfile(profileId) {
+		await this.transaction("rw", this.profiles, async () => {
+			await this.profiles.toCollection().modify({ isActive: 0 });
+			await this.profiles.update(profileId, { isActive: 1 });
 		});
 	}
 
-	/**
-	 * Gets the most recent optimization result for a mode
-	 * @param {string} mode - "campaign" or "arena"
-	 * @returns {Promise<Object|null>} Most recent result or null
-	 */
-	async getLatestResult(mode) {
-		const result = await this.results.where("mode").equals(mode).first();
-		return result ? result.result : null;
+	async renameProfile(profileId, newName) {
+		await this.profiles.update(profileId, { name: newName });
+	}
+
+	async deleteProfile(profileId) {
+		const profile = await this.profiles.get(profileId);
+		if (!profile) throw new Error("Profile not found");
+
+		await this.transaction("rw", [this.profiles, this.general, this.machines, this.heroes, this.artifacts, this.results], async () => {
+			await this.profiles.delete(profileId);
+			await this.general.where("profileId").equals(profileId).delete();
+			await this.machines.where("profileId").equals(profileId).delete();
+			await this.heroes.where("profileId").equals(profileId).delete();
+			await this.artifacts.where("profileId").equals(profileId).delete();
+			await this.results.where("profileId").equals(profileId).delete();
+
+			if (profile.isActive) {
+				const remaining = await this.profiles.toArray();
+				if (remaining.length > 0) {
+					await this.profiles.update(remaining[0].id, { isActive: 1 });
+				}
+			}
+		});
 	}
 
 	// ========================================
-	// Bulk Operations
+	// Data Methods
 	// ========================================
 
-	/**
-	 * Saves entire application state in a single transaction
-	 * @param {Object} state - Application state
-	 * @param {number} state.engineerLevel
-	 * @param {number} state.scarabLevel
-	 * @param {string} state.riftRank
-	 * @param {Array} state.machines
-	 * @param {Array} state.heroes
-	 * @param {Object} state.artifacts
-	 */
 	async saveState(state) {
+		const profile = await this.getActiveProfile();
+		if (!profile) throw new Error("No active profile");
+
 		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
-			// Save general settings
-			await this.saveGeneral({
+			// Save general
+			await this.general.put({
+				profileId: profile.id,
 				engineerLevel: state.engineerLevel,
 				scarabLevel: state.scarabLevel,
 				riftRank: state.riftRank,
 			});
 
-			// Save machines, heroes, artifacts
-			await Promise.all([this.saveMachines(state.machines), this.saveHeroes(state.heroes), this.saveArtifacts(state.artifacts)]);
+			// Save machines
+			const machineRecords = state.machines.map((m) => ({
+				profileId: profile.id,
+				id: m.id,
+				rarity: m.rarity,
+				level: m.level,
+				blueprints: m.blueprints,
+				inscriptionLevel: m.inscriptionLevel || 0,
+				sacredLevel: m.sacredLevel || 0,
+			}));
+			await this.machines.bulkPut(machineRecords);
+
+			// Save heroes
+			const heroRecords = state.heroes.map((h) => ({
+				profileId: profile.id,
+				id: h.id,
+				percentages: h.percentages,
+			}));
+			await this.heroes.bulkPut(heroRecords);
+
+			// Save artifacts
+			const artifactRecords = Object.keys(state.artifacts).map((stat) => ({
+				profileId: profile.id,
+				stat,
+				values: state.artifacts[stat],
+			}));
+			await this.artifacts.bulkPut(artifactRecords);
 		});
 	}
 
-	/**
-	 * Loads entire application state in a single transaction
-	 * @returns {Promise<Object|null>} Application state or null if no data
-	 */
 	async loadState() {
-		// Check if we have any data
-		const count = await this.machines.count();
+		const profile = await this.getActiveProfile();
+		if (!profile) return null;
+
+		const count = await this.machines.where("profileId").equals(profile.id).count();
 		if (count === 0) return null;
 
-		const [general, machines, heroes, artifacts] = await Promise.all([this.loadGeneral(), this.loadMachines(), this.loadHeroes(), this.loadArtifacts()]);
+		const [general, machines, heroes, artifacts] = await Promise.all([
+			this.general.get(profile.id),
+			this.machines.where("profileId").equals(profile.id).toArray(),
+			this.heroes.where("profileId").equals(profile.id).toArray(),
+			this.artifacts.where("profileId").equals(profile.id).toArray(),
+		]);
 
 		if (!general) return null;
+
+		const artifactsObj = {};
+		for (const a of artifacts) {
+			artifactsObj[a.stat] = a.values;
+		}
 
 		return {
 			engineerLevel: general.engineerLevel,
@@ -239,26 +165,18 @@ class WMDatabase extends Dexie {
 			riftRank: general.riftRank,
 			machines,
 			heroes,
-			artifacts,
+			artifacts: artifactsObj,
 		};
 	}
 
-	// ========================================
-	// Import/Export Methods
-	// ========================================
-
-	/**
-	 * Exports all data as JSON for save/load feature
-	 * @returns {Promise<string>} JSON string
-	 */
 	async exportData() {
 		const state = await this.loadState();
 
 		if (!state) {
-			// Return minimal valid structure if no data
 			return JSON.stringify(
 				{
 					version: 1,
+					appVersion: AppConfig.APP_VERSION,
 					general: {
 						engineerLevel: 0,
 						scarabLevel: 0,
@@ -266,117 +184,144 @@ class WMDatabase extends Dexie {
 					},
 					machines: [],
 					heroes: [],
-					artifacts: {
-						damage: {},
-						health: {},
-						armor: {},
-					},
+					artifacts: Object.fromEntries(AppConfig.ARTIFACT_STATS.map((s) => [s, Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0]))])),
 				},
 				null,
 				2
 			);
 		}
 
-		const data = {
-			version: 1,
-			general: {
-				engineerLevel: state.engineerLevel,
-				scarabLevel: state.scarabLevel,
-				riftRank: state.riftRank,
+		return JSON.stringify(
+			{
+				version: 1,
+				appVersion: AppConfig.APP_VERSION,
+				general: {
+					engineerLevel: state.engineerLevel,
+					scarabLevel: state.scarabLevel,
+					riftRank: state.riftRank,
+				},
+				machines: state.machines.map((m) => ({
+					id: m.id,
+					rarity: m.rarity,
+					level: m.level,
+					blueprints: m.blueprints,
+					inscriptionLevel: m.inscriptionLevel,
+					sacredLevel: m.sacredLevel,
+				})),
+				heroes: state.heroes.map((h) => ({
+					id: h.id,
+					percentages: h.percentages,
+				})),
+				artifacts: state.artifacts,
 			},
-			machines: state.machines,
-			heroes: state.heroes,
-			artifacts: state.artifacts,
-		};
-
-		return JSON.stringify(data, null, 2);
+			null,
+			2
+		);
 	}
 
-	/**
-	 * Imports data from JSON for save/load feature
-	 * @param {string} jsonString - JSON string to import
-	 * @throws {Error} If data is invalid or incompatible version
-	 */
 	async importData(jsonString) {
 		const data = JSON.parse(jsonString);
 
-		// Validate version
 		if (data.version !== 1) {
 			throw new Error("Incompatible save data version");
 		}
 
-		// Validate structure
-		if (!data.general || typeof data.general !== "object") {
-			throw new Error("Invalid general settings");
-		}
+		const profile = await this.getActiveProfile();
+		if (!profile) throw new Error("No active profile");
 
-		if (!Array.isArray(data.machines) || !Array.isArray(data.heroes)) {
-			throw new Error("Invalid save data structure");
-		}
-
-		if (!data.artifacts || typeof data.artifacts !== "object") {
-			throw new Error("Invalid artifacts data");
-		}
-
-		// Import in single transaction for atomicity
 		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
-			// Clear existing data
-			await Promise.all([this.general.clear(), this.machines.clear(), this.heroes.clear(), this.artifacts.clear()]);
+			// Clear existing
+			await this.general.where("profileId").equals(profile.id).delete();
+			await this.machines.where("profileId").equals(profile.id).delete();
+			await this.heroes.where("profileId").equals(profile.id).delete();
+			await this.artifacts.where("profileId").equals(profile.id).delete();
 
-			// Import new data
-			const promises = [];
+			// Import general
+			await this.general.put({
+				profileId: profile.id,
+				engineerLevel: data.general.engineerLevel,
+				scarabLevel: data.general.scarabLevel,
+				riftRank: data.general.riftRank,
+			});
 
-			promises.push(this.saveGeneral(data.general));
-
+			// Import machines
 			if (data.machines.length > 0) {
-				promises.push(this.machines.bulkAdd(data.machines));
+				const machineRecords = data.machines.map((m) => ({
+					profileId: profile.id,
+					id: m.id,
+					rarity: m.rarity,
+					level: m.level,
+					blueprints: m.blueprints,
+					inscriptionLevel: m.inscriptionLevel || 0,
+					sacredLevel: m.sacredLevel || 0,
+				}));
+				await this.machines.bulkPut(machineRecords);
 			}
 
+			// Import heroes
 			if (data.heroes.length > 0) {
-				promises.push(this.heroes.bulkAdd(data.heroes));
+				const heroRecords = data.heroes.map((h) => ({
+					profileId: profile.id,
+					id: h.id,
+					percentages: h.percentages,
+				}));
+				await this.heroes.bulkPut(heroRecords);
 			}
 
-			promises.push(this.saveArtifacts(data.artifacts));
-
-			await Promise.all(promises);
+			// Import artifacts
+			const artifactRecords = Object.keys(data.artifacts).map((stat) => ({
+				profileId: profile.id,
+				stat,
+				values: data.artifacts[stat],
+			}));
+			await this.artifacts.bulkPut(artifactRecords);
 		});
 	}
 
-	// ========================================
-	// Utility Methods
-	// ========================================
+	async saveResult(mode, result) {
+		const profile = await this.getActiveProfile();
+		if (!profile) throw new Error("No active profile");
 
-	/**
-	 * Clears all data (for reset functionality)
-	 */
-	async clearAllData() {
+		await this.transaction("rw", this.results, async () => {
+			await this.results.where("[profileId+mode]").equals([profile.id, mode]).delete();
+			await this.results.add({ profileId: profile.id, mode, result });
+		});
+	}
+
+	async getLatestResult(mode) {
+		const profile = await this.getActiveProfile();
+		if (!profile) return null;
+
+		const result = await this.results.where("[profileId+mode]").equals([profile.id, mode]).first();
+		return result ? result.result : null;
+	}
+
+	async clearProfileData() {
+		const profile = await this.getActiveProfile();
+		if (!profile) throw new Error("No active profile");
+
 		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
-			await Promise.all([this.general.clear(), this.machines.clear(), this.heroes.clear(), this.artifacts.clear()]);
+			await this.general.where("profileId").equals(profile.id).delete();
+			await this.machines.where("profileId").equals(profile.id).delete();
+			await this.heroes.where("profileId").equals(profile.id).delete();
+			await this.artifacts.where("profileId").equals(profile.id).delete();
 		});
-	}
 
-	/**
-	 * Gets database statistics
-	 * @returns {Promise<Object>} Statistics object
-	 */
-	async getStats() {
-		const [generalCount, machineCount, heroCount, artifactCount, resultCount] = await Promise.all([
-			this.general.count(),
-			this.machines.count(),
-			this.heroes.count(),
-			this.artifacts.count(),
-			this.results.count(),
-		]);
+		// Reinitialize
+		await this.general.put({
+			profileId: profile.id,
+			engineerLevel: AppConfig.DEFAULTS.ENGINEER_LEVEL,
+			scarabLevel: AppConfig.DEFAULTS.SCARAB_LEVEL,
+			riftRank: AppConfig.DEFAULTS.RIFT_RANK,
+		});
 
-		return {
-			general: generalCount,
-			machines: machineCount,
-			heroes: heroCount,
-			artifacts: artifactCount,
-			cachedResults: resultCount,
-		};
+		const artifactRecords = AppConfig.ARTIFACT_STATS.map((stat) => ({
+			profileId: profile.id,
+			stat,
+			values: Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0])),
+		}));
+		await this.artifacts.bulkPut(artifactRecords);
 	}
 }
 
-// Create and export singleton instance
 export const db = new WMDatabase();

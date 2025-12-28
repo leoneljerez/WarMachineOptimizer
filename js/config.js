@@ -4,18 +4,31 @@
  * All game constants and magic numbers should be defined here
  */
 
-/**
- * Campaign difficulty configuration
- * @typedef {Object} DifficultyConfig
- * @property {string} key - Unique identifier
- * @property {string} label - Display name
- * @property {string} color - Bootstrap color class
- * @property {import('./vendor/break_eternity.esm.js').default} multiplier - Stat multiplier for enemies
- */
-
 import Decimal from "./vendor/break_eternity.esm.js";
 
 export const AppConfig = {
+	// ========================================
+	// Application Settings
+	// ========================================
+
+	/**
+	 * Application version for save compatibility tracking
+	 * @type {string}
+	 */
+	APP_VERSION: "1.0.0",
+
+	/**
+	 * Maximum number of profiles allowed
+	 * @type {number}
+	 */
+	MAX_PROFILES: 5,
+
+	/**
+	 * Default profile name for first profile
+	 * @type {string}
+	 */
+	DEFAULT_PROFILE_NAME: "Main Account",
+
 	// ========================================
 	// Campaign Settings
 	// ========================================

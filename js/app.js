@@ -12,12 +12,14 @@ import { SaveLoad } from "./saveload.js";
 import { autoSave, autoLoad, resetAll } from "./storage.js";
 import { showToast } from "./ui/notifications.js";
 import { AppConfig } from "./config.js";
+import { db } from "./db.js";
+import { initializeProfiles, renderProfileManagement } from "./profiles.js";
 
 // Store auto-save debounce timer
 let autoSaveTimer = null;
 
 /**
- * Debounced auto-save function
+ * Debounced auto-save function (async)
  * @param {Store} store - Application store
  */
 function triggerAutoSave(store) {
@@ -83,6 +85,9 @@ export function createInitialStore() {
 }
 
 export const store = createInitialStore();
+
+// Make store globally accessible for profile management
+window.appStore = store;
 
 /**
  * Sets the loading state of the UI
@@ -160,11 +165,12 @@ function validateOptimizationInputs() {
  */
 function getOwnedMachines() {
 	return store.machines.filter((machine) => {
-		const { rarity, level, blueprints } = machine;
+		const { rarity, level, blueprints, inscriptionLevel, sacredLevel } = machine;
 		const hasBlueprints = Object.values(blueprints).some((v) => v > 0);
+		const hasCards = inscriptionLevel > 0 || sacredLevel > 0;
 		const hasLevel = level > 0;
 		const hasRarity = rarity.toLowerCase() !== "common";
-		return hasBlueprints || hasLevel || hasRarity;
+		return hasBlueprints || hasCards || hasLevel || hasRarity;
 	});
 }
 
@@ -241,6 +247,13 @@ function runOptimization() {
 			showToast("Optimization failed. Please try again.", "danger");
 			setLoading(false);
 			return;
+		}
+
+		// Cache the result
+		try {
+			await db.saveResult(store.optimizeMode, result);
+		} catch (error) {
+			console.warn("Failed to cache result:", error);
 		}
 
 		renderResults(result, store.optimizeMode);
@@ -339,10 +352,9 @@ function setupEventListeners() {
 		optimizeBtn.addEventListener("click", runOptimization);
 	}
 
+	// Save/Load modal management
 	const saveLoadModal = document.getElementById("saveLoadModal");
-	const saveLoadBtn = document.getElementById("saveLoadBtn");
-
-	if (saveLoadModal && saveLoadBtn) {
+	if (saveLoadModal) {
 		let modalTrigger = null;
 
 		saveLoadModal.addEventListener("show.bs.modal", (e) => {
@@ -351,7 +363,6 @@ function setupEventListeners() {
 
 		// Clear textarea when modal closes
 		saveLoadModal.addEventListener("hide.bs.modal", () => {
-			// Clear the textarea content
 			const textarea = document.getElementById("saveLoadBox");
 			if (textarea) {
 				textarea.value = "";
@@ -363,16 +374,22 @@ function setupEventListeners() {
 		});
 
 		saveLoadModal.addEventListener("hidden.bs.modal", () => {
-			if (modalTrigger && document.contains(modalTrigger)) {
+			if (modalTrigger && modalTrigger !== document.body && document.contains(modalTrigger)) {
 				modalTrigger.focus();
-			} else {
-				saveLoadBtn.focus();
 			}
 			modalTrigger = null;
 		});
 
 		saveLoadModal.addEventListener("shown.bs.modal", () => {
 			document.getElementById("saveLoadBox")?.focus();
+		});
+	}
+
+	// Profile management modal
+	const manageProfilesModal = document.getElementById("manageProfilesModal");
+	if (manageProfilesModal) {
+		manageProfilesModal.addEventListener("shown.bs.modal", async () => {
+			await renderProfileManagement();
 		});
 	}
 
@@ -385,12 +402,13 @@ function setupEventListeners() {
 	}
 
 	if (loadBtn) {
-		loadBtn.addEventListener("click", () => {
-			SaveLoad.load(store);
+		loadBtn.addEventListener("click", async () => {
+			await SaveLoad.load(store);
 			triggerAutoSave(store);
 		});
 	}
 
+	// Reset artifacts button
 	const resetArtifactsBtn = document.getElementById("resetArtifacts");
 	if (resetArtifactsBtn) {
 		resetArtifactsBtn.addEventListener("click", () => {
@@ -402,17 +420,20 @@ function setupEventListeners() {
 		});
 	}
 
-	// Reset All button
+	// Reset All button (now profile-specific)
 	const resetAllBtn = document.getElementById("resetAllBtn");
 	if (resetAllBtn) {
 		resetAllBtn.addEventListener("click", () => {
-			if (confirm("Reset ALL data to default values? This cannot be undone.")) {
+			if (confirm("Reset ALL data in this profile to default values? This cannot be undone.")) {
 				resetAll(store, createInitialStore);
 			}
 		});
 	}
 }
 
+/**
+ * Populates the Rift Rank dropdown
+ */
 function populateRiftRankSelect() {
 	const riftSelect = document.getElementById("riftRank");
 	if (!riftSelect) return;
@@ -429,30 +450,51 @@ function populateRiftRankSelect() {
 }
 
 /**
- * Initializes the application
+ * Initializes the application (async)
  */
 async function init() {
-	populateRiftRankSelect();
+	try {
+		// Open database
+		await db.open();
+		console.log("Database ready");
 
-	// Try to load saved data
-	const loaded = await autoLoad(store);
-	if (loaded) {
-		showToast("Previous session restored", "info");
+		populateRiftRankSelect();
+
+		// Initialize profiles
+		await initializeProfiles(store);
+
+		// Verify active profile
+		const activeProfile = await db.getActiveProfile();
+		if (!activeProfile) {
+			throw new Error("No active profile");
+		}
+
+		console.log("Active profile:", activeProfile.name);
+
+		// Load data
+		const loaded = await autoLoad(store);
+		if (loaded) {
+			showToast("Previous session restored", "info");
+		}
+
+		// Render UI
+		renderMachines(store.machines);
+		renderHeroes(store.heroes);
+		renderArtifacts(store.artifacts);
+		renderTavernCards(store.machines);
+
+		// Setup listeners
+		setupEventListeners();
+		updateOptimizeButtonText();
+
+		console.log("Ready");
+	} catch (error) {
+		console.error("Init failed:", error);
+		showToast("Initialization failed. Please refresh.", "danger");
 	}
-
-	// Render initial UI
-	renderMachines(store.machines);
-	renderHeroes(store.heroes);
-	renderArtifacts(store.artifacts);
-	renderTavernCards(store.machines);
-
-	// Setup event listeners
-	setupEventListeners();
-
-	// Set initial button text
-	updateOptimizeButtonText();
 }
 
+// Wait for DOM, then initialize
 if (document.readyState === "loading") {
 	await new Promise((resolve) => {
 		document.addEventListener("DOMContentLoaded", resolve, { once: true });
