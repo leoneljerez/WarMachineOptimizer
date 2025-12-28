@@ -97,7 +97,7 @@ function createArtifactCard(stat, percentages, artifacts) {
 			const val = parseInt(e.target.value, 10);
 			artifacts[stat][pct] = isNaN(val) ? 0 : Math.max(0, val);
 
-			const newTotal = Iterator.from(Object.values(artifacts[stat])).reduce((sum, v) => sum + v, 0);
+			const newTotal = Object.values(artifacts[stat]).reduce((sum, v) => sum + v, 0);
 			totalBadge.textContent = `Total: ${newTotal}`;
 
 			triggerAutoSave();
