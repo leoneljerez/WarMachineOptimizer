@@ -226,7 +226,7 @@ function resetStoreToDefaults(store, defaults) {
 export async function resetAll(store, createInitialStore) {
 	try {
 		// Clear database
-		await db.clearAllData();
+		await db.clearProfileData();
 
 		// Reset store to defaults
 		const defaults = createInitialStore();
