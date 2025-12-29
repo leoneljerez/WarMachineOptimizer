@@ -353,6 +353,12 @@ export const SaveLoad = {
 			// Fill in any missing defaults (for forward compatibility)
 			convertedData = fillMissingDefaults(convertedData);
 
+			const savedMachineIds = new Set(convertedData.machines.map((m) => m.id));
+			const savedHeroIds = new Set(convertedData.heroes.map((h) => h.id));
+		
+			const newMachineCount = store.machines.filter((m) => !savedMachineIds.has(m.id)).length;
+			const newHeroCount = store.heroes.filter((h) => !savedHeroIds.has(h.id)).length;
+
 			// Import to database
 			await db.importData(JSON.stringify(convertedData));
 
@@ -370,7 +376,17 @@ export const SaveLoad = {
 
 			showToast(message, "success");
 
-			if (needsUpdate) {
+			if (newMachineCount > 0 || newHeroCount > 0) {
+				const newContent = [];
+				if (newMachineCount > 0) newContent.push(`${newMachineCount} new machine${newMachineCount > 1 ? 's' : ''}`);
+				if (newHeroCount > 0) newContent.push(`${newHeroCount} new hero${newHeroCount > 1 ? 'es' : ''}`);
+				
+				setTimeout(() => {
+					showToast(`Found ${newContent.join(' and ')} - using default values`, "info");
+				}, 1500);
+			}
+
+			if (needsUpdate && newMachineCount === 0 && newHeroCount === 0) {
 				// Show follow-up toast recommending new save
 				setTimeout(() => {
 					showToast("Tip: Generate a new save to use the latest format.", "info");

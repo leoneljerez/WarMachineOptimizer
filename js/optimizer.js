@@ -294,24 +294,21 @@ export class Optimizer {
 	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation = null) {
 		// Calculate only if not provided
 		const enemies = enemyFormation || Calculator.getEnemyTeamForMission(mission, difficulty);
+		let wins = 0;
 
 		for (let i = 0; i < maxSimulations; i++) {
 			const result = this.battleEngine.runBattle(team, enemies, AppConfig.MAX_BATTLE_ROUNDS, true);
 
 			if (result.playerWon) {
-				return {
-					clearable: true,
-					simulations: i + 1,
-					winRate: 1 / (i + 1),
-				};
+				wins++;
 			}
 		}
 
-		return {
-			clearable: false,
-			simulations: maxSimulations,
-			winRate: 0,
-		};
+		if (wins > 2) { 
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -348,7 +345,7 @@ export class Optimizer {
 				const arranged = this.arrangeByRole(formation, 1, difficulty, enemyStats);
 				const result = this.runMonteCarloSimulation(arranged, 1, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
 
-				if (result.clearable) {
+				if (result) {
 					additionalStars++;
 					updatedLastMissions[difficulty] = 1;
 				} else {
@@ -373,7 +370,7 @@ export class Optimizer {
 				const arranged = this.arrangeByRole(formation, mission, difficulty, enemyStats);
 				const result = this.runMonteCarloSimulation(arranged, mission, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
 
-				if (result.clearable) {
+				if (result) {
 					additionalStars++;
 					updatedLastMissions[difficulty] = mission;
 					consecutiveFailures = 0;

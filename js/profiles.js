@@ -182,6 +182,8 @@ async function createNewProfile(store) {
 
 		// Refresh profile selector
 		await renderProfileSelector(store);
+        await switchToProfile(profileId, store);
+        
 	} catch (error) {
 		console.error("Failed to create profile:", error);
 		showToast(error.message || "Failed to create profile", "danger");
@@ -196,7 +198,7 @@ export async function renderProfileManagement() {
 	if (!container) return;
 
 	const profiles = await db.getAllProfiles();
-	const activeProfile = await db.getActiveProfile();
+	//const activeProfile = await db.getActiveProfile();
 
 	container.replaceChildren();
 
@@ -284,12 +286,9 @@ async function renameProfile(profileId) {
 
 		// Refresh management list
 		await renderProfileManagement();
+        const store = window.appStore; // Access global store
+		await renderProfileSelector(store);
 
-		// Update selector if this was the active profile
-		if (profile.isActive) {
-			const store = window.appStore; // Access global store
-			await renderProfileSelector(store);
-		}
 	} catch (error) {
 		console.error("Failed to rename profile:", error);
 		showToast("Failed to rename profile", "danger");
@@ -309,20 +308,16 @@ async function deleteProfile(profileId, profileName) {
 	}
 
 	try {
-		const wasActive = (await db.profiles.get(profileId)).isActive;
+		//const wasActive = (await db.profiles.get(profileId)).isActive;
 
 		await db.deleteProfile(profileId);
 		showToast("Profile deleted successfully", "success");
 
 		// Refresh management list
 		await renderProfileManagement();
-
-		// If deleted profile was active, reload the new active profile
-		if (wasActive) {
-			const store = window.appStore; // Access global store
-			await autoLoad(store);
-			await renderProfileSelector(store);
-		}
+        const store = window.appStore; // Access global store
+		await autoLoad(store);
+		await renderProfileSelector(store);
 	} catch (error) {
 		console.error("Failed to delete profile:", error);
 		showToast(error.message || "Failed to delete profile", "danger");
@@ -336,12 +331,22 @@ async function deleteProfile(profileId, profileName) {
  */
 export async function initializeProfiles(store) {
 	try {
-		const profiles = await db.getAllProfiles();
+		let profiles = await db.getAllProfiles();
 
 		// Create default profile if none exist
 		if (profiles.length === 0) {
 			console.log("No profiles found, creating default profile");
 			await db.createProfile(AppConfig.DEFAULT_PROFILE_NAME);
+
+			// Re-fetch profiles after creation to ensure we have the new profile
+			profiles = await db.getAllProfiles();
+		}
+
+		// Verify we have an active profile
+		const activeProfile = await db.getActiveProfile();
+		if (!activeProfile && profiles.length > 0) {
+			// Shouldn't happen, but fail-safe: activate first profile
+			await db.switchProfile(profiles[0].id);
 		}
 
 		// Render profile selector
