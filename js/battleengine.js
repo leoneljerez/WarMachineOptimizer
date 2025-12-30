@@ -31,7 +31,12 @@ export class BattleEngine {
 
 			case "random": {
 				const count = Math.min(ability.numTargets || 1, aliveMembers.length);
-				const shuffled = [...aliveMembers].sort(() => Math.random() - 0.5);
+				const shuffled = [...aliveMembers];
+				//Fisher-Yates Shuffle (my previous attempt was biased)
+				for (let i = shuffled.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+				}
 				return shuffled.slice(0, count);
 			}
 

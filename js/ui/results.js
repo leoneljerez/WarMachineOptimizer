@@ -523,17 +523,17 @@ function cleanupResults(container) {
 	const controller = cleanupRegistry.get(container);
 	if (controller) {
 		controller.abort();
-		cleanupRegistry.delete(container);
+		//cleanupRegistry.delete(container); testing redundancy
 	}
 
 	// Clean up WeakMap references for old machine cards
-	const oldCards = container.querySelectorAll(".machine-card");
+	/* const oldCards = container.querySelectorAll(".machine-card"); testing redundancy
 	oldCards.forEach((card) => {
 		machineCardRegistry.delete(card);
-	});
+	}); */
 
-	cleanupRegistry.delete(container);
-	// Clear container DOM to release references
+	//cleanupRegistry.delete(container);
+	// Clear container DOM to release references testing redundancy
 	container.replaceChildren();
 }
 

@@ -19,14 +19,14 @@ export function renderMachines(machines) {
 	machines.forEach((machine, index) => {
 		const updateStats = () => {
 			const configured = isConfiguredMachine(machine);
-			const statsText = `Lv. ${machine.level} • ${machine.rarity}`;
+			const statsText = formatMachineStats(machine);
 			updateListItem(btn, statsText, configured);
 		};
 
 		const btn = createListItem({
 			image: machine.image,
 			name: machine.name,
-			statsText: `Lv. ${machine.level} • ${machine.rarity}`,
+			statsText: formatMachineStats(machine),
 			isConfigured: isConfiguredMachine(machine),
 			onClick: () => selectMachine(machine, btn, updateStats),
 		});
@@ -50,6 +50,15 @@ export function renderMachines(machines) {
 		btn.classList.add("active");
 		renderMachineDetails(machine, details, updateStats);
 	}
+}
+
+/**
+ * Formats machine stats for display
+ * @param {import('../app.js').Machine} machine - Hero object
+ * @returns {string} Formatted stats string
+ */
+function formatMachineStats(machine) {
+	return `Lv. ${machine.level} • ${machine.rarity}`;
 }
 
 /**
