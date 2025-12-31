@@ -1,5 +1,6 @@
 // ui/heroes.js
 import { createSection, createFormRow, createNumberInput, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
+import { AppConfig } from "../config.js";
 
 /**
  * Renders the hero list and sets up selection
@@ -44,9 +45,7 @@ export function renderHeroes(heroes) {
 	list.appendChild(fragment);
 
 	function selectHero(hero, btn, updateStats) {
-		if (selectedButton) {
-			selectedButton.classList.remove("active");
-		}
+		if (selectedButton) selectedButton.classList.remove("active");
 		selectedButton = btn;
 		btn.classList.add("active");
 		renderHeroDetails(hero, details, updateStats);
@@ -140,7 +139,7 @@ function createHeroDetailView(hero, updateListStats) {
  * @param {import('../app.js').Hero} hero - Hero object
  */
 function resetHero(hero) {
-	hero.percentages.damage = 0;
-	hero.percentages.health = 0;
-	hero.percentages.armor = 0;
+	hero.percentages.damage = AppConfig.DEFAULTS.HERO_PERCENTAGE;
+	hero.percentages.health = AppConfig.DEFAULTS.HERO_PERCENTAGE;
+	hero.percentages.armor = AppConfig.DEFAULTS.HERO_PERCENTAGE;
 }

@@ -190,9 +190,9 @@ export class Calculator {
 			const hero = crewList[i];
 			if (!hero?.percentages) continue;
 
-			const dmgPct = hero.percentages.damage || 0;
-			const hpPct = hero.percentages.health || 0;
-			const armPct = hero.percentages.armor || 0;
+			const dmgPct = hero.percentages.damage || AppConfig.DEFAULTS.HERO_PERCENTAGE;
+			const hpPct = hero.percentages.health || AppConfig.DEFAULTS.HERO_PERCENTAGE;
+			const armPct = hero.percentages.armor || AppConfig.DEFAULTS.HERO_PERCENTAGE;
 
 			if (dmgPct > 0) dmg = dmg.add(dmgPct / 100);
 			if (hpPct > 0) hp = hp.add(hpPct / 100);

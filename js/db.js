@@ -115,8 +115,8 @@ class WMDatabase extends Dexie {
 				rarity: m.rarity,
 				level: m.level,
 				blueprints: m.blueprints,
-				inscriptionLevel: m.inscriptionLevel || 0,
-				sacredLevel: m.sacredLevel || 0,
+				inscriptionLevel: m.inscriptionLevel || AppConfig.DEFAULTS.CARD_LEVEL,
+				sacredLevel: m.sacredLevel || AppConfig.DEFAULTS.CARD_LEVEL,
 			}));
 			await this.machines.bulkPut(machineRecords);
 
@@ -252,8 +252,8 @@ class WMDatabase extends Dexie {
 					rarity: m.rarity,
 					level: m.level,
 					blueprints: m.blueprints,
-					inscriptionLevel: m.inscriptionLevel || 0,
-					sacredLevel: m.sacredLevel || 0,
+					inscriptionLevel: m.inscriptionLevel || AppConfig.DEFAULTS.CARD_LEVEL,
+					sacredLevel: m.sacredLevel || AppConfig.DEFAULTS.CARD_LEVEL,
 				}));
 				await this.machines.bulkPut(machineRecords);
 			}

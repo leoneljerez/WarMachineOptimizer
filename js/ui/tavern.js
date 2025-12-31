@@ -1,4 +1,5 @@
 // ui/tavern.js
+import { AppConfig } from '../config.js';
 
 /**
  * Renders the tavern cards with reset buttons
@@ -35,7 +36,7 @@ export function renderTavernCards(machines) {
 
 		const resetBtn = createResetButton(resetText, () => {
 			if (confirm(`${resetText} to 0?`)) {
-				machines.forEach((m) => (m[property] = 0));
+				machines.forEach((m) => (m[property] = AppConfig.DEFAULTS.CARD_LEVEL));
 				renderTavernCards(machines);
 				triggerAutoSave();
 			}
