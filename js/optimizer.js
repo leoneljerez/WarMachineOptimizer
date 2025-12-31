@@ -294,18 +294,13 @@ export class Optimizer {
 	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation = null) {
 		// Calculate only if not provided
 		const enemies = enemyFormation || Calculator.getEnemyTeamForMission(mission, difficulty);
-		let wins = 0;
 
 		for (let i = 0; i < maxSimulations; i++) {
 			const result = this.battleEngine.runBattle(team, enemies, AppConfig.MAX_BATTLE_ROUNDS, true);
 
 			if (result.playerWon) {
-				wins++;
+				return true;
 			}
-		}
-
-		if (wins > 2) { 
-			return true;
 		}
 
 		return false;
@@ -331,31 +326,6 @@ export class Optimizer {
 			const difficulty = difficulties[diffIdx];
 			const lastMission = updatedLastMissions[difficulty] || 0;
 
-			if (lastMission === 0) {
-				const requiredPower = Calculator.requiredPowerForMission(1, difficulty);
-				if (ourPower.lt(requiredPower)) continue;
-
-				const enemyFormation = Calculator.getEnemyTeamForMission(1, difficulty);
-				const enemyStats = {
-					damage: enemyFormation[0].baseStats.damage,
-					health: enemyFormation[0].baseStats.health,
-					armor: enemyFormation[0].baseStats.armor,
-				};
-
-				const arranged = this.arrangeByRole(formation, 1, difficulty, enemyStats);
-				const result = this.runMonteCarloSimulation(arranged, 1, difficulty, AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation);
-
-				if (result) {
-					additionalStars++;
-					updatedLastMissions[difficulty] = 1;
-				} else {
-					continue;
-				}
-			}
-
-			let consecutiveFailures = 0;
-			const maxConsecutiveFailures = AppConfig.MAX_CONSECUTIVE_FAILURES;
-
 			for (let mission = lastMission + 1; mission <= AppConfig.MAX_MISSIONS_PER_DIFFICULTY; mission++) {
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 				if (ourPower.lt(requiredPower)) break;
@@ -373,10 +343,6 @@ export class Optimizer {
 				if (result) {
 					additionalStars++;
 					updatedLastMissions[difficulty] = mission;
-					consecutiveFailures = 0;
-				} else {
-					consecutiveFailures++;
-					if (consecutiveFailures >= maxConsecutiveFailures) break;
 				}
 			}
 		}
