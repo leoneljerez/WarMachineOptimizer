@@ -363,7 +363,6 @@ export class Optimizer {
 	 */
 	optimizeCampaignMaxStars({ ownedMachines, maxMission = AppConfig.MAX_MISSIONS_PER_DIFFICULTY, difficulties = AppConfig.DIFFICULTY_KEYS }) {
 		let totalStars = 0;
-		let lastCleared = 0;
 		let lastWinningTeam = [];
 
 		// Track last mission cleared per difficulty: {easy: 40, normal: 20, hard: 1, insane: null, nightmare: null}
@@ -371,7 +370,7 @@ export class Optimizer {
 		difficulties.forEach((diff) => (lastMissionByDifficulty[diff] = null));
 
 		if (!ownedMachines?.length) {
-			return { totalStars, lastCleared, formation: [], battlePower: new Decimal(0), arenaPower: new Decimal(0) };
+			return { totalStars, lastCleared: 0, formation: [], battlePower: new Decimal(0), arenaPower: new Decimal(0) };
 		}
 
 		let currentBestTeam = null;
@@ -420,8 +419,6 @@ export class Optimizer {
 					totalStars++;
 					missionHasClears = true;
 					lastMissionByDifficulty[difficulty] = mission;
-
-					if (difficulty === "easy") lastCleared = mission;
 
 					lastWinningTeam = arrangedTeam.map((m) => ({
 						...m,
