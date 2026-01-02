@@ -126,91 +126,137 @@ export class Optimizer {
 	}
 
 	/**
-	 * Optimizes crew assignments globally across all machines
+	 * Solve the assignment problem (maximize sum) using the Hungarian algorithm
+	 * @param {number[][]} costMatrix - rows = heroes, cols = machine slots (negated scores)
+	 * @returns {[number, number][]} Array of assignments: [heroIndex, slotIndex]
+	 */
+	hungarian(costMatrix) {
+		const n = costMatrix.length;
+		const m = costMatrix[0].length;
+		const u = Array(n + 1).fill(0);
+		const v = Array(m + 1).fill(0);
+		const p = Array(m + 1).fill(0);
+		const way = Array(m + 1).fill(0);
+
+		for (let i = 1; i <= n; i++) {
+			p[0] = i;
+			let minv = Array(m + 1).fill(Infinity);
+			let used = Array(m + 1).fill(false);
+			let j0 = 0;
+			do {
+				used[j0] = true;
+				let i0 = p[j0],
+					delta = Infinity,
+					j1 = 0;
+				for (let j = 1; j <= m; j++) {
+					if (!used[j]) {
+						let cur = costMatrix[i0 - 1][j - 1] - u[i0] - v[j];
+						if (cur < minv[j]) {
+							minv[j] = cur;
+							way[j] = j0;
+						}
+						if (minv[j] < delta) {
+							delta = minv[j];
+							j1 = j;
+						}
+					}
+				}
+				for (let j = 0; j <= m; j++) {
+					if (used[j]) {
+						u[p[j]] += delta;
+						v[j] -= delta;
+					} else {
+						minv[j] -= delta;
+					}
+				}
+				j0 = j1;
+			} while (p[j0] !== 0);
+			do {
+				let j1 = way[j0];
+				p[j0] = p[j1];
+				j0 = j1;
+			} while (j0 !== 0);
+		}
+
+		const result = [];
+		for (let j = 1; j <= m; j++) {
+			if (p[j] > 0 && p[j] <= n) result.push([p[j] - 1, j - 1]);
+		}
+		return result;
+	}
+
+	/**
+	 * Optimizes crew assignments globally using the Hungarian algorithm (no external package)
 	 * @param {import('./app.js').Machine[]} machines - Machines to optimize
 	 * @param {string} mode - "campaign" or "arena"
 	 * @returns {import('./app.js').Machine[]} Machines with optimized crew
 	 */
 	optimizeCrewGlobally(machines, mode = "campaign") {
-		// Use Set for O(1) removal instead of array splice
-		const availableHeroIds = new Set(this.heroes.map((h) => h.id));
-		const heroMap = new Map(this.heroes.map((h) => [h.id, h]));
+		if (!this.heroes?.length || !machines?.length) return machines;
 
-		const machineStates = machines.map((machine) => {
+		const heroes = this.heroes;
+		const maxSlots = this.maxSlots;
+
+		// Step 1: Expand machines into slots
+		const machineSlots = [];
+		for (const machine of machines) {
+			for (let s = 0; s < maxSlots; s++) {
+				machineSlots.push({ machine, slotIndex: s });
+			}
+		}
+
+		const precomputedStats = new Map();
+		for (const machine of machines) {
 			const stats = this.calculateAllStats(machine, []);
-			const power = Calculator.computeMachinePower(mode === "arena" ? stats.arenaStats : stats.battleStats);
+			precomputedStats.set(machine.id, stats);
+		}
+
+		// Step 2: Build cost matrix (rows = heroes, columns = machine slots)
+		const costMatrix = Array(heroes.length)
+			.fill(0)
+			.map(() => Array(machineSlots.length).fill(0));
+
+		for (let h = 0; h < heroes.length; h++) {
+			const hero = heroes[h];
+			for (let s = 0; s < machineSlots.length; s++) {
+				const { machine } = machineSlots[s];
+				const stats = precomputedStats.get(machine.id);
+				const currentStats = mode === "arena" ? stats.arenaStats : stats.battleStats;
+				const score = this.scoreHeroForMachine(hero, machine, currentStats, mode);
+				costMatrix[h][s] = -score; // negate to maximize
+			}
+		}
+
+		// Step 3: Solve assignment problem using internal Hungarian algorithm
+		const assignments = this.hungarian(costMatrix);
+
+		// Step 4: Map assignments back to machines
+		const assignedHeroIds = new Set();
+		const machineCrewMap = new Map();
+
+		for (const [heroIndex, slotIndex] of assignments) {
+			const hero = heroes[heroIndex];
+			if (assignedHeroIds.has(hero.id)) continue;
+
+			const { machine } = machineSlots[slotIndex];
+			if (!machineCrewMap.has(machine.id)) machineCrewMap.set(machine.id, []);
+			machineCrewMap.get(machine.id).push(hero);
+
+			assignedHeroIds.add(hero.id);
+		}
+
+		// Step 5: Recalculate stats with assigned crew
+		return machines.map((machine) => {
+			const crew = machineCrewMap.get(machine.id) ?? [];
+			const stats = this.calculateAllStats(machine, crew);
+
 			return {
-				machine,
-				crew: [],
-				stats,
-				power,
+				...machine,
+				crew,
+				battleStats: stats.battleStats,
+				arenaStats: stats.arenaStats,
 			};
 		});
-
-		machineStates.sort((a, b) => b.power.cmp(a.power));
-
-		// Partition tanks/dps
-		const tanks = [];
-		const dps = [];
-		for (let i = 0; i < machineStates.length; i++) {
-			const ms = machineStates[i];
-			if (ms.machine.role === "tank") {
-				tanks.push(ms);
-			} else {
-				dps.push(ms);
-			}
-		}
-
-		// Priority order
-		const priorityOrder = [];
-		if (dps.length > 0) priorityOrder.push(dps[0]);
-		if (tanks.length > 0) priorityOrder.push(tanks[0]);
-
-		const priorityIds = new Set(priorityOrder.map((ms) => ms.machine.id));
-		for (let i = 0; i < machineStates.length; i++) {
-			const ms = machineStates[i];
-			if (!priorityIds.has(ms.machine.id)) {
-				priorityOrder.push(ms);
-			}
-		}
-
-		// Assign crew
-		for (let i = 0; i < priorityOrder.length; i++) {
-			const machineState = priorityOrder[i];
-
-			while (machineState.crew.length < this.maxSlots && availableHeroIds.size > 0) {
-				const currentStats = mode === "arena" ? machineState.stats.arenaStats : machineState.stats.battleStats;
-
-				let bestHeroId = null;
-				let bestScore = 0;
-
-				// Iterate through available hero IDs
-				for (const heroId of availableHeroIds) {
-					const hero = heroMap.get(heroId);
-					const score = this.scoreHeroForMachine(hero, machineState.machine, currentStats, mode);
-
-					if (score > bestScore) {
-						bestScore = score;
-						bestHeroId = heroId;
-					}
-				}
-
-				if (bestHeroId === null || bestScore === 0) break;
-
-				const hero = heroMap.get(bestHeroId);
-				machineState.crew.push(hero);
-				availableHeroIds.delete(bestHeroId);
-
-				machineState.stats = this.calculateAllStats(machineState.machine, machineState.crew);
-			}
-		}
-
-		return machineStates.map((ms) => ({
-			...ms.machine,
-			crew: ms.crew,
-			battleStats: ms.stats.battleStats,
-			arenaStats: ms.stats.arenaStats,
-		}));
 	}
 
 	/**
@@ -219,18 +265,28 @@ export class Optimizer {
 	 * @param {string} mode - "campaign" or "arena"
 	 * @returns {import('./app.js').Machine[]} Top 5 machines
 	 */
-	selectBestFive(optimizedMachines, mode = "campaign") {
-		if (optimizedMachines.length === 0) return [];
+	selectBestFive(ownedMachines, mode = "campaign") {
+		if (ownedMachines.length === 0) return [];
 
-		const machinesWithPower = optimizedMachines.map((m) => {
-			const stats = mode === "arena" ? m.arenaStats : m.battleStats;
-			const power = Calculator.computeMachinePower(stats);
-			return { machine: m, power };
+		const machinesWithPower = ownedMachines.map((machine) => {
+			const stats = this.calculateAllStats(machine, []);
+			const power = Calculator.computeMachinePower(mode === "arena" ? stats.arenaStats : stats.battleStats);
+
+			return {
+				machine,
+				stats,
+				power,
+			};
 		});
 
 		machinesWithPower.sort((a, b) => b.power.cmp(a.power));
 
-		return machinesWithPower.slice(0, 5).map((x) => x.machine);
+		return machinesWithPower.slice(0, 5).map((m) => ({
+			...m.machine,
+			crew: [],
+			battleStats: m.stats.battleStats,
+			arenaStats: m.stats.arenaStats,
+		}));
 	}
 
 	/**
@@ -381,8 +437,8 @@ export class Optimizer {
 			const shouldReoptimize = !currentBestTeam || mission - lastOptimizedMission >= AppConfig.REOPTIMIZE_INTERVAL;
 
 			if (shouldReoptimize) {
-				const allOptimized = this.optimizeCrewGlobally(ownedMachines, "campaign");
-				currentBestTeam = this.selectBestFive(allOptimized, "campaign");
+				const allOptimized = this.selectBestFive(ownedMachines, "campaign");
+				currentBestTeam = this.optimizeCrewGlobally(allOptimized, "campaign");
 
 				if (currentBestTeam.length === 0) break;
 
@@ -462,14 +518,14 @@ export class Optimizer {
 			return { formation: [], totalPower: new Decimal(0) };
 		}
 
-		const allOptimized = this.optimizeCrewGlobally(ownedMachines, "arena");
+		const topFive = this.selectBestFive(ownedMachines, "arena");
+		let allOptimized = this.optimizeCrewGlobally(topFive, "arena");
 
-		let bestTeam = this.selectBestFive(allOptimized, "arena");
-		bestTeam = this.arrangeByRole(bestTeam, 1, "easy");
+		allOptimized = this.arrangeByRole(allOptimized, 1, "easy");
 
-		const arenaPower = Calculator.computeSquadPower(bestTeam, "arena");
-		const battlePower = Calculator.computeSquadPower(bestTeam, "campaign");
+		const arenaPower = Calculator.computeSquadPower(allOptimized, "arena");
+		const battlePower = Calculator.computeSquadPower(allOptimized, "campaign");
 
-		return { formation: bestTeam, arenaPower, battlePower };
+		return { formation: allOptimized, arenaPower, battlePower };
 	}
 }
