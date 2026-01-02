@@ -238,11 +238,11 @@ export const AppConfig = {
 	},
 
 	// ========================================
-	// Rarity System
+	// Rarity/Evolution System
 	// ========================================
 
 	/**
-	 * Rarity level mappings
+	 * Rarity/Evolution level mappings
 	 * Used for stat calculations and UI display
 	 * @type {Array<{key: string, label: string, level: number}>}
 	 */
@@ -258,8 +258,32 @@ export const AppConfig = {
 		{ key: "celestial", label: "Celestial", level: 8 },
 	],
 
+	GUARDIAN_RARITIES: [
+		{ key: "common", label: "Common", level: 0 },
+		{ key: "uncommon", label: "Uncommon", level: 1 },
+		{ key: "rare", label: "Rare", level: 2 },
+		{ key: "epic", label: "Epic", level: 3 },
+		{ key: "legendary", label: "Legendary", level: 4 },
+		{ key: "mythic", label: "Mythic", level: 5 },
+		{ key: "titan", label: "Titan", level: 6 },
+		{ key: "angel", label: "Angel", level: 7 },
+	],
+
+	GUARDIAN_EVOLUTIONS: [
+		{ key: "bronze", label: "Bronze", level: 0 },
+		{ key: "silver", label: "Silver", level: 1 },
+		{ key: "gold", label: "Gold", level: 2 },
+		{ key: "platinum", label: "Platinum", level: 3 },
+		{ key: "ruby", label: "Ruby", level: 4 },
+		{ key: "sapphire", label: "Sapphire", level: 5 },
+		{ key: "pearl", label: "Pearl", level: 6 },
+		{ key: "diamond", label: "Diamond", level: 7 },
+		{ key: "starlight", label: "Starlight", level: 8 },
+		{ key: "starlight_plus", label: "Starlight Plus", level: 9 },
+	],
+
 	/**
-	 * Gets rarity level by key
+	 * Gets rarity/evolution level by key
 	 * @param {string} rarityKey - Rarity key (e.g., "epic")
 	 * @returns {number} Rarity level (0-8)
 	 */
@@ -268,12 +292,30 @@ export const AppConfig = {
 		return rarity ? rarity.level : 0;
 	},
 
+	getGuardianRarityLevel(rarityKey) {
+		const rarity = this.GUARDIAN_RARITIES.find((r) => r.key === rarityKey.toLowerCase());
+		return rarity ? rarity.level : 0;
+	},
+
+	getGuardianEvolutionLevel(evolutionKey) {
+		const evolution = this.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolutionKey.toLowerCase());
+		return evolution ? evolution.level : 0;
+	},
+
 	/**
 	 * Gets all rarity labels for UI display
 	 * @returns {string[]}
 	 */
 	get RARITY_LABELS() {
 		return this.RARITIES.map((r) => r.label);
+	},
+
+	get GUARDIAN_RARITY_LABELS() {
+		return this.GUARDIAN_RARITIES.map((r) => r.label);
+	},
+
+	get GUARDIAN_EVOLUTION_LABELS() {
+		return this.GUARDIAN_EVOLUTIONS.map((e) => e.label);
 	},
 
 	// ========================================
