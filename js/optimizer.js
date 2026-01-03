@@ -62,30 +62,39 @@ export class Optimizer {
 	scoreHeroForMachine(hero, machine, currentStats, mode = "campaign") {
 		const role = machine.role === "tank" ? "tank" : "dps";
 
-		const dmgBonus = hero.percentages.damage / 100;
-		const hpBonus = hero.percentages.health / 100;
-		const armBonus = hero.percentages.armor / 100;
+		const dmgBonus = (hero.percentages?.damage ?? 0) / 100;
+		const hpBonus = (hero.percentages?.health ?? 0) / 100;
+		const armBonus = (hero.percentages?.armor ?? 0) / 100;
 
 		if (dmgBonus === 0 && hpBonus === 0 && armBonus === 0) {
 			return 0;
 		}
 
-		const currentDmg = Calculator.toDecimal(currentStats.damage).toNumber();
-		const currentHp = Calculator.toDecimal(currentStats.health).toNumber();
-		const currentArm = Calculator.toDecimal(currentStats.armor).toNumber();
+		const dmg = Calculator.toDecimal(currentStats.damage);
+		const hp = Calculator.toDecimal(currentStats.health);
+		const arm = Calculator.toDecimal(currentStats.armor);
 
-		const dmgGain = dmgBonus * currentDmg;
-		const hpGain = hpBonus * currentHp;
-		const armGain = armBonus * currentArm;
+		// Safe, bounded projection
+		const logDmg = dmg.gt(0) ? dmg.log10().add(1).toNumber() : 0.0001;
+		const logHp = hp.gt(0) ? hp.log10().add(1).toNumber() : 0.0001;
+		const logArm = arm.gt(0) ? arm.log10().add(1).toNumber() : 0.0001;
 
-		let score = 0;
+		const dmgGain = dmgBonus * logDmg;
+		const hpGain = hpBonus * logHp;
+		const armGain = armBonus * logArm;
 
 		const weights = mode === "campaign" ? AppConfig.HERO_SCORING.CAMPAIGN : AppConfig.HERO_SCORING.ARENA;
+
 		const roleWeights = role === "tank" ? weights.TANK : weights.DPS;
 
-		score = dmgGain * roleWeights.damage + hpGain * roleWeights.health + armGain * roleWeights.armor;
+		let score = dmgGain * roleWeights.damage + hpGain * roleWeights.health + armGain * roleWeights.armor;
 
-		return score;
+		if (!Number.isFinite(score)) {
+			score = 0.0001;
+		}
+
+		// Keep Hungarian stable
+		return Math.min(score, 1e9);
 	}
 
 	/**
@@ -127,12 +136,35 @@ export class Optimizer {
 
 	/**
 	 * Solve the assignment problem (maximize sum) using the Hungarian algorithm
+	 * with numerical stability improvements for large values
 	 * @param {number[][]} costMatrix - rows = heroes, cols = machine slots (negated scores)
 	 * @returns {[number, number][]} Array of assignments: [heroIndex, slotIndex]
 	 */
 	hungarian(costMatrix) {
 		const n = costMatrix.length;
 		const m = costMatrix[0].length;
+
+		const EPS = 1e-6;
+
+		for (let i = 0; i < n; i++) {
+			for (let j = 0; j < m; j++) {
+				const v = costMatrix[i][j];
+				if (!Number.isFinite(v)) {
+					costMatrix[i][j] = EPS;
+				}
+			}
+		}
+
+		// Normalize magnitudes
+		let maxAbs = 0;
+		for (let i = 0; i < n; i++) {
+			for (let j = 0; j < m; j++) {
+				maxAbs = Math.max(maxAbs, Math.abs(costMatrix[i][j]));
+			}
+		}
+		const scale = maxAbs > 1e6 ? maxAbs / 1e6 : 1;
+		const a = costMatrix.map((row) => row.map((v) => v / scale));
+
 		const u = Array(n + 1).fill(0);
 		const v = Array(m + 1).fill(0);
 		const p = Array(m + 1).fill(0);
@@ -140,17 +172,22 @@ export class Optimizer {
 
 		for (let i = 1; i <= n; i++) {
 			p[0] = i;
-			let minv = Array(m + 1).fill(Infinity);
-			let used = Array(m + 1).fill(false);
+			const minv = Array(m + 1).fill(Infinity);
+			const used = Array(m + 1).fill(false);
 			let j0 = 0;
+
 			do {
 				used[j0] = true;
-				let i0 = p[j0],
-					delta = Infinity,
-					j1 = 0;
+				const i0 = p[j0];
+				let delta = Infinity;
+				let j1 = 0;
+
 				for (let j = 1; j <= m; j++) {
 					if (!used[j]) {
-						let cur = costMatrix[i0 - 1][j - 1] - u[i0] - v[j];
+						let cur = a[i0 - 1][j - 1] - u[i0] - v[j];
+
+						if (!Number.isFinite(cur)) cur = EPS;
+
 						if (cur < minv[j]) {
 							minv[j] = cur;
 							way[j] = j0;
@@ -161,6 +198,11 @@ export class Optimizer {
 						}
 					}
 				}
+
+				if (!Number.isFinite(delta) || delta <= 0) {
+					delta = EPS;
+				}
+
 				for (let j = 0; j <= m; j++) {
 					if (used[j]) {
 						u[p[j]] += delta;
@@ -171,8 +213,9 @@ export class Optimizer {
 				}
 				j0 = j1;
 			} while (p[j0] !== 0);
+
 			do {
-				let j1 = way[j0];
+				const j1 = way[j0];
 				p[j0] = p[j1];
 				j0 = j1;
 			} while (j0 !== 0);
@@ -180,7 +223,9 @@ export class Optimizer {
 
 		const result = [];
 		for (let j = 1; j <= m; j++) {
-			if (p[j] > 0 && p[j] <= n) result.push([p[j] - 1, j - 1]);
+			if (p[j] > 0 && p[j] <= n) {
+				result.push([p[j] - 1, j - 1]);
+			}
 		}
 		return result;
 	}
@@ -192,71 +237,85 @@ export class Optimizer {
 	 * @returns {import('./app.js').Machine[]} Machines with optimized crew
 	 */
 	optimizeCrewGlobally(machines, mode = "campaign") {
-		if (!this.heroes?.length || !machines?.length) return machines;
+		// Use Set for O(1) removal instead of array splice
+		const availableHeroIds = new Set(this.heroes.map((h) => h.id));
+		const heroMap = new Map(this.heroes.map((h) => [h.id, h]));
 
-		const heroes = this.heroes;
-		const maxSlots = this.maxSlots;
-
-		// Step 1: Expand machines into slots
-		const machineSlots = [];
-		for (const machine of machines) {
-			for (let s = 0; s < maxSlots; s++) {
-				machineSlots.push({ machine, slotIndex: s });
-			}
-		}
-
-		const precomputedStats = new Map();
-		for (const machine of machines) {
+		const machineStates = machines.map((machine) => {
 			const stats = this.calculateAllStats(machine, []);
-			precomputedStats.set(machine.id, stats);
-		}
-
-		// Step 2: Build cost matrix (rows = heroes, columns = machine slots)
-		const costMatrix = Array(heroes.length)
-			.fill(0)
-			.map(() => Array(machineSlots.length).fill(0));
-
-		for (let h = 0; h < heroes.length; h++) {
-			const hero = heroes[h];
-			for (let s = 0; s < machineSlots.length; s++) {
-				const { machine } = machineSlots[s];
-				const stats = precomputedStats.get(machine.id);
-				const currentStats = mode === "arena" ? stats.arenaStats : stats.battleStats;
-				const score = this.scoreHeroForMachine(hero, machine, currentStats, mode);
-				costMatrix[h][s] = -score; // negate to maximize
-			}
-		}
-
-		// Step 3: Solve assignment problem using internal Hungarian algorithm
-		const assignments = this.hungarian(costMatrix);
-
-		// Step 4: Map assignments back to machines
-		const assignedHeroIds = new Set();
-		const machineCrewMap = new Map();
-
-		for (const [heroIndex, slotIndex] of assignments) {
-			const hero = heroes[heroIndex];
-			if (assignedHeroIds.has(hero.id)) continue;
-
-			const { machine } = machineSlots[slotIndex];
-			if (!machineCrewMap.has(machine.id)) machineCrewMap.set(machine.id, []);
-			machineCrewMap.get(machine.id).push(hero);
-
-			assignedHeroIds.add(hero.id);
-		}
-
-		// Step 5: Recalculate stats with assigned crew
-		return machines.map((machine) => {
-			const crew = machineCrewMap.get(machine.id) ?? [];
-			const stats = this.calculateAllStats(machine, crew);
-
+			const power = Calculator.computeMachinePower(mode === "arena" ? stats.arenaStats : stats.battleStats);
 			return {
-				...machine,
-				crew,
-				battleStats: stats.battleStats,
-				arenaStats: stats.arenaStats,
+				machine,
+				crew: [],
+				stats,
+				power,
 			};
 		});
+
+		machineStates.sort((a, b) => b.power.cmp(a.power));
+
+		// Partition tanks/dps
+		const tanks = [];
+		const dps = [];
+		for (let i = 0; i < machineStates.length; i++) {
+			const ms = machineStates[i];
+			if (ms.machine.role === "tank") {
+				tanks.push(ms);
+			} else {
+				dps.push(ms);
+			}
+		}
+
+		// Priority order
+		const priorityOrder = [];
+		if (dps.length > 0) priorityOrder.push(dps[0]);
+		if (tanks.length > 0) priorityOrder.push(tanks[0]);
+
+		const priorityIds = new Set(priorityOrder.map((ms) => ms.machine.id));
+		for (let i = 0; i < machineStates.length; i++) {
+			const ms = machineStates[i];
+			if (!priorityIds.has(ms.machine.id)) {
+				priorityOrder.push(ms);
+			}
+		}
+
+		// Assign crew
+		for (let i = 0; i < priorityOrder.length; i++) {
+			const machineState = priorityOrder[i];
+
+			while (machineState.crew.length < this.maxSlots && availableHeroIds.size > 0) {
+				const currentStats = mode === "arena" ? machineState.stats.arenaStats : machineState.stats.battleStats;
+
+				let bestHeroId = null;
+				let bestScore = 0;
+
+				// Iterate through available hero IDs
+				for (const heroId of availableHeroIds) {
+					const hero = heroMap.get(heroId);
+					const score = this.scoreHeroForMachine(hero, machineState.machine, currentStats, mode);
+
+					if (score > bestScore) {
+						bestScore = score;
+						bestHeroId = heroId;
+					}
+				}
+
+				if (bestHeroId === null || bestScore === 0) break;
+
+				const hero = heroMap.get(bestHeroId);
+				machineState.crew.push(hero);
+				availableHeroIds.delete(bestHeroId);
+
+				machineState.stats = this.calculateAllStats(machineState.machine, machineState.crew);
+			}
+		}
+
+		return machineStates.map((ms) => ({
+			...ms.machine,
+			crew: ms.crew,
+			battleStats: ms.stats.battleStats,
+			arenaStats: ms.stats.arenaStats,
+		}));
 	}
 
 	/**
