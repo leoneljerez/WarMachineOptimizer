@@ -27,7 +27,7 @@ export function renderGuardianCalculator() {
 	body.className = "card-body";
 
 	// Current Position Section
-	const currentSection = createPositionSection("current", "Current Position");
+	const currentSection = createPositionSection("current", "Current Level");
 
 	// Add current exp input
 	const currentExpRow = document.createElement("div");
@@ -49,7 +49,7 @@ export function renderGuardianCalculator() {
 	currentSection.querySelector(".row").appendChild(currentExpRow);
 
 	// Target Position Section
-	const targetSection = createPositionSection("target", "Target Position");
+	const targetSection = createPositionSection("target", "Target Level");
 
 	// Calculate Button
 	const calculateBtn = document.createElement("button");
