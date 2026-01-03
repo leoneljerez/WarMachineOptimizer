@@ -269,7 +269,7 @@ export const AppConfig = {
 		{ key: "angel", label: "Angel", level: 7 },
 	],
 
-	GUARDIAN_EVOLUTIONS: [
+	/* GUARDIAN_EVOLUTIONS: [ //keep in case I need it in the future
 		{ key: "bronze", label: "Bronze", level: 0 },
 		{ key: "silver", label: "Silver", level: 1 },
 		{ key: "gold", label: "Gold", level: 2 },
@@ -280,7 +280,58 @@ export const AppConfig = {
 		{ key: "diamond", label: "Diamond", level: 7 },
 		{ key: "starlight", label: "Starlight", level: 8 },
 		{ key: "starlight_plus", label: "Starlight Plus", level: 9 },
+	], */
+
+	/**
+	 * Guardian evolution categories in order
+	 * @type {string[]}
+	 */
+	GUARDIAN_EVOLUTION_CATEGORIES: ["bronze", "silver", "gold", "platinum", "ruby", "sapphire", "pearl", "diamond", "starlight", "starlight_plus"],
+
+	/**
+	 * Guardian star/crown ranks
+	 * @type {Array<{key: string, label: string, isCrown: boolean}>}
+	 */
+	GUARDIAN_RANKS: [
+		{ key: "1star", label: "1 Star", isCrown: false },
+		{ key: "2star", label: "2 Stars", isCrown: false },
+		{ key: "3star", label: "3 Stars", isCrown: false },
+		{ key: "4star", label: "4 Stars", isCrown: false },
+		{ key: "5star", label: "5 Stars", isCrown: false },
+		{ key: "1crown", label: "1 Crown", isCrown: true },
+		{ key: "2crown", label: "2 Crowns", isCrown: true },
+		{ key: "3crown", label: "3 Crowns", isCrown: true },
+		{ key: "4crown", label: "4 Crowns", isCrown: true },
+		{ key: "5crown", label: "5 Crowns", isCrown: true },
 	],
+
+	GUARDIAN_EXP_TABLE: {
+		// Only Bronze stars need lookup (irregular pattern)
+		bronze: {
+			"1star": [90, 190, 300, 420, 580, 690, 780, 865, 950],
+			"2star": [1357, 1459, 1561, 1660, 1770, 1860, 1960, 2070, 2180],
+			"3star": [2800, 2910, 3030, 3150, 3270, 3390, 3510, 3600, 3750],
+			"4star": [4400, 4700, 4830, 5000, 5140, 5280, 5420, 5560, 5700],
+			"5star": [5710, 5720, 5730, 5740, 5750, 5760, 5770, 5780, 5790],
+		},
+	},
+
+	/**
+	 * Evolution costs (shards required to evolve)
+	 * Format: { category: { fromRank: cost } }
+	 */
+	GUARDIAN_EVOLUTION_COSTS: {
+		bronze: { "1star": 300, "2star": 500, "3star": 600, "4star": 800, "5star": 1000, "1crown": 800, "2crown": 1000, "3crown": 1150, "4crown": 1300, "5crown": 1500 },
+		silver: { "1star": 350, "2star": 550, "3star": 650, "4star": 850, "5star": 1050, "1crown": 850, "2crown": 1050, "3crown": 1200, "4crown": 1350, "5crown": 1550 },
+		gold: { "1star": 400, "2star": 600, "3star": 700, "4star": 900, "5star": 1100, "1crown": 900, "2crown": 1100, "3crown": 1250, "4crown": 1400, "5crown": 1600 },
+		platinum: { "1star": 450, "2star": 650, "3star": 750, "4star": 950, "5star": 1150, "1crown": 950, "2crown": 1150, "3crown": 1300, "4crown": 1450, "5crown": 1650 },
+		ruby: { "1star": 500, "2star": 700, "3star": 800, "4star": 1000, "5star": 1200, "1crown": 1050, "2crown": 1200, "3crown": 1350, "4crown": 1500, "5crown": 1700 },
+		sapphire: { "1star": 550, "2star": 750, "3star": 900, "4star": 1050, "5star": 1250, "1crown": 1100, "2crown": 1250, "3crown": 1400, "4crown": 1550, "5crown": 1750 },
+		pearl: { "1star": 600, "2star": 800, "3star": 950, "4star": 1100, "5star": 1300, "1crown": 1150, "2crown": 1300, "3crown": 1450, "4crown": 1600, "5crown": 1800 },
+		diamond: { "1star": 650, "2star": 850, "3star": 1000, "4star": 1150, "5star": 1350, "1crown": 1200, "2crown": 1350, "3crown": 1500, "4crown": 1650, "5crown": 1850 },
+		starlight: { "1star": 700, "2star": 900, "3star": 1050, "4star": 1200, "5star": 1400, "1crown": 1250, "2crown": 1400, "3crown": 1550, "4crown": 1700, "5crown": 1900 },
+		starlight_plus: { "1star": 750, "2star": 950, "3star": 1100, "4star": 1250, "5star": 1450, "1crown": 1300, "2crown": 1450, "3crown": 1600, "4crown": 1750, "5crown": 1950 },
+	},
 
 	/**
 	 * Gets rarity/evolution level by key
@@ -317,6 +368,8 @@ export const AppConfig = {
 	get GUARDIAN_EVOLUTION_LABELS() {
 		return this.GUARDIAN_EVOLUTIONS.map((e) => e.label);
 	},
+
+	STRANGE_DUST_EXP: 120,
 
 	// ========================================
 	// Chaos Rift Ranks
