@@ -32,7 +32,18 @@ self.onmessage = function (e) {
 			scarabLevel = 0,
 			artifactArray = [],
 			riftRank = "",
+			heroScoring,
 		} = e.data;
+
+		// Apply hero scoring to AppConfig if provided
+		if (heroScoring) {
+			AppConfig.HERO_SCORING.CAMPAIGN.TANK = heroScoring.campaign.tank;
+			AppConfig.HERO_SCORING.CAMPAIGN.DPS = heroScoring.campaign.dps;
+			AppConfig.HERO_SCORING.ARENA.TANK = heroScoring.arena.tank;
+			AppConfig.HERO_SCORING.ARENA.DPS = heroScoring.arena.dps;
+
+			console.log("Worker: Applied hero scoring weights:", heroScoring);
+		}
 
 		// Create optimizer
 		const optimizer = new Optimizer({

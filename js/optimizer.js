@@ -59,31 +59,26 @@ export class Optimizer {
 	 * @param {string} mode - "campaign" or "arena"
 	 * @returns {Decimal} Score value (higher is better)
 	 */
-	scoreHeroForMachine(hero, machine, currentStats, mode = "campaign") {
+	scoreHeroForMachine(hero, machine, currentStats, mode) {
 		const role = machine.role === "tank" ? "tank" : "dps";
-
-		const dmgBonus = new Decimal(hero.percentages.damage).div(100);
-		const hpBonus = new Decimal(hero.percentages.health).div(100);
-		const armBonus = new Decimal(hero.percentages.armor).div(100);
-
-		if (dmgBonus.eq(0) && hpBonus.eq(0) && armBonus.eq(0)) {
-			return new Decimal(0);
-		}
-
-		const currentDmg = Calculator.toDecimal(currentStats.damage);
-		const currentHp = Calculator.toDecimal(currentStats.health);
-		const currentArm = Calculator.toDecimal(currentStats.armor);
-
-		const dmgGain = dmgBonus.mul(currentDmg);
-		const hpGain = hpBonus.mul(currentHp);
-		const armGain = armBonus.mul(currentArm);
-
 		const weights = mode === "campaign" ? AppConfig.HERO_SCORING.CAMPAIGN : AppConfig.HERO_SCORING.ARENA;
 		const roleWeights = role === "tank" ? weights.TANK : weights.DPS;
 
-		const score = dmgGain.mul(roleWeights.damage).add(hpGain.mul(roleWeights.health)).add(armGain.mul(roleWeights.armor));
+		// 1. Stat Gain (Relative to 100%)
+		const dmgScore = new Decimal(hero.percentages.damage).div(100).mul(roleWeights.damage);
+		const hpScore = new Decimal(hero.percentages.health).div(100).mul(roleWeights.health);
+		const armScore = new Decimal(hero.percentages.armor).div(100).mul(roleWeights.armor);
 
-		return score;
+		let baseScore = dmgScore.add(hpScore).add(armScore);
+		if (baseScore.lte(0)) return new Decimal(0);
+
+		// 2. Power Tier Multiplier (Uses log to keep numbers manageable)
+		const power = Calculator.computeMachinePower(currentStats);
+		const logPower = power.gt(0) ? power.log10().add(1) : new Decimal(1);
+
+		if (mode === "campaign") return baseScore.mul(logPower).pow(2);
+
+		return baseScore.mul(logPower);
 	}
 
 	/**
@@ -124,167 +119,93 @@ export class Optimizer {
 	}
 
 	/**
-	 * Calculates total benefit score for a machine's entire crew
-	 * @param {import('./app.js').Machine} machine - Machine to score
-	 * @param {import('./app.js').Hero[]} crew - Crew members
-	 * @param {string} mode - "campaign" or "arena"
-	 * @returns {Decimal} Total score for this crew assignment
+	 * Kuhn-Munkres (Hungarian) Algorithm for Optimal Assignment.
+	 * Solves the Maximum Weight Perfect Matching problem in a bipartite graph to find the
+	 * global maximum benefit for assigning heroes to machine slots based on calculated scores.
+	 * @param {Array<Object>} heroes - Array of hero objects to be assigned.
+	 * @param {Array<Object>} machineSlots - Array of available machine slot objects.
+	 * @param {Map<string, Object>} modeContextStats - Map of machine IDs to their current environmental/mode stats.
+	 * @param {string} mode - The current game mode (e.g., 'campaign' or 'arena') used for scoring.
+	 * @returns {Map<string, Array<Object>>} A Map where keys are machine IDs and values are arrays of assigned hero objects.
 	 */
-	scoreCrewForMachine(machine, crew, mode) {
-		// Get base stats (without crew)
-		const baseStats = this.calculateAllStats(machine, []);
-		const baseForScoring = mode === "arena" ? baseStats.arenaStats : baseStats.battleStats;
+	kmAssignment(heroes, machineSlots, modeContextStats, mode) {
+		const n = heroes.length;
+		const m = machineSlots.length;
+		const size = Math.max(n, m);
 
-		let totalScore = new Decimal(0);
+		let weight = Array.from({ length: size + 1 }, () => Array(size + 1).fill(new Decimal(0)));
+		let lx = Array(size + 1).fill(new Decimal(0));
+		let ly = Array(size + 1).fill(new Decimal(0));
+		let matchY = Array(size + 1).fill(0);
+		let slack = Array(size + 1).fill(new Decimal(0));
+		let pre = Array(size + 1).fill(0);
+		let visY = Array(size + 1).fill(false);
 
-		// Sum up scores for each crew member
-		for (const hero of crew) {
-			const score = this.scoreHeroForMachine(hero, machine, baseForScoring, mode);
-			totalScore = totalScore.add(score);
-		}
-
-		return totalScore;
-	}
-
-	/**
-	 * Greedy assignment algorithm that assigns heroes to slots by highest score
-	 * Simple, fast, and gives near-optimal results
-	 * @param {import('./app.js').Hero[]} heroes - Available heroes
-	 * @param {Array<{machine: import('./app.js').Machine, slotIndex: number}>} machineSlots - Available slots
-	 * @param {Map} precomputedStats - Precomputed stats for each machine
-	 * @param {string} mode - "campaign" or "arena"
-	 * @returns {Map<number, import('./app.js').Hero[]>} Map of machine.id to assigned crew
-	 */
-	greedyAssignment(heroes, machineSlots, precomputedStats, mode) {
-		// Build all possible (hero, slot) pairs with their scores
-		const assignments = [];
-
-		for (let h = 0; h < heroes.length; h++) {
-			const hero = heroes[h];
-
-			for (let s = 0; s < machineSlots.length; s++) {
-				// eslint-disable-next-line no-unused-vars
-				const { machine, slotIndex } = machineSlots[s];
-				const stats = precomputedStats.get(machine.id);
-				const currentStats = mode === "arena" ? stats.arenaStats : stats.battleStats;
-				const score = this.scoreHeroForMachine(hero, machine, currentStats, mode);
-
-				assignments.push({
-					heroIndex: h,
-					hero,
-					slotIndex: s,
-					machine,
-					score,
-				});
+		for (let i = 1; i <= n; i++) {
+			for (let j = 1; j <= m; j++) {
+				const { machine } = machineSlots[j - 1];
+				const currentStats = modeContextStats.get(machine.id);
+				const score = this.scoreHeroForMachine(heroes[i - 1], machine, currentStats, mode);
+				weight[i][j] = score;
+				if (score.gt(lx[i])) lx[i] = score;
 			}
 		}
 
-		// Sort by score (descending - highest scores first)
-		assignments.sort((a, b) => b.score.cmp(a.score));
+		for (let i = 1; i <= size; i++) {
+			slack.fill(new Decimal("1e308"));
+			visY.fill(false);
+			pre.fill(0);
+			let curY = 0;
+			matchY[0] = i;
 
-		// Greedily assign heroes to slots
-		const usedHeroes = new Set();
-		const usedSlots = new Set();
-		const machineCrewMap = new Map();
-
-		for (const assignment of assignments) {
-			// Skip if hero or slot already used
-			if (usedHeroes.has(assignment.heroIndex)) continue;
-			if (usedSlots.has(assignment.slotIndex)) continue;
-
-			// Assign this hero to this slot
-			if (!machineCrewMap.has(assignment.machine.id)) {
-				machineCrewMap.set(assignment.machine.id, []);
-			}
-			machineCrewMap.get(assignment.machine.id).push(assignment.hero);
-
-			usedHeroes.add(assignment.heroIndex);
-			usedSlots.add(assignment.slotIndex);
-
-			// Stop when all heroes or all slots are assigned
-			if (usedHeroes.size === heroes.length || usedSlots.size === machineSlots.length) {
-				break;
-			}
-		}
-
-		return machineCrewMap;
-	}
-
-	/**
-	 * Improves greedy solution with local 2-opt swaps using proper scoring
-	 * Tries swapping pairs of hero assignments to see if total score improves
-	 * @param {import('./app.js').Machine[]} machines - Machines with current crew assignments
-	 * @param {import('./app.js').Hero[]} heroes - All heroes
-	 * @param {string} mode - "campaign" or "arena"
-	 * @param {number} maxIterations - Maximum swap iterations
-	 * @returns {import('./app.js').Machine[]} Machines with improved crew
-	 */
-	localOptimization(machines, heroes, mode, maxIterations = 100) {
-		let improved = true;
-		let iterations = 0;
-
-		while (improved && iterations < maxIterations) {
-			improved = false;
-			iterations++;
-
-			// Try swapping crew between all pairs of machines
-			for (let i = 0; i < machines.length; i++) {
-				for (let j = i + 1; j < machines.length; j++) {
-					const machineA = machines[i];
-					const machineB = machines[j];
-
-					if (!machineA.crew || !machineB.crew) continue;
-					if (machineA.crew.length === 0 || machineB.crew.length === 0) continue;
-
-					// Calculate current total score using proper scoring function
-					const currentScoreA = this.scoreCrewForMachine(machineA, machineA.crew, mode);
-					const currentScoreB = this.scoreCrewForMachine(machineB, machineB.crew, mode);
-					const currentTotal = currentScoreA.add(currentScoreB);
-
-					// Try swapping each crew member from A with each from B
-					for (let ca = 0; ca < machineA.crew.length; ca++) {
-						for (let cb = 0; cb < machineB.crew.length; cb++) {
-							// Create swapped crew arrays
-							const crewA = [...machineA.crew];
-							const crewB = [...machineB.crew];
-							const temp = crewA[ca];
-							crewA[ca] = crewB[cb];
-							crewB[cb] = temp;
-
-							// Calculate new scores with swapped crew
-							const newScoreA = this.scoreCrewForMachine(machineA, crewA, mode);
-							const newScoreB = this.scoreCrewForMachine(machineB, crewB, mode);
-							const newTotal = newScoreA.add(newScoreB);
-
-							// If swap improves total score, apply it
-							if (newTotal.gt(currentTotal)) {
-								// Apply the swap
-								machineA.crew = crewA;
-								machineB.crew = crewB;
-
-								// Recalculate full stats for both machines
-								const newStatsA = this.calculateAllStats(machineA, crewA);
-								const newStatsB = this.calculateAllStats(machineB, crewB);
-
-								machineA.battleStats = newStatsA.battleStats;
-								machineA.arenaStats = newStatsA.arenaStats;
-
-								machineB.battleStats = newStatsB.battleStats;
-								machineB.arenaStats = newStatsB.arenaStats;
-
-								improved = true;
-								break;
-							}
+			do {
+				visY[curY] = true;
+				let curX = matchY[curY],
+					delta = new Decimal("1e308"),
+					nextY = 0;
+				for (let y = 1; y <= size; y++) {
+					if (!visY[y]) {
+						let curDiff = lx[curX].add(ly[y]).sub(weight[curX][y]);
+						if (curDiff.lt(slack[y])) {
+							slack[y] = curDiff;
+							pre[y] = curY;
 						}
-						if (improved) break;
+						if (slack[y].lt(delta)) {
+							delta = slack[y];
+							nextY = y;
+						}
 					}
-					if (improved) break;
 				}
-				if (improved) break;
+				// Precision Guard for break_eternity.js
+				if (delta.lt(1e-12)) delta = new Decimal(0);
+				if (delta.gt(0)) {
+					for (let j = 0; j <= size; j++) {
+						if (visY[j]) {
+							lx[matchY[j]] = lx[matchY[j]].sub(delta);
+							ly[j] = ly[j].add(delta);
+						} else slack[j] = slack[j].sub(delta);
+					}
+				}
+				curY = nextY;
+			} while (matchY[curY] !== 0);
+
+			while (curY !== 0) {
+				let prevY = pre[curY];
+				matchY[curY] = matchY[prevY];
+				curY = prevY;
 			}
 		}
 
-		return machines;
+		const machineCrewMap = new Map();
+		for (let j = 1; j <= m; j++) {
+			const heroIdx = matchY[j] - 1;
+			if (heroIdx >= 0 && heroIdx < n) {
+				const machineId = machineSlots[j - 1].machine.id;
+				if (!machineCrewMap.has(machineId)) machineCrewMap.set(machineId, []);
+				machineCrewMap.get(machineId).push(heroes[heroIdx]);
+			}
+		}
+		return machineCrewMap;
 	}
 
 	/**
@@ -296,32 +217,39 @@ export class Optimizer {
 	optimizeCrewGlobally(machines, mode = "campaign") {
 		if (!this.heroes?.length || !machines?.length) return machines;
 
-		const heroes = this.heroes;
-		const maxSlots = this.maxSlots;
+		// 1. Filter to top heroes to keep KM performance snappy (N^3 complexity)
+		const requiredSlots = machines.length * this.maxSlots;
+		const sortedHeroes = [...this.heroes]
+			.sort((a, b) => {
+				const sumA = new Decimal(a.percentages.damage).add(a.percentages.health);
+				const sumB = new Decimal(b.percentages.damage).add(b.percentages.health);
+				return sumB.cmp(sumA);
+			})
+			.slice(0, requiredSlots + 20);
 
-		// Step 1: Expand machines into slots
 		const machineSlots = [];
 		for (const machine of machines) {
-			for (let s = 0; s < maxSlots; s++) {
+			for (let s = 0; s < this.maxSlots; s++) {
 				machineSlots.push({ machine, slotIndex: s });
 			}
 		}
 
-		// Step 2: Precompute base stats for all machines (without crew)
-		const precomputedStats = new Map();
+		// 2. Precompute the correct stat block for the mode
+		const modeContextStats = new Map();
 		for (const machine of machines) {
 			const stats = this.calculateAllStats(machine, []);
-			precomputedStats.set(machine.id, stats);
+			// Assign the correct stat object based on mode
+			const relevantStats = mode === "arena" ? stats.arenaStats : stats.battleStats;
+			modeContextStats.set(machine.id, relevantStats);
 		}
 
-		// Step 3: Greedy assignment - assign heroes to slots by highest score
-		const machineCrewMap = this.greedyAssignment(heroes, machineSlots, precomputedStats, mode);
+		// 3. Run the KM Algorithm
+		const machineCrewMap = this.kmAssignment(sortedHeroes, machineSlots, modeContextStats, mode);
 
-		// Step 4: Apply crew assignments and recalculate stats
-		let optimizedMachines = machines.map((machine) => {
+		// 4. Map results back to the machine objects
+		return machines.map((machine) => {
 			const crew = machineCrewMap.get(machine.id) ?? [];
 			const stats = this.calculateAllStats(machine, crew);
-
 			return {
 				...machine,
 				crew,
@@ -329,11 +257,6 @@ export class Optimizer {
 				arenaStats: stats.arenaStats,
 			};
 		});
-
-		// Step 5: Apply local optimization (2-opt swaps) using proper scoring
-		optimizedMachines = this.localOptimization(optimizedMachines, heroes, mode, 100);
-
-		return optimizedMachines;
 	}
 
 	/**

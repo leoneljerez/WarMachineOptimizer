@@ -15,6 +15,7 @@ import { showToast } from "./ui/notifications.js";
 import { AppConfig } from "./config.js";
 import { db } from "./db.js";
 import { initializeProfiles, renderProfileManagement } from "./profiles.js";
+import { initializeSettings, renderSettingsModal, saveSettingsFromModal, resetSettingsToDefaults } from "./ui/settings.js";
 
 // Store auto-save debounce timer
 let autoSaveTimer = null;
@@ -236,6 +237,17 @@ function runOptimization() {
 		scarabLevel: store.scarabLevel,
 		artifactArray,
 		riftRank: store.riftRank,
+		// Pass hero scoring weights to worker
+		heroScoring: {
+			campaign: {
+				tank: { ...AppConfig.HERO_SCORING.CAMPAIGN.TANK },
+				dps: { ...AppConfig.HERO_SCORING.CAMPAIGN.DPS },
+			},
+			arena: {
+				tank: { ...AppConfig.HERO_SCORING.ARENA.TANK },
+				dps: { ...AppConfig.HERO_SCORING.ARENA.DPS },
+			},
+		},
 	});
 
 	worker.onmessage = async function (e) {
@@ -430,6 +442,33 @@ function setupEventListeners() {
 			}
 		});
 	}
+
+	const settingsModal = document.getElementById("settingsModal");
+	if (settingsModal) {
+		settingsModal.addEventListener("show.bs.modal", () => {
+			renderSettingsModal();
+		});
+	}
+
+	// Save settings button
+	const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+	if (saveSettingsBtn) {
+		saveSettingsBtn.addEventListener("click", () => {
+			saveSettingsFromModal();
+			// Close modal after saving
+			// eslint-disable-next-line no-undef
+			const modal = bootstrap.Modal.getInstance(document.getElementById("settingsModal"));
+			if (modal) modal.hide();
+		});
+	}
+
+	// Reset settings button
+	const resetSettingsBtn = document.getElementById("resetSettingsBtn");
+	if (resetSettingsBtn) {
+		resetSettingsBtn.addEventListener("click", () => {
+			resetSettingsToDefaults();
+		});
+	}
 }
 
 /**
@@ -484,6 +523,7 @@ async function init() {
 		renderArtifacts(store.artifacts);
 		renderTavernCards(store.machines);
 		renderGuardianCalculator();
+		initializeSettings();
 
 		// Setup listeners
 		setupEventListeners();

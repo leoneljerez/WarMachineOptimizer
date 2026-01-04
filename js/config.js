@@ -153,12 +153,12 @@ export const AppConfig = {
 	 */
 	HERO_SCORING: {
 		CAMPAIGN: {
-			TANK: { damage: 0.3, health: 5.0, armor: 3.0 },
-			DPS: { damage: 10.0, health: 0.55, armor: 0.3 },
+			TANK: { damage: 0.1, health: 12.0, armor: 8.0 },
+			DPS: { damage: 15.0, health: 0.1, armor: 0.1 },
 		},
 		ARENA: {
-			TANK: { damage: 0.3, health: 5.0, armor: 3.0 },
-			DPS: { damage: 10.0, health: 0.55, armor: 0.3 },
+			TANK: { damage: 1.0, health: 6.0, armor: 3.0 },
+			DPS: { damage: 6.0, health: 3.0, armor: 1.0 },
 		},
 	},
 
