@@ -1,23 +1,7 @@
 // ui/results.js
 import { AppConfig } from "../config.js";
 import { Calculator } from "../calculator.js";
-
-/**
- * @typedef {Object} SerializedDecimal
- * @property {number} sign
- * @property {number} layer
- * @property {number} mag
- */
-
-/**
- * @typedef {Object} OptimizationResult
- * @property {number} totalStars
- * @property {Object} lastCleared - Object mapping difficulty to last mission cleared
- * @property {import('../app.js').Machine[]} formation
- * @property {SerializedDecimal} battlePower
- * @property {SerializedDecimal} arenaPower
- * @property {string} mode
- */
+import { createMachineRankDisplay, RarityColors } from "../utils/ranks.js";
 
 // Use WeakMap to avoid memory leaks from direct property assignment
 const machineCardRegistry = new WeakMap();
@@ -27,7 +11,7 @@ const cleanupRegistry = new WeakMap();
 
 /**
  * Formats a Decimal as a localized integer string or exponential notation
- * @param {SerializedDecimal} decimal - Serialized decimal to format
+ * @param {*} decimal - Serialized decimal to format
  * @returns {string} Formatted string
  */
 function formatPower(decimal) {
@@ -69,8 +53,6 @@ function createCrewImage(hero) {
 	img.src = hero.image || "img/heroes/placeholder.png";
 	img.alt = hero.name;
 	img.title = hero.name;
-	img.className = "rounded border";
-	img.style.cssText = "width: 30px; height: 30px; object-fit: cover;";
 
 	// Add error handler for missing images
 	img.addEventListener(
@@ -97,9 +79,20 @@ function createMachineCard(machine, machineTemplate) {
 	// Use WeakMap to track machine data without direct property assignment
 	machineCardRegistry.set(card, machine);
 
+	// Get rarity color for accent
+	const rarityKey = machine.rarity?.toLowerCase() || "common";
+	const rarityColor = RarityColors[rarityKey] || RarityColors.common;
+
+	// Apply rarity accent to card
+	card.style.borderTop = `3px solid ${rarityColor}`;
+	card.style.background = `linear-gradient(to bottom, ${rarityColor}08, transparent 60%)`;
+
 	const img = clone.querySelector(".machine-image");
 	img.src = machine.image || "img/machines/placeholder.png";
 	img.alt = machine.name;
+
+	// Subtle glow effect on image
+	img.style.boxShadow = `0 4px 12px ${rarityColor}25, 0 0 20px ${rarityColor}15`;
 
 	// Add error handler
 	img.addEventListener(
@@ -110,27 +103,103 @@ function createMachineCard(machine, machineTemplate) {
 		{ once: true }
 	);
 
-	clone.querySelector(".machine-name").textContent = `${machine.name} (Lv ${machine.level}, ${machine.rarity})`;
+	// Machine name section
+	const nameElement = clone.querySelector(".machine-name");
+	nameElement.innerHTML = ""; // Clear template content
 
-	// Set initial stats (will be updated by updateMachineStats)
+	// Title
+	const title = document.createElement("div");
+	title.className = "fw-bold fs-6 mb-2 text-white";
+	title.textContent = machine.name;
+
+	// Level and rarity badge with rarity color accent
+	const badge = document.createElement("div");
+	badge.className = "d-inline-flex align-items-center gap-2 px-3 py-1 rounded-2";
+	badge.style.background = `linear-gradient(135deg, ${rarityColor}15, ${rarityColor}08)`;
+	badge.style.border = `1px solid ${rarityColor}40`;
+	badge.style.fontSize = "0.75rem";
+
+	const levelText = document.createElement("span");
+	levelText.className = "text-white-50";
+	levelText.textContent = `Lv. ${machine.level}`;
+
+	const separator = document.createElement("span");
+	separator.className = "text-white-50";
+	separator.textContent = "•";
+
+	const rarityText = document.createElement("span");
+	rarityText.className = "fw-semibold text-white-50";
+	rarityText.textContent = machine.rarity;
+
+	badge.append(levelText, separator, rarityText);
+
+	// Add rank display
+	const rankContainer = document.createElement("div");
+	rankContainer.className = "mt-2";
+
+	if (machine.level > 0) {
+		const rankDisplay = createMachineRankDisplay(machine.level, "small");
+		rankContainer.appendChild(rankDisplay);
+	}
+
+	nameElement.append(title, badge, rankContainer);
+
+	// Stats section
+	const statsContainer = clone.querySelector(".machine-stats");
+	statsContainer.className = "stats-grid";
+	statsContainer.innerHTML = ""; // Clear template
+
+	// Create stat items with icons
+	const statTypes = [
+		{ key: "damage", icon: "img/ui/damage.webp", label: "Damage" },
+		{ key: "health", icon: "img/ui/health.webp", label: "Health" },
+		{ key: "armor", icon: "img/ui/armor.webp", label: "Armor" }
+	];
+
+	statTypes.forEach(({ key, icon, label }) => {
+		const statItem = document.createElement("div");
+		statItem.className = `stat ${key} stat-item`;
+
+		const iconEl = document.createElement("img");
+		iconEl.src = icon;
+		iconEl.alt = label;
+		iconEl.title = label;
+		iconEl.className = "stat-icon";
+
+		const valueEl = document.createElement("span");
+		valueEl.className = "value stat-value";
+		valueEl.textContent = "0.00e+00"; // Placeholder to reserve width
+
+		statItem.append(iconEl, valueEl);
+		statsContainer.appendChild(statItem);
+	});
+
+	// Set initial stats
 	updateMachineStats(card, "battle");
 
-	// Build crew images using fragment for better performance
+	// Crew section with better visual organization
 	const crewDiv = clone.querySelector(".crew");
+	crewDiv.className = "crew-section mt-3 pt-3";
+	crewDiv.style.borderTop = "1px solid rgba(255, 255, 255, 0.1)";
+
 	const crewFragment = document.createDocumentFragment();
+
+	// Crew members
+	const crewMembers = document.createElement("div");
+	crewMembers.className = "crew-members d-flex flex-wrap justify-content-center gap-2";
 
 	if (machine.crew && machine.crew.length > 0) {
 		machine.crew.forEach((hero) => {
-			crewFragment.appendChild(createCrewImage(hero));
+			crewMembers.appendChild(createCrewImage(hero));
 		});
 	} else {
-		// Show empty state
-		const emptyText = document.createElement("span");
-		emptyText.className = "text-secondary small";
-		emptyText.textContent = "No crew";
-		crewFragment.appendChild(emptyText);
+		const emptyState = document.createElement("div");
+		emptyState.className = "text-white-50 small fst-italic py-2";
+		emptyState.textContent = "No crew assigned";
+		crewMembers.appendChild(emptyState);
 	}
 
+	crewFragment.appendChild(crewMembers);
 	crewDiv.appendChild(crewFragment);
 
 	return clone;
@@ -241,7 +310,7 @@ function createProgressionDisplay(lastCleared) {
 
 /**
  * Creates summary stats cards for campaign mode
- * @param {OptimizationResult} result - Optimization result
+ * @param {*} result - Optimization result
  * @returns {HTMLElement} Stats container with three cards
  */
 function createCampaignStats(result) {
@@ -282,7 +351,7 @@ function createCampaignStats(result) {
 
 /**
  * Creates summary stats cards for arena mode
- * @param {OptimizationResult} result - Optimization result
+ * @param {*} result - Optimization result
  * @returns {HTMLElement} Stats container with one card
  */
 function createArenaStats(result) {
@@ -299,7 +368,7 @@ function createArenaStats(result) {
 
 /**
  * Creates summary stats cards based on mode
- * @param {OptimizationResult} result - Optimization result
+ * @param {*} result - Optimization result
  * @param {string} optimizeMode - "campaign" or "arena"
  * @returns {HTMLElement} Stats container
  */
@@ -438,7 +507,7 @@ function createFormationGrid() {
 /**
  * Populates formation slots with machine cards
  * @param {HTMLElement} container - Formation container
- * @param {import('../app.js').Machine[]} formation - Formation array
+ * @param {Array} formation - Formation array
  * @param {HTMLTemplateElement} machineTemplate - Machine card template
  */
 function populateFormation(container, formation, machineTemplate) {
@@ -473,7 +542,7 @@ function populateFormation(container, formation, machineTemplate) {
 
 /**
  * Sets up the stats toggle event listener with proper cleanup
- * @param {OptimizationResult} result - Optimization result
+ * @param {*} result - Optimization result
  * @param {HTMLElement} container - Results container element
  */
 function setupStatsToggle(result, container) {
@@ -523,23 +592,15 @@ function cleanupResults(container) {
 	const controller = cleanupRegistry.get(container);
 	if (controller) {
 		controller.abort();
-		//cleanupRegistry.delete(container); testing redundancy
 	}
 
-	// Clean up WeakMap references for old machine cards
-	/* const oldCards = container.querySelectorAll(".machine-card"); testing redundancy
-	oldCards.forEach((card) => {
-		machineCardRegistry.delete(card);
-	}); */
-
-	//cleanupRegistry.delete(container);
-	// Clear container DOM to release references testing redundancy
+	// Clear container DOM to release references
 	container.replaceChildren();
 }
 
 /**
  * Main render function for optimization results
- * @param {OptimizationResult} result - Optimization result object
+ * @param {*} result - Optimization result object
  * @param {string} optimizeMode - "campaign" or "arena"
  */
 export function renderResults(result, optimizeMode = "campaign") {

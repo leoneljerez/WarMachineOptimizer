@@ -1,7 +1,8 @@
 // ui/guardian.js
 import { GuardianCalculator } from "../guardianCalculator.js";
-import { AppConfig } from "../config.js";
+//import { AppConfig } from "../config.js";
 import { showToast } from "./notifications.js";
+import { createGuardianRankSelector, parseGuardianRankValue } from '../utils/ranks.js';
 
 /**
  * Renders the Guardian calculator interface
@@ -75,78 +76,41 @@ export function renderGuardianCalculator() {
  * @returns {HTMLElement} Section element
  */
 function createPositionSection(prefix, title) {
-	const section = document.createElement("div");
-	section.className = "mb-4";
+	const section = document.createElement('div');
+	section.className = 'mb-4';
 
-	const heading = document.createElement("h6");
-	heading.className = "mb-3";
+	const heading = document.createElement('h6');
+	heading.className = 'mb-3';
 	heading.textContent = title;
 
-	const row = document.createElement("div");
-	row.className = "row g-3";
+	const row = document.createElement('div');
+	row.className = 'row g-3';
 
-	// Evolution Category
-	const categoryCol = document.createElement("div");
-	categoryCol.className = "col-md-4";
+	// Combined Evolution & Rank selector
+	const rankCol = document.createElement('div');
+	rankCol.className = 'col-md-8';
 
-	const categoryLabel = document.createElement("label");
-	categoryLabel.className = "form-label text-capitalize";
-	categoryLabel.textContent = "Evolution Category";
-	categoryLabel.htmlFor = `${prefix}Category`;
-
-	const categorySelect = document.createElement("select");
-	categorySelect.className = "form-select";
-	categorySelect.id = `${prefix}Category`;
-
-	const categoryFragment = document.createDocumentFragment();
-	AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.forEach((cat) => {
-		const option = document.createElement("option");
-		option.value = cat;
-		option.textContent = cat.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
-		if (cat === "bronze") option.selected = true;
-		categoryFragment.appendChild(option);
-	});
-	categorySelect.appendChild(categoryFragment);
-
-	categoryCol.append(categoryLabel, categorySelect);
-
-	// Rank
-	const rankCol = document.createElement("div");
-	rankCol.className = "col-md-4";
-
-	const rankLabel = document.createElement("label");
-	rankLabel.className = "form-label";
-	rankLabel.textContent = "Rank";
+	const rankLabel = document.createElement('label');
+	rankLabel.className = 'form-label';
+	rankLabel.textContent = 'Evolution & Rank';
 	rankLabel.htmlFor = `${prefix}Rank`;
 
-	const rankSelect = document.createElement("select");
-	rankSelect.className = "form-select";
-	rankSelect.id = `${prefix}Rank`;
-
-	const rankFragment = document.createDocumentFragment();
-	AppConfig.GUARDIAN_RANKS.forEach((rank) => {
-		const option = document.createElement("option");
-		option.value = rank.key;
-		option.textContent = rank.label;
-		if (rank.key === "1star") option.selected = true;
-		rankFragment.appendChild(option);
-	});
-	rankSelect.appendChild(rankFragment);
+	const rankSelect = createGuardianRankSelector('bronze', '1star', `${prefix}Rank`);
 
 	rankCol.append(rankLabel, rankSelect);
 
-	// Level
-	const levelCol = document.createElement("div");
-	levelCol.className = "col-md-4";
+	// Level input
+	const levelCol = document.createElement('div');
+	levelCol.className = 'col-md-4';
 
-	const levelLabel = document.createElement("label");
-	levelLabel.className = "form-label";
-	levelLabel.textContent = "Level";
+	const levelLabel = document.createElement('label');
+	levelLabel.className = 'form-label';
+	levelLabel.textContent = 'Level';
 	levelLabel.htmlFor = `${prefix}Level`;
 
-	const levelInput = document.createElement("input");
-	levelInput.type = "number";
-	levelInput.className = "form-control";
+	const levelInput = document.createElement('input');
+	levelInput.type = 'number';
+	levelInput.className = 'form-control';
 	levelInput.id = `${prefix}Level`;
 	levelInput.min = 1;
 	levelInput.max = 10;
@@ -154,7 +118,7 @@ function createPositionSection(prefix, title) {
 
 	levelCol.append(levelLabel, levelInput);
 
-	row.append(categoryCol, rankCol, levelCol);
+	row.append(rankCol, levelCol);
 	section.append(heading, row);
 
 	return section;
@@ -166,18 +130,24 @@ function createPositionSection(prefix, title) {
 function calculateStrangeDust() {
 	try {
 		// Get current position
+		const currentRankValue = document.getElementById('currentRank').value;
+		const currentParsed = parseGuardianRankValue(currentRankValue);
+		
 		const current = {
-			category: document.getElementById("currentCategory").value,
-			rank: document.getElementById("currentRank").value,
-			level: parseInt(document.getElementById("currentLevel").value),
-			currentExp: parseInt(document.getElementById("currentExp").value) || 0,
+			category: currentParsed.evolution,
+			rank: currentParsed.rank,
+			level: parseInt(document.getElementById('currentLevel').value),
+			currentExp: parseInt(document.getElementById('currentExp').value) || 0,
 		};
 
 		// Get target position
+		const targetRankValue = document.getElementById('targetRank').value;
+		const targetParsed = parseGuardianRankValue(targetRankValue);
+		
 		const target = {
-			category: document.getElementById("targetCategory").value,
-			rank: document.getElementById("targetRank").value,
-			level: parseInt(document.getElementById("targetLevel").value),
+			category: targetParsed.evolution,
+			rank: targetParsed.rank,
+			level: parseInt(document.getElementById('targetLevel').value),
 		};
 
 		// Calculate
@@ -187,11 +157,11 @@ function calculateStrangeDust() {
 		displayResults(result);
 
 		if (result.error) {
-			showToast(result.error, "warning");
+			showToast(result.error, 'warning');
 		}
 	} catch (error) {
-		console.error("Guardian calculation error:", error);
-		showToast(`Calculation error: ${error.message}`, "danger");
+		console.error('Guardian calculation error:', error);
+		showToast(`Calculation error: ${error.message}`, 'danger');
 	}
 }
 

@@ -73,6 +73,229 @@
 				transform: translateY(0);
 			}
 
+			/* MACHINE CARDS */
+			.machine-card {
+				position: relative;
+				background: rgba(0, 0, 0, 0.3);
+				backdrop-filter: blur(10px);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				transition: all 0.3s ease;
+				min-width: 280px; /* Prevent width jumping */
+			}
+
+			.machine-card:hover {
+				transform: translateY(-4px);
+				box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+				border-color: rgba(255, 255, 255, 0.2);
+			}
+
+			.machine-card .machine-image {
+				width: 100px;
+				height: 100px;
+				object-fit: cover;
+				border-radius: 12px;
+				transition: all 0.3s ease;
+				border: 2px solid rgba(255, 255, 255, 0.1);
+			}
+
+			.machine-card:hover .machine-image {
+				transform: scale(1.05);
+			}
+
+			.machine-card .machine-name {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 6px;
+				text-align: center;
+			}
+
+			/* Stats grid for machine cards */
+			.stats-grid {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 7px;
+				padding: 7px;
+				background: rgba(255, 255, 255, 0.01);
+				border-radius: 8px;
+				border: 1px solid rgba(255, 255, 255, 0.08);
+			}
+
+			.stat-item {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 4px;
+				padding: 6px;
+				background: rgba(255, 255, 255, 0.02);
+				border-radius: 6px;
+				transition: all 0.2s ease;
+				min-height: 60px; /* Consistent height */
+			}
+
+			.stat-item:hover {
+				background: rgba(255, 255, 255, 0.05);
+				transform: translateY(-2px);
+			}
+
+			.stat-icon {
+				width: 22px;
+				height: 22px;
+				filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+			}
+
+			.stat-value {
+				font-size: 0.8rem;
+				font-weight: 600;
+				color: rgba(255, 255, 255, 0.9);
+				text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+				font-family: "Courier New", monospace; /* Monospace for consistent width */
+				min-width: 65px; /* Reserve space for exponent notation */
+				text-align: center;
+			}
+
+			/* Crew section styling */
+			.crew-section {
+				padding-top: 12px;
+			}
+
+			.crew-header {
+				font-size: 0.65rem;
+				font-weight: 600;
+				letter-spacing: 0.5px;
+				text-transform: uppercase;
+				color: rgba(255, 255, 255, 0.5);
+				text-align: center;
+			}
+
+			.crew-members img {
+				width: 36px;
+				height: 36px;
+				border-radius: 8px;
+				border: 2px solid rgba(255, 255, 255, 0.2);
+				transition: all 0.2s ease;
+				box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+			}
+
+			.crew-members img:hover {
+				transform: scale(1.15);
+				border-color: rgba(255, 255, 255, 0.4);
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+				z-index: 10;
+			}
+
+			/* RANK ICONS */
+			.rank-icon {
+				filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+				transition: transform 0.2s ease;
+				image-rendering: -webkit-optimize-contrast;
+				image-rendering: crisp-edges;
+			}
+
+			.rank-icon:hover {
+				transform: scale(1.1);
+			}
+
+			/* GUARDIAN RANK SELECTOR */
+			.guardian-rank-selector-container {
+				position: relative;
+			}
+
+			.guardian-rank-display {
+				display: flex;
+				align-items: center;
+				padding: 0.5rem 1rem;
+			}
+
+			.guardian-rank-dropdown {
+				position: absolute;
+				top: 100%;
+				left: 0;
+				right: 0;
+				background: var(--bs-body-bg);
+				border: 1px solid var(--bs-border-color);
+				border-radius: 0.375rem;
+				margin-top: 0.25rem;
+				max-height: 400px;
+				overflow-y: auto;
+				z-index: 1000;
+				box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+			}
+
+			.guardian-rank-type-header {
+				padding: 0.75rem 1rem;
+				font-weight: 700;
+				font-size: 1.1rem;
+				background: rgba(13, 110, 253, 0.15);
+				border-bottom: 2px solid rgba(13, 110, 253, 0.3);
+				color: #4dabf7;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
+
+			.guardian-rank-evolution-subheader {
+				padding: 0.5rem 1rem;
+				font-weight: 600;
+				font-size: 0.9rem;
+				background: rgba(255, 255, 255, 0.03);
+				border-bottom: 1px solid var(--bs-border-color);
+				text-transform: capitalize;
+				color: rgba(255, 255, 255, 0.7);
+			}
+
+			.guardian-rank-options {
+				display: grid;
+				grid-template-columns: repeat(5, 1fr);
+				gap: 0.25rem;
+				padding: 0.5rem;
+				background: rgba(0, 0, 0, 0.2);
+			}
+
+			.guardian-rank-option {
+				background: rgba(255, 255, 255, 0.05);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				border-radius: 0.25rem;
+				padding: 0.5rem;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+			}
+
+			.guardian-rank-option:hover {
+				background: rgba(13, 110, 253, 0.2);
+				border-color: rgba(13, 110, 253, 0.5);
+				transform: scale(1.05);
+			}
+
+			.guardian-rank-option:active {
+				transform: scale(0.95);
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar {
+				width: 8px;
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar-track {
+				background: rgba(255, 255, 255, 0.05);
+				border-radius: 4px;
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar-thumb {
+				background: rgba(255, 255, 255, 0.2);
+				border-radius: 4px;
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar-thumb:hover {
+				background: rgba(255, 255, 255, 0.3);
+			}
+
+			/* Rank display in results */
+			.results-view .rank-icon {
+				margin: 0 1px;
+			}
+
 			/* Fade-in animation */
 			.machine-detail-view,
 			.hero-detail-view,
@@ -371,24 +594,11 @@
 
 		<!-- Templates -->
 		<template id="machineTemplate">
-			<div class="machine-card border rounded p-3 mb-2 text-center shadow-sm">
-				<img class="machine-image mb-2 rounded" src="" alt="Machine" style="width: 80px; height: 80px; object-fit: cover" />
-				<div class="machine-name fw-bold mb-2"></div>
-				<div class="machine-stats d-flex justify-content-center gap-3 align-items-center mb-2">
-					<div class="stat damage d-flex align-items-center gap-1">
-						<img src="img/ui/damage.webp" alt="Damage" style="width: 20px; height: 20px" />
-						<span class="value fw-bold"></span>
-					</div>
-					<div class="stat health d-flex align-items-center gap-1">
-						<img src="img/ui/health.webp" alt="Health" style="width: 20px; height: 20px" />
-						<span class="value fw-bold"></span>
-					</div>
-					<div class="stat armor d-flex align-items-center gap-1">
-						<img src="img/ui/armor.webp" alt="Armor" style="width: 20px; height: 20px" />
-						<span class="value fw-bold"></span>
-					</div>
-				</div>
-				<div class="crew d-flex flex-wrap justify-content-center gap-1 mt-2"></div>
+			<div class="machine-card rounded-3 p-4 text-center">
+				<img class="machine-image mx-auto d-block mb-3" src="" alt="Machine" />
+				<div class="machine-name mb-3"></div>
+				<div class="machine-stats"></div>
+				<div class="crew"></div>
 			</div>
 		</template>
 
