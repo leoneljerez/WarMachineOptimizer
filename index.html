@@ -110,7 +110,7 @@
 				text-align: center;
 			}
 
-			.celestial-particles {
+			.rank-particles {
 				position: absolute;
 				top: 0;
 				left: 0;
@@ -121,18 +121,30 @@
 				overflow: hidden;
 			}
 
-			/* Individual celestial particles */
-			.celestial-particle {
+			/* Individual rank particles */
+			.rank-particle {
 				position: absolute;
-				width: 3px;
-				height: 3px;
-				background: radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 215, 0, 0) 70%);
+				width: 5px;
+				height: 5px;
 				border-radius: 50%;
-				animation: celestialFall linear infinite;
+				animation: particleFall linear infinite;
 				opacity: 0;
 			}
 
-			@keyframes celestialFall {
+			/* Particle colors by rank */
+			.rank-particle.celestial {
+				background: radial-gradient(circle, rgba(175, 246, 248, 0.8), rgba(255, 215, 0, 0) 70%);
+			}
+
+			.rank-particle.titan {
+				background: radial-gradient(circle, rgba(228, 189, 83, 0.8), rgba(138, 43, 226, 0) 70%);
+			}
+
+			.rank-particle.angel {
+				background: radial-gradient(circle, rgba(252, 163, 163, 0.7), rgba(255, 255, 255, 0) 70%);
+			}
+
+			@keyframes particleFall {
 				0% {
 					transform: translateY(-10px);
 					opacity: 0;
@@ -149,41 +161,13 @@
 				}
 			}
 
-			/* Stagger particle animations */
-			.celestial-particle:nth-child(1) {
-				left: 15%;
-				animation-duration: 3s;
-				animation-delay: 0s;
-			}
-			.celestial-particle:nth-child(2) {
-				left: 35%;
-				animation-duration: 3.5s;
-				animation-delay: 0.5s;
-			}
-			.celestial-particle:nth-child(3) {
-				left: 55%;
-				animation-duration: 4s;
-				animation-delay: 1s;
-			}
-			.celestial-particle:nth-child(4) {
-				left: 75%;
-				animation-duration: 3.2s;
-				animation-delay: 1.5s;
-			}
-			.celestial-particle:nth-child(5) {
-				left: 25%;
-				animation-duration: 3.8s;
-				animation-delay: 2s;
-			}
-			.celestial-particle:nth-child(6) {
-				left: 85%;
-				animation-duration: 3.3s;
-				animation-delay: 2.5s;
+			/* Enhanced glow for special rank cards */
+			.machine-card.special-rank-card {
+				box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
 			}
 
-			/* Enhanced glow for celestial cards */
-			.machine-card.celestial-card {
-				box-shadow: 0 0 5px rgba(230, 221, 173, 0.15);
+			.machine-card.special-rank-card:hover {
+				box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 18px rgba(255, 255, 255, 0.12);
 			}
 
 			/* Stats grid for machine cards */

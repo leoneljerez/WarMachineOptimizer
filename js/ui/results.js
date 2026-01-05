@@ -87,19 +87,34 @@ function createMachineCard(machine, machineTemplate) {
 	card.style.borderTop = `3px solid ${rarityColor}`;
 	card.style.background = `linear-gradient(to bottom, ${rarityColor}08, transparent 60%)`;
 
-	//celestial effect
-	const isCelestial = rarityKey === "celestial";
-	if (isCelestial) {
-		card.classList.add("celestial-card");
+	// Add particle effects for special ranks (Celestial, Titan, Angel)
+	const specialRanks = ["celestial", "titan", "angel"];
+	const isSpecialRank = specialRanks.includes(rarityKey);
+	
+	if (isSpecialRank) {
+		card.classList.add("special-rank-card");
 		
 		// Create particle container
 		const particleContainer = document.createElement("div");
-		particleContainer.className = "celestial-particles";
+		particleContainer.className = "rank-particles";
 		
-		// Add 6 particles with staggered timing
+		// Generate 6 particles with random positions and timings
 		for (let i = 0; i < 6; i++) {
 			const particle = document.createElement("div");
-			particle.className = "celestial-particle";
+			particle.className = `rank-particle ${rarityKey}`;
+			
+			// Random horizontal position (5% to 95%)
+			const leftPos = 5 + Math.random() * 85;
+			particle.style.left = `${leftPos}%`;
+			
+			// Random animation duration (2.5s to 4.5s)
+			const duration = 2.5 + Math.random() * 2;
+			particle.style.animationDuration = `${duration}s`;
+			
+			// Random delay (0s to 3s)
+			const delay = Math.random() * 3;
+			particle.style.animationDelay = `${delay}s`;
+			
 			particleContainer.appendChild(particle);
 		}
 		
