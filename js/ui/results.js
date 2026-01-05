@@ -87,6 +87,25 @@ function createMachineCard(machine, machineTemplate) {
 	card.style.borderTop = `3px solid ${rarityColor}`;
 	card.style.background = `linear-gradient(to bottom, ${rarityColor}08, transparent 60%)`;
 
+	//celestial effect
+	const isCelestial = rarityKey === "celestial";
+	if (isCelestial) {
+		card.classList.add("celestial-card");
+		
+		// Create particle container
+		const particleContainer = document.createElement("div");
+		particleContainer.className = "celestial-particles";
+		
+		// Add 6 particles with staggered timing
+		for (let i = 0; i < 6; i++) {
+			const particle = document.createElement("div");
+			particle.className = "celestial-particle";
+			particleContainer.appendChild(particle);
+		}
+		
+		card.appendChild(particleContainer);
+	}
+
 	const img = clone.querySelector(".machine-image");
 	img.src = machine.image || "img/machines/placeholder.png";
 	img.alt = machine.name;
