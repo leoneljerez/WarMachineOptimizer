@@ -102,25 +102,53 @@ export class GuardianCalculator {
 			throw new Error(`Unknown rank: ${toRank}`);
 		}
 
-		// Loop through all categories up to target
-		for (let catIdx = 0; catIdx <= targetCategoryIdx; catIdx++) {
-			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-			const isTargetCategory = catIdx === targetCategoryIdx;
+		const isCrown = toRank.includes("crown");
 
-			// Determine which ranks to process in this category
-			const maxRankIdx = isTargetCategory ? targetRankIdx : AppConfig.GUARDIAN_RANK_PROGRESSION.length - 1;
+		// Process ALL star ranks first (bronze through starlight_plus)
+		if (!isCrown || targetCategoryIdx < AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length) {
+			// Loop through all categories for stars
+			const maxStarCategoryIdx = isCrown ? AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length - 1 : targetCategoryIdx;
 
-			// Loop through ranks
-			for (let rankIdx = 0; rankIdx <= maxRankIdx; rankIdx++) {
-				const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx].key;
-				const isTargetRank = isTargetCategory && rankIdx === targetRankIdx;
+			for (let catIdx = 0; catIdx <= maxStarCategoryIdx; catIdx++) {
+				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+				const isTargetCategory = !isCrown && catIdx === targetCategoryIdx;
 
-				// Determine which levels to process
-				const maxLevel = isTargetRank ? toLevel : 10;
+				// Process stars (0-4 in GUARDIAN_RANK_PROGRESSION)
+				const maxStarIdx = isTargetCategory ? targetRankIdx : 4; // Stars are indices 0-4
 
-				// Add exp for levels 1→2, 2→3, ..., up to maxLevel
-				for (let level = 1; level < maxLevel; level++) {
-					totalExp += this.calculateExpForLevel(category, rank, level);
+				for (let rankIdx = 0; rankIdx <= maxStarIdx; rankIdx++) {
+					const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx].key;
+					const isTargetRank = isTargetCategory && rankIdx === targetRankIdx;
+
+					const maxLevel = isTargetRank ? toLevel : 10;
+
+					for (let level = 1; level < maxLevel; level++) {
+						totalExp += this.calculateExpForLevel(category, rank, level);
+					}
+				}
+			}
+		}
+
+		// If target is a crown, process crown ranks
+		if (isCrown) {
+			const crownRankIdx = targetRankIdx - 5; // Crowns start at index 5
+
+			for (let catIdx = 0; catIdx <= targetCategoryIdx; catIdx++) {
+				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+				const isTargetCategory = catIdx === targetCategoryIdx;
+
+				// Process crowns (5-9 in GUARDIAN_RANK_PROGRESSION)
+				const maxCrownIdx = isTargetCategory ? crownRankIdx : 4; // 0-4 for crown indices
+
+				for (let rankIdx = 0; rankIdx <= maxCrownIdx; rankIdx++) {
+					const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx + 5].key; // +5 to get crown indices
+					const isTargetRank = isTargetCategory && rankIdx === crownRankIdx;
+
+					const maxLevel = isTargetRank ? toLevel : 10;
+
+					for (let level = 1; level < maxLevel; level++) {
+						totalExp += this.calculateExpForLevel(category, rank, level);
+					}
 				}
 			}
 		}
@@ -202,24 +230,26 @@ export class GuardianCalculator {
 		const currentRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === current.rank);
 		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === target.rank);
 
+		const currentIsCrown = current.rank.includes("crown");
+		const targetIsCrown = target.rank.includes("crown");
+
 		// If same category and rank, no evolutions needed
 		if (currentCategoryIdx === targetCategoryIdx && currentRankIdx === targetRankIdx) {
 			return evolutions;
 		}
 
-		// Start from current position
 		let catIdx = currentCategoryIdx;
 		let rankIdx = currentRankIdx;
 
-		// Loop until we reach target
-		while (catIdx < targetCategoryIdx || (catIdx === targetCategoryIdx && rankIdx < targetRankIdx)) {
-			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-			const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-			const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
+		// Phase 1: Complete current star progression (if in stars)
+		if (!currentIsCrown) {
+			// Continue through stars in current category
+			while (rankIdx < 4) {
+				// 4 is the index of 5star
+				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
+				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
 
-			// Determine next rank
-			if (rankIdx < AppConfig.GUARDIAN_RANK_PROGRESSION.length - 1) {
-				// Next rank in same category
 				rankIdx++;
 				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
 				evolutions.push({
@@ -228,18 +258,144 @@ export class GuardianCalculator {
 					category,
 					cost,
 				});
-			} else {
-				// Next category, reset to 1-star
-				catIdx++;
+
+				// Check if we've reached target
+				if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
+					return evolutions;
+				}
+			}
+
+			// Complete remaining star categories
+			catIdx++;
+			while (catIdx < AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length) {
+				const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx - 1];
+				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[4]; // 5star
+				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[0]; // 1star of next category
+				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[prevCategory][fromRank.key];
+
+				evolutions.push({
+					from: `${prevCategory} ${fromRank.label}`,
+					to: `${category} ${toRank.label}`,
+					category: prevCategory,
+					cost,
+				});
+
+				// Check if we've reached target
+				if (catIdx === targetCategoryIdx && 0 === targetRankIdx) {
+					return evolutions;
+				}
+
+				// Progress through stars in this category
 				rankIdx = 0;
-				const nextCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[0];
+				while (rankIdx < 4) {
+					const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
+					const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
+
+					rankIdx++;
+					const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
+					evolutions.push({
+						from: `${category} ${fromRank.label}`,
+						to: `${category} ${toRank.label}`,
+						category,
+						cost,
+					});
+
+					// Check if we've reached target
+					if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
+						return evolutions;
+					}
+				}
+
+				catIdx++;
+			}
+
+			// If target is crowns, transition from 5star starlight_plus to 1crown bronze
+			if (targetIsCrown) {
+				const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length - 1];
+				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[4]; // 5star
+				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[5]; // 1crown
+				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[prevCategory][fromRank.key];
+
+				evolutions.push({
+					from: `${prevCategory} ${fromRank.label}`,
+					to: `bronze ${toRank.label}`,
+					category: prevCategory,
+					cost,
+				});
+
+				catIdx = 0; // Start at bronze for crowns
+				rankIdx = 5; // 1crown
+			}
+		}
+
+		// Phase 2: Crown progression (if needed)
+		if (targetIsCrown && (catIdx < targetCategoryIdx || rankIdx < targetRankIdx)) {
+			// Continue through crowns in current category
+			while (rankIdx < 9) {
+				// 9 is the index of 5crown
+				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
+				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
+
+				rankIdx++;
+				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
 				evolutions.push({
 					from: `${category} ${fromRank.label}`,
-					to: `${nextCategory} ${toRank.label}`,
+					to: `${category} ${toRank.label}`,
 					category,
 					cost,
 				});
+
+				// Check if we've reached target
+				if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
+					return evolutions;
+				}
+			}
+
+			// Progress through remaining crown categories
+			catIdx++;
+			while (catIdx <= targetCategoryIdx) {
+				const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx - 1];
+				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[9]; // 5crown
+				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[5]; // 1crown of next category
+				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[prevCategory][fromRank.key];
+
+				evolutions.push({
+					from: `${prevCategory} ${fromRank.label}`,
+					to: `${category} ${toRank.label}`,
+					category: prevCategory,
+					cost,
+				});
+
+				// Check if we've reached target
+				if (catIdx === targetCategoryIdx && 5 === targetRankIdx) {
+					return evolutions;
+				}
+
+				// Progress through crowns in this category
+				rankIdx = 5;
+				while (rankIdx < targetRankIdx) {
+					const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
+					const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
+
+					rankIdx++;
+					const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
+					evolutions.push({
+						from: `${category} ${fromRank.label}`,
+						to: `${category} ${toRank.label}`,
+						category,
+						cost,
+					});
+
+					// Check if we've reached target
+					if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
+						return evolutions;
+					}
+				}
+
+				catIdx++;
 			}
 		}
 
