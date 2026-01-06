@@ -7,7 +7,6 @@ import { renderResults } from "./ui/results.js";
 import { machinesData } from "./data/machines.js";
 import { heroesData } from "./data/heroes.js";
 import { abilitiesData } from "./data/abilities.js";
-import { renderGuardianCalculator } from "./ui/guardian.js";
 import { Calculator } from "./calculator.js";
 import { SaveLoad } from "./saveload.js";
 import { autoSave, autoLoad, resetAll } from "./storage.js";
@@ -522,7 +521,6 @@ async function init() {
 		renderHeroes(store.heroes);
 		renderArtifacts(store.artifacts);
 		renderTavernCards(store.machines);
-		renderGuardianCalculator();
 		initializeSettings();
 
 		// Setup listeners

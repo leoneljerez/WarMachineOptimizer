@@ -9,12 +9,12 @@ export class GuardianCalculator {
 	 */
 	static getCategoryBase(category) {
 		const bases = {
-			bronze: null, // Bronze stars use lookup table
+			bronze: 5310,
 			silver: 5810,
 			gold: 6410,
 			platinum: 6910,
 			ruby: 7410,
-			sapphire: 8010,
+			sapphire: 7910,
 			pearl: 8610,
 			diamond: 9110,
 			starlight: 9610,
@@ -30,10 +30,7 @@ export class GuardianCalculator {
 	 * @returns {number} Offset to add to category base
 	 */
 	static getRankOffset(rankIndex) {
-		// Stars: [0, 100, 300, 400, 500]
-		// Crowns: [500, 600, 800, 900, 1000] ?? No information on Wiki about this
-		const offsets = [0, 100, 300, 400, 500, 600, 700, 800, 900, 1000];
-		return offsets[rankIndex];
+		return rankIndex * 100;
 	}
 
 	/**
@@ -53,11 +50,8 @@ export class GuardianCalculator {
 			throw new Error(`Unknown rank: ${rank}`);
 		}
 
-		const isStar = rankIndex < 5;
-		//const isCrown = rankIndex >= 5;
-
 		// Bronze stars use lookup table (irregular pattern)
-		if (category === "bronze" && isStar) {
+		if (category === "bronze" && rankIndex < 5) {
 			const expTable = AppConfig.GUARDIAN_EXP_TABLE?.bronze?.[rank];
 			if (!expTable) {
 				throw new Error(`No data for Bronze ${rank}`);
@@ -67,14 +61,6 @@ export class GuardianCalculator {
 
 		// Bronze crowns and all other categories use formula
 		const categoryBase = this.getCategoryBase(category);
-		if (categoryBase === null) {
-			// Bronze crowns - use Silver base and treat as Silver pattern
-			// Bronze 1-crown = Silver 1-star pattern
-			const silverBase = this.getCategoryBase("silver");
-			const rankOffset = this.getRankOffset(rankIndex);
-			const levelOffset = (level - 1) * 10;
-			return silverBase + rankOffset + levelOffset;
-		}
 
 		// Standard formula for all other categories
 		const rankOffset = this.getRankOffset(rankIndex);

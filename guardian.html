@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Guardian Calculator - War Machine Tools</title>
+		<link rel="icon" type="image/x-icon" href="./img/ui/Component_Cog.webp" />
+		<link rel="stylesheet" href="css/bootstrap.min.css" />
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" />
+		<style>
+			html {
+				scrollbar-gutter: stable;
+			}
+
+			/* Header gradient background */
+			.header-gradient {
+				background: linear-gradient(135deg, rgba(13, 110, 253, 0.1) 0%, rgba(13, 110, 253, 0.05) 100%);
+			}
+
+			/* Card hover effect */
+			.card-hover:hover {
+				box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+				transition: all 0.2s ease;
+			}
+
+			.list-group-item.active,
+			.list-group-item.active * {
+				color: whitesmoke !important;
+				background-color: rgb(38, 63, 110);
+			}
+
+			/* GUARDIAN RANK SELECTOR */
+			.guardian-rank-selector-container {
+				position: relative;
+			}
+
+			.guardian-rank-display {
+				display: flex;
+				align-items: center;
+				padding: 0.5rem 1rem;
+			}
+
+			.guardian-rank-dropdown {
+				position: absolute;
+				top: 100%;
+				left: 0;
+				right: 0;
+				background: var(--bs-body-bg);
+				border: 1px solid var(--bs-border-color);
+				border-radius: 0.375rem;
+				margin-top: 0.25rem;
+				max-height: 400px;
+				overflow-y: auto;
+				z-index: 1000;
+				box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+			}
+
+			.guardian-rank-type-header {
+				padding: 0.75rem 1rem;
+				font-weight: 700;
+				font-size: 1.1rem;
+				background: rgba(13, 110, 253, 0.15);
+				border-bottom: 2px solid rgba(13, 110, 253, 0.3);
+				color: #4dabf7;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
+
+			.guardian-rank-evolution-subheader {
+				padding: 0.5rem 1rem;
+				font-weight: 600;
+				font-size: 0.9rem;
+				background: rgba(255, 255, 255, 0.03);
+				border-bottom: 1px solid var(--bs-border-color);
+				text-transform: capitalize;
+				color: rgba(255, 255, 255, 0.7);
+			}
+
+			.guardian-rank-options {
+				display: grid;
+				grid-template-columns: repeat(5, 1fr);
+				gap: 0.25rem;
+				padding: 0.5rem;
+				background: rgba(0, 0, 0, 0.2);
+			}
+
+			.guardian-rank-option {
+				background: rgba(255, 255, 255, 0.05);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				border-radius: 0.25rem;
+				padding: 0.5rem;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+			}
+
+			.guardian-rank-option:hover {
+				background: rgba(13, 110, 253, 0.2);
+				border-color: rgba(13, 110, 253, 0.5);
+				transform: scale(1.05);
+			}
+
+			.guardian-rank-option:active {
+				transform: scale(0.95);
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar {
+				width: 8px;
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar-track {
+				background: rgba(255, 255, 255, 0.05);
+				border-radius: 4px;
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar-thumb {
+				background: rgba(255, 255, 255, 0.2);
+				border-radius: 4px;
+			}
+
+			.guardian-rank-dropdown::-webkit-scrollbar-thumb:hover {
+				background: rgba(255, 255, 255, 0.3);
+			}
+
+			/* RANK ICONS */
+			.rank-icon {
+				filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+				transition: transform 0.2s ease;
+				image-rendering: -webkit-optimize-contrast;
+				image-rendering: crisp-edges;
+			}
+
+			.rank-icon:hover {
+				transform: scale(1.1);
+			}
+
+			/* Fade-in animation */
+			.guardian-view {
+				animation: fadeIn 0.3s ease-in;
+			}
+
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(10px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+
+			/* Navigation active state */
+			.nav-link.active {
+				background-color: rgba(13, 110, 253, 0.2) !important;
+				color: #fff !important;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="container-xxl py-4">
+			<!-- Header -->
+			<header class="header-gradient border-bottom rounded-3 p-4 mb-4">
+				<div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+					<div>
+						<span class="fs-4 fw-bold">Guardian Tools</span>
+						<p class="mb-0 text-secondary small">Guardian Calculator & More</p>
+					</div>
+					<div class="d-flex align-items-center gap-2">
+						<a href="index.html" class="btn btn-outline-secondary">
+							<i class="bi bi-arrow-left me-2"></i>Back to Optimizer
+						</a>
+					</div>
+				</div>
+			</header>
+
+			<!-- Navigation -->
+			<nav class="navbar mt-3">
+				<ul class="nav nav-tabs w-100 justify-content-center gap-2 p-2 rounded-3 bg-body-tertiary bg-opacity-25" id="toolsTabs">
+					<li class="nav-item">
+						<a class="nav-link active px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#guardianTab">Strange Dust</a>
+					</li>
+					<!-- Future tabs -->
+				</ul>
+			</nav>
+
+			<!-- Main Content -->
+			<main class="container-fluid tab-content py-4">
+				<!-- GUARDIAN TAB -->
+				<section id="guardianTab" class="tab-pane fade show active">
+					<div class="mb-4">
+						<h4 class="mb-1">Strange Dust Calculator</h4>
+						<p class="text-secondary mb-0">Calculate Strange Dust needed to level up your Guardian</p>
+					</div>
+					<div id="guardianContainer"></div>
+				</section>
+
+				<!-- Future tool tabs -->
+			</main>
+
+			<!-- Toast Container -->
+			<div aria-live="polite" aria-atomic="true">
+				<div id="toastRoot" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+			</div>
+
+			<!-- Footer -->
+			<footer class="text-center mt-5 pt-4 border-top border-opacity-10 text-white-50">
+				<small>© 2025 Leo's Firestone Tools</small>
+			</footer>
+		</div>
+
+		<!-- Bootstrap 5.3.8 -->
+		<script src="js/vendor/bootstrap.bundle.min.js"></script>
+		<script type="module" src="js/guardian-app.js"></script>
+	</body>
+</html>

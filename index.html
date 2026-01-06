@@ -256,101 +256,6 @@
 				transform: scale(1.1);
 			}
 
-			/* GUARDIAN RANK SELECTOR */
-			.guardian-rank-selector-container {
-				position: relative;
-			}
-
-			.guardian-rank-display {
-				display: flex;
-				align-items: center;
-				padding: 0.5rem 1rem;
-			}
-
-			.guardian-rank-dropdown {
-				position: absolute;
-				top: 100%;
-				left: 0;
-				right: 0;
-				background: var(--bs-body-bg);
-				border: 1px solid var(--bs-border-color);
-				border-radius: 0.375rem;
-				margin-top: 0.25rem;
-				max-height: 400px;
-				overflow-y: auto;
-				z-index: 1000;
-				box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
-			}
-
-			.guardian-rank-type-header {
-				padding: 0.75rem 1rem;
-				font-weight: 700;
-				font-size: 1.1rem;
-				background: rgba(13, 110, 253, 0.15);
-				border-bottom: 2px solid rgba(13, 110, 253, 0.3);
-				color: #4dabf7;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-
-			.guardian-rank-evolution-subheader {
-				padding: 0.5rem 1rem;
-				font-weight: 600;
-				font-size: 0.9rem;
-				background: rgba(255, 255, 255, 0.03);
-				border-bottom: 1px solid var(--bs-border-color);
-				text-transform: capitalize;
-				color: rgba(255, 255, 255, 0.7);
-			}
-
-			.guardian-rank-options {
-				display: grid;
-				grid-template-columns: repeat(5, 1fr);
-				gap: 0.25rem;
-				padding: 0.5rem;
-				background: rgba(0, 0, 0, 0.2);
-			}
-
-			.guardian-rank-option {
-				background: rgba(255, 255, 255, 0.05);
-				border: 1px solid rgba(255, 255, 255, 0.1);
-				border-radius: 0.25rem;
-				padding: 0.5rem;
-				cursor: pointer;
-				transition: all 0.2s ease;
-				display: flex;
-				justify-content: center;
-				align-items: center;
-			}
-
-			.guardian-rank-option:hover {
-				background: rgba(13, 110, 253, 0.2);
-				border-color: rgba(13, 110, 253, 0.5);
-				transform: scale(1.05);
-			}
-
-			.guardian-rank-option:active {
-				transform: scale(0.95);
-			}
-
-			.guardian-rank-dropdown::-webkit-scrollbar {
-				width: 8px;
-			}
-
-			.guardian-rank-dropdown::-webkit-scrollbar-track {
-				background: rgba(255, 255, 255, 0.05);
-				border-radius: 4px;
-			}
-
-			.guardian-rank-dropdown::-webkit-scrollbar-thumb {
-				background: rgba(255, 255, 255, 0.2);
-				border-radius: 4px;
-			}
-
-			.guardian-rank-dropdown::-webkit-scrollbar-thumb:hover {
-				background: rgba(255, 255, 255, 0.3);
-			}
-
 			/* Rank display in results */
 			.results-view .rank-icon {
 				margin: 0 1px;
@@ -461,6 +366,11 @@
 				</div>
 			</div>
 
+			<!-- Link to Guardian Tool -->
+			<div class="text-center my-3">
+				<a href="guardian.html" class="btn btn-primary btn-lg"> <i class="bi bi-shield-fill me-2"></i>Guardian Tools </a>
+			</div>
+
 			<!-- Navigation -->
 			<nav class="navbar mt-3">
 				<ul class="nav nav-tabs w-100 justify-content-center gap-2 p-2 rounded-3 bg-body-tertiary bg-opacity-25" id="wmTabs">
@@ -478,9 +388,6 @@
 					</li>
 					<li class="nav-item">
 						<a class="nav-link px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#resultsTab">Results</a>
-					</li>
-					<li class="nav-item">
-						<a class="nav-link px-3 py-2 fw-semibold rounded-2 user-select-none" draggable="false" data-bs-toggle="tab" href="#guardianTab">Guardian</a>
 					</li>
 				</ul>
 			</nav>
@@ -610,15 +517,6 @@
 						<div id="resultsContainer"></div>
 					</div>
 				</section>
-
-				<!-- GUARDIAN TAB -->
-				<section id="guardianTab" class="tab-pane fade">
-					<div class="mb-4">
-						<h4 class="mb-1">Guardian Calculator</h4>
-						<p class="text-secondary mb-0">Calculate Strange Dust needed to level up your Guardian</p>
-					</div>
-					<div id="guardianContainer"></div>
-				</section>
 			</main>
 
 			<!-- Toast Container -->
@@ -628,7 +526,7 @@
 
 			<!-- Footer -->
 			<footer class="text-center mt-5 pt-4 border-top border-opacity-10 text-white-50">
-				<small>© 2025 War Machine Optimizer</small>
+				<small>© 2025 Leo's Firestone Tools</small>
 			</footer>
 		</div>
 
