@@ -117,12 +117,6 @@ export const AppConfig = {
 	 */
 	MONTE_CARLO_SIMULATIONS: 20000,
 
-	/**
-	 * Maximum consecutive failures before stopping difficulty progression
-	 * @type {number}
-	 */
-	MAX_CONSECUTIVE_FAILURES: 2,
-
 	// ========================================
 	// Crew & Hero Settings
 	// ========================================
