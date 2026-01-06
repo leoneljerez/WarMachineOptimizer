@@ -269,41 +269,99 @@ export const AppConfig = {
 		{ key: "angel", label: "Angel", level: 7 },
 	],
 
-	/* GUARDIAN_EVOLUTIONS: [ //keep in case I need it in the future
-		{ key: "bronze", label: "Bronze", level: 0 },
-		{ key: "silver", label: "Silver", level: 1 },
-		{ key: "gold", label: "Gold", level: 2 },
-		{ key: "platinum", label: "Platinum", level: 3 },
-		{ key: "ruby", label: "Ruby", level: 4 },
-		{ key: "sapphire", label: "Sapphire", level: 5 },
-		{ key: "pearl", label: "Pearl", level: 6 },
-		{ key: "diamond", label: "Diamond", level: 7 },
-		{ key: "starlight", label: "Starlight", level: 8 },
-		{ key: "starlight_plus", label: "Starlight Plus", level: 9 },
-	], */
+	/**
+	 * Icon rank tiers matching the game
+	 * Each tier represents a different visual style/color of the icon
+	 */
+	ICON_RANK_TIERS: [
+		{ key: "bronze", label: "Bronze" },
+		{ key: "silver", label: "Silver" },
+		{ key: "gold", label: "Gold" },
+		{ key: "platinum", label: "Platinum" },
+		{ key: "ruby", label: "Ruby" },
+		{ key: "sapphire", label: "Sapphire" },
+		{ key: "pearl", label: "Pearl" },
+		{ key: "diamond", label: "Diamond" },
+		{ key: "starlight", label: "Starlight" },
+		{ key: "starlightPlus", label: "Starlight Plus" },
+	],
 
 	/**
-	 * Guardian evolution categories in order
-	 * @type {string[]}
+	 * Guardian evolution categories for rank selection
+	 */
+	GUARDIAN_EVOLUTIONS: [
+		{ key: "bronze", label: "Bronze" },
+		{ key: "silver", label: "Silver" },
+		{ key: "gold", label: "Gold" },
+		{ key: "platinum", label: "Platinum" },
+		{ key: "ruby", label: "Ruby" },
+		{ key: "sapphire", label: "Sapphire" },
+		{ key: "pearl", label: "Pearl" },
+		{ key: "diamond", label: "Diamond" },
+		{ key: "starlight", label: "Starlight" },
+		{ key: "starlight_plus", label: "Starlight Plus" },
+	],
+
+	/**
+	 * Guardian rank progression array (for calculator)
+	 * Used to determine rank order and indices
+	 */
+	GUARDIAN_RANK_PROGRESSION: [
+		{ key: "1star", label: "1 Star" },
+		{ key: "2star", label: "2 Stars" },
+		{ key: "3star", label: "3 Stars" },
+		{ key: "4star", label: "4 Stars" },
+		{ key: "5star", label: "5 Stars" },
+		{ key: "1crown", label: "1 Crown" },
+		{ key: "2crown", label: "2 Crowns" },
+		{ key: "3crown", label: "3 Crowns" },
+		{ key: "4crown", label: "4 Crowns" },
+		{ key: "5crown", label: "5 Crowns" },
+	],
+
+	/**
+	 * Guardian evolution category order (for calculator)
 	 */
 	GUARDIAN_EVOLUTION_CATEGORIES: ["bronze", "silver", "gold", "platinum", "ruby", "sapphire", "pearl", "diamond", "starlight", "starlight_plus"],
 
 	/**
-	 * Guardian star/crown ranks
-	 * @type {Array<{key: string, label: string, isCrown: boolean}>}
+	 * Machine rank configuration
+	 * Machines progress through Stars (1-50) -> Crowns (51-100) -> Wings (101-150)
 	 */
-	GUARDIAN_RANKS: [
-		{ key: "1star", label: "1 Star", isCrown: false },
-		{ key: "2star", label: "2 Stars", isCrown: false },
-		{ key: "3star", label: "3 Stars", isCrown: false },
-		{ key: "4star", label: "4 Stars", isCrown: false },
-		{ key: "5star", label: "5 Stars", isCrown: false },
-		{ key: "1crown", label: "1 Crown", isCrown: true },
-		{ key: "2crown", label: "2 Crowns", isCrown: true },
-		{ key: "3crown", label: "3 Crowns", isCrown: true },
-		{ key: "4crown", label: "4 Crowns", isCrown: true },
-		{ key: "5crown", label: "5 Crowns", isCrown: true },
-	],
+	MACHINE_RANKS: {
+		STARS: {
+			type: "Star",
+			minLevel: 1,
+			maxLevel: 50,
+			// tiers reference will be added dynamically
+		},
+		CROWNS: {
+			type: "Crown",
+			minLevel: 51,
+			maxLevel: 100,
+			// tiers reference will be added dynamically
+		},
+		WINGS: {
+			type: "Wings",
+			minLevel: 101,
+			maxLevel: 150,
+			// tiers reference will be added dynamically
+		},
+	},
+
+	/**
+	 * Guardian rank configuration (no Wings, only Stars and Crowns)
+	 */
+	GUARDIAN_RANKS: {
+		STARS: {
+			type: "Star",
+			// tiers reference will be added dynamically
+		},
+		CROWNS: {
+			type: "Crown",
+			// tiers reference will be added dynamically
+		},
+	},
 
 	GUARDIAN_EXP_TABLE: {
 		// Only Bronze stars need lookup (irregular pattern)
@@ -443,5 +501,37 @@ export const AppConfig = {
 		BLUEPRINT_LEVEL: 0,
 		CARD_LEVEL: 0,
 		HERO_PERCENTAGE: 0,
+	},
+};
+
+AppConfig.MACHINE_RANKS = {
+	STARS: {
+		type: "Star",
+		minLevel: 1,
+		maxLevel: 50,
+		tiers: AppConfig.ICON_RANK_TIERS,
+	},
+	CROWNS: {
+		type: "Crown",
+		minLevel: 51,
+		maxLevel: 100,
+		tiers: AppConfig.ICON_RANK_TIERS,
+	},
+	WINGS: {
+		type: "Wings",
+		minLevel: 101,
+		maxLevel: 150,
+		tiers: AppConfig.ICON_RANK_TIERS,
+	},
+};
+
+AppConfig.GUARDIAN_RANKS = {
+	STARS: {
+		type: "Star",
+		tiers: AppConfig.ICON_RANK_TIERS,
+	},
+	CROWNS: {
+		type: "Crown",
+		tiers: AppConfig.ICON_RANK_TIERS,
 	},
 };

@@ -48,7 +48,7 @@ export class GuardianCalculator {
 			throw new Error("Level must be between 1 and 9 (for level→level+1)");
 		}
 
-		const rankIndex = AppConfig.GUARDIAN_RANKS.findIndex((r) => r.key === rank);
+		const rankIndex = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === rank);
 		if (rankIndex === -1) {
 			throw new Error(`Unknown rank: ${rank}`);
 		}
@@ -93,7 +93,7 @@ export class GuardianCalculator {
 	static calculateTotalExpToPosition(toCategory, toRank, toLevel) {
 		let totalExp = 0;
 		const targetCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(toCategory);
-		const targetRankIdx = AppConfig.GUARDIAN_RANKS.findIndex((r) => r.key === toRank);
+		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === toRank);
 
 		if (targetCategoryIdx === -1) {
 			throw new Error(`Unknown category: ${toCategory}`);
@@ -108,11 +108,11 @@ export class GuardianCalculator {
 			const isTargetCategory = catIdx === targetCategoryIdx;
 
 			// Determine which ranks to process in this category
-			const maxRankIdx = isTargetCategory ? targetRankIdx : AppConfig.GUARDIAN_RANKS.length - 1;
+			const maxRankIdx = isTargetCategory ? targetRankIdx : AppConfig.GUARDIAN_RANK_PROGRESSION.length - 1;
 
 			// Loop through ranks
 			for (let rankIdx = 0; rankIdx <= maxRankIdx; rankIdx++) {
-				const rank = AppConfig.GUARDIAN_RANKS[rankIdx].key;
+				const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx].key;
 				const isTargetRank = isTargetCategory && rankIdx === targetRankIdx;
 
 				// Determine which levels to process
@@ -152,8 +152,8 @@ export class GuardianCalculator {
 
 		const currentCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(current.category);
 		const targetCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(target.category);
-		const currentRankIdx = AppConfig.GUARDIAN_RANKS.findIndex((r) => r.key === current.rank);
-		const targetRankIdx = AppConfig.GUARDIAN_RANKS.findIndex((r) => r.key === target.rank);
+		const currentRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === current.rank);
+		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === target.rank);
 
 		// Check if target is before current
 		if (targetCategoryIdx < currentCategoryIdx) {
@@ -199,8 +199,8 @@ export class GuardianCalculator {
 		const evolutions = [];
 		const currentCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(current.category);
 		const targetCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(target.category);
-		const currentRankIdx = AppConfig.GUARDIAN_RANKS.findIndex((r) => r.key === current.rank);
-		const targetRankIdx = AppConfig.GUARDIAN_RANKS.findIndex((r) => r.key === target.rank);
+		const currentRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === current.rank);
+		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === target.rank);
 
 		// If same category and rank, no evolutions needed
 		if (currentCategoryIdx === targetCategoryIdx && currentRankIdx === targetRankIdx) {
@@ -214,14 +214,14 @@ export class GuardianCalculator {
 		// Loop until we reach target
 		while (catIdx < targetCategoryIdx || (catIdx === targetCategoryIdx && rankIdx < targetRankIdx)) {
 			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-			const fromRank = AppConfig.GUARDIAN_RANKS[rankIdx];
+			const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
 			const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
 
 			// Determine next rank
-			if (rankIdx < AppConfig.GUARDIAN_RANKS.length - 1) {
+			if (rankIdx < AppConfig.GUARDIAN_RANK_PROGRESSION.length - 1) {
 				// Next rank in same category
 				rankIdx++;
-				const toRank = AppConfig.GUARDIAN_RANKS[rankIdx];
+				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
 				evolutions.push({
 					from: `${category} ${fromRank.label}`,
 					to: `${category} ${toRank.label}`,
@@ -233,7 +233,7 @@ export class GuardianCalculator {
 				catIdx++;
 				rankIdx = 0;
 				const nextCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const toRank = AppConfig.GUARDIAN_RANKS[0];
+				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[0];
 				evolutions.push({
 					from: `${category} ${fromRank.label}`,
 					to: `${nextCategory} ${toRank.label}`,
