@@ -32,7 +32,7 @@ export class GuardianCalculator {
 	static getRankOffset(rankIndex) {
 		// Stars: [0, 100, 300, 400, 500]
 		// Crowns: [500, 600, 800, 900, 1000] ?? No information on Wiki about this
-		const offsets = [0, 100, 300, 400, 500, 500, 600, 800, 900, 1000];
+		const offsets = [0, 100, 300, 400, 500, 600, 700, 800, 900, 1000];
 		return offsets[rankIndex];
 	}
 
