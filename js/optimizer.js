@@ -279,7 +279,8 @@ export class Optimizer {
 			};
 		});
 
-		machinesWithPower.sort((a, b) => b.power.cmp(a.power));
+		//in cases with low stat values, level was a better way to pick
+		machinesWithPower.sort((a, b) => b.machine.level - a.machine.level);
 
 		return machinesWithPower.slice(0, 5).map((m) => ({
 			...m.machine,
