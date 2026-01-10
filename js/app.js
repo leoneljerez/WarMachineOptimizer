@@ -268,7 +268,15 @@ function runOptimization() {
 			console.warn("Failed to cache result:", error);
 		}
 
-		renderResults(result, store.optimizeMode);
+		const upgradeConfig = {
+			engineerLevel: store.engineerLevel,
+			scarabLevel: store.scarabLevel,
+			artifactArray: getArtifactArray(),
+			globalRarityLevels: Calculator.getGlobalRarityLevels(getOwnedMachines()),
+			riftRank: store.riftRank,
+		};
+
+		renderResults(result, store.optimizeMode, upgradeConfig);
 		switchToResultsTab();
 		setLoading(false);
 	};

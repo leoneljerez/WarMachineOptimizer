@@ -2,6 +2,8 @@
 import { AppConfig } from "../config.js";
 import { Calculator } from "../calculator.js";
 import { createMachineRankDisplay, RarityColors } from "../utils/ranks.js";
+import { renderUpgradeSuggestions } from "./upgradeSuggestions.js";
+import { UpgradeAnalyzer } from "../utils/upgradeAnalyzer.js";
 
 // Use WeakMap to avoid memory leaks from direct property assignment
 const machineCardRegistry = new WeakMap();
@@ -90,34 +92,34 @@ function createMachineCard(machine, machineTemplate) {
 	// Add particle effects for special ranks (Celestial, Titan, Angel)
 	const specialRanks = ["celestial", "titan", "angel"];
 	const isSpecialRank = specialRanks.includes(rarityKey);
-	
+
 	if (isSpecialRank) {
 		card.classList.add("special-rank-card");
-		
+
 		// Create particle container
 		const particleContainer = document.createElement("div");
 		particleContainer.className = "rank-particles";
-		
+
 		// Generate 6 particles with random positions and timings
 		for (let i = 0; i < 6; i++) {
 			const particle = document.createElement("div");
 			particle.className = `rank-particle ${rarityKey}`;
-			
+
 			// Random horizontal position (5% to 95%)
 			const leftPos = 5 + Math.random() * 85;
 			particle.style.left = `${leftPos}%`;
-			
+
 			// Random animation duration (2.5s to 4.5s)
 			const duration = 2.5 + Math.random() * 2;
 			particle.style.animationDuration = `${duration}s`;
-			
+
 			// Random delay (0s to 3s)
 			const delay = Math.random() * 3;
 			particle.style.animationDelay = `${delay}s`;
-			
+
 			particleContainer.appendChild(particle);
 		}
-		
+
 		card.appendChild(particleContainer);
 	}
 
@@ -187,7 +189,7 @@ function createMachineCard(machine, machineTemplate) {
 	const statTypes = [
 		{ key: "damage", icon: "img/ui/damage.webp", label: "Damage" },
 		{ key: "health", icon: "img/ui/health.webp", label: "Health" },
-		{ key: "armor", icon: "img/ui/armor.webp", label: "Armor" }
+		{ key: "armor", icon: "img/ui/armor.webp", label: "Armor" },
 	];
 
 	statTypes.forEach(({ key, icon, label }) => {
@@ -637,10 +639,8 @@ function cleanupResults(container) {
  * @param {*} result - Optimization result object
  * @param {string} optimizeMode - "campaign" or "arena"
  */
-export function renderResults(result, optimizeMode = "campaign") {
+export function renderResults(result, optimizeMode = "campaign", upgradeConfig = null) {
 	const container = document.getElementById("resultsContainer");
-
-	// Clean up old results and event listeners
 	cleanupResults(container);
 
 	if (!result || !result.formation) {
@@ -651,19 +651,26 @@ export function renderResults(result, optimizeMode = "campaign") {
 		return;
 	}
 
-	// Build entire result view using fragments for optimal performance
 	const fragment = document.createDocumentFragment();
-
-	// Create main result container
 	const resultCard = document.createElement("div");
 	resultCard.className = "result-card mt-4";
 
-	// Add summary stats
+	// Summary stats
 	resultCard.appendChild(createSummaryStats(result, optimizeMode));
 
-	// Add campaign progression (only for campaign mode)
+	// Campaign progression
 	if (optimizeMode === "campaign") {
 		resultCard.appendChild(createProgressionSection(result.lastCleared));
+	}
+
+	// Upgrade suggestions (only for campaign)
+	if (optimizeMode === "campaign" && upgradeConfig) {
+		const analyzer = new UpgradeAnalyzer(upgradeConfig);
+		const analysis = analyzer.analyzeUpgrades(result.formation, result.lastCleared, optimizeMode);
+
+		if (analysis) {
+			renderUpgradeSuggestions(analysis, resultCard);
+		}
 	}
 
 	// Formation section
@@ -673,32 +680,22 @@ export function renderResults(result, optimizeMode = "campaign") {
 	formationGrid.className = "results-view";
 
 	const formationContainer = createFormationGrid();
-
-	// Get template
 	const machineTemplate = document.getElementById("machineTemplate");
-	if (!machineTemplate) {
-		console.error("Machine template not found");
-		return;
-	}
 
-	// Populate formation
 	populateFormation(formationContainer, result.formation, machineTemplate);
 
 	formationGrid.appendChild(formationContainer);
 	resultCard.appendChild(formationGrid);
 
 	fragment.appendChild(resultCard);
-
-	// Single DOM append for entire result view
 	container.appendChild(fragment);
 
-	// Update all machine cards to show correct initial stats
+	// Update stats and setup toggle
 	const initialMode = optimizeMode === "arena" ? "arena" : "battle";
 	const machineCards = document.querySelectorAll(".machine-card");
 	machineCards.forEach((card) => {
 		updateMachineStats(card, initialMode);
 	});
 
-	// Set up stats toggle event listener
 	setupStatsToggle(result, container);
 }

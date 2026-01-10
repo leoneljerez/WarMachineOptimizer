@@ -395,7 +395,7 @@ export class Calculator {
 				console.warn(`Machine missing ${mode}Stats:`, machine.name);
 				continue;
 			}
-			total = total.add(Calculator.computeMachinePower(stats)).floor();
+			total = total.add(Calculator.computeMachinePower(stats));
 		}
 		return total;
 	}
