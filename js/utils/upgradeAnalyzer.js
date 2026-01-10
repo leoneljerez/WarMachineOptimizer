@@ -742,10 +742,10 @@ export class UpgradeAnalyzer {
 		const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
 
 		if (ourPower.gte(requiredPower)) {
-			// Run 200 battle simulations - need at least one win
+			// Run 50 battle simulations - need at least one win
 			const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 
-			for (let i = 0; i < 200; i++) {
+			for (let i = 0; i < 50; i++) {
 				const result = this.battleEngine.runBattle(upgradedFormation, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS, true);
 
 				if (result.playerWon) {
