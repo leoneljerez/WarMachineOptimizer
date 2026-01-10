@@ -1,9 +1,7 @@
 // ui/results.js
-import { AppConfig } from "../config.js";
 import { Calculator } from "../calculator.js";
+import { AppConfig } from "../config.js";
 import { createMachineRankDisplay, RarityColors } from "../utils/ranks.js";
-import { renderUpgradeSuggestions } from "./upgradeSuggestions.js";
-import { UpgradeAnalyzer } from "../utils/upgradeAnalyzer.js";
 
 // Use WeakMap to avoid memory leaks from direct property assignment
 const machineCardRegistry = new WeakMap();
@@ -439,6 +437,103 @@ function createProgressionSection(lastCleared) {
 }
 
 /**
+ * Creates the upgrade suggestions section with a generate button
+ * @param {string} optimizeMode - Current optimization mode
+ * @param {Object} result - Optimization result
+ * @param {Object} upgradeConfig - Upgrade configuration
+ * @returns {HTMLElement|null} Section element or null
+ */
+function createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig) {
+	if (optimizeMode !== "campaign") {
+		return null;
+	}
+
+	// Check if campaign is complete
+	const isComplete = AppConfig.DIFFICULTIES.every((diff) => (result.lastCleared?.[diff.key] || 0) >= AppConfig.MAX_MISSIONS_PER_DIFFICULTY);
+
+	if (isComplete) {
+		return null; // Campaign complete, no upgrades needed
+	}
+
+	const section = document.createElement("div");
+	section.className = "upgrade-suggestions-section mt-4 mb-5";
+	section.id = "upgradeSuggestionsSection";
+
+	// Create button container
+	const buttonContainer = document.createElement("div");
+	buttonContainer.className = "text-center mb-3";
+
+	const generateBtn = document.createElement("button");
+	generateBtn.type = "button";
+	generateBtn.className = "btn btn-primary btn-lg";
+	generateBtn.innerHTML = '<i class="me-2"></i>Generate Upgrade Suggestions';
+
+	// Loading spinner (hidden by default)
+	const spinner = document.createElement("span");
+	spinner.className = "spinner-border spinner-border-sm ms-2 d-none";
+	spinner.setAttribute("role", "status");
+	spinner.setAttribute("aria-hidden", "true");
+
+	// Results container (empty initially)
+	const resultsContainer = document.createElement("div");
+	resultsContainer.id = "upgradeSuggestionsResults";
+
+	// Click handler
+	generateBtn.addEventListener("click", async () => {
+		// Disable button and show spinner
+		generateBtn.disabled = true;
+		spinner.classList.remove("d-none");
+		generateBtn.innerHTML = '<i class="me-2"></i>Generating...';
+		generateBtn.appendChild(spinner);
+
+		try {
+			// Import analyzer
+			const { UpgradeAnalyzer } = await import("../utils/upgradeAnalyzer.js");
+			const { renderUpgradeSuggestions } = await import("./upgradeSuggestions.js");
+
+			// Create analyzer
+			const analyzer = new UpgradeAnalyzer(upgradeConfig);
+
+			// Analyze upgrades
+			const analysis = analyzer.analyzeUpgrades(result.formation, result.lastCleared, optimizeMode);
+
+			// Render results
+			resultsContainer.replaceChildren();
+			if (analysis) {
+				renderUpgradeSuggestions(analysis, resultsContainer);
+
+				// Hide button after successful generation
+				buttonContainer.classList.add("d-none");
+			} else {
+				const noResult = document.createElement("div");
+				noResult.className = "alert alert-info";
+				noResult.innerHTML = '<i class="bi bi-info-circle me-2"></i>No upgrade suggestions available.';
+				resultsContainer.appendChild(noResult);
+			}
+		} catch (error) {
+			console.error("Failed to generate upgrade suggestions:", error);
+
+			// Show error message
+			resultsContainer.replaceChildren();
+			const errorMsg = document.createElement("div");
+			errorMsg.className = "alert alert-danger";
+			errorMsg.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Failed to generate suggestions: ${error.message}`;
+			resultsContainer.appendChild(errorMsg);
+
+			// Re-enable button
+			generateBtn.disabled = false;
+			spinner.classList.add("d-none");
+			generateBtn.innerHTML = '<i class="bi bi-lightbulb me-2"></i>Try Again';
+		}
+	});
+
+	buttonContainer.appendChild(generateBtn);
+	section.append(buttonContainer, resultsContainer);
+
+	return section;
+}
+
+/**
  * Creates the stats toggle control
  * @param {string} optimizeMode - Initial mode ("campaign" or "arena")
  * @returns {HTMLElement} Toggle control element
@@ -638,6 +733,7 @@ function cleanupResults(container) {
  * Main render function for optimization results
  * @param {*} result - Optimization result object
  * @param {string} optimizeMode - "campaign" or "arena"
+ * @param {Object} upgradeConfig - Configuration for upgrade analyzer
  */
 export function renderResults(result, optimizeMode = "campaign", upgradeConfig = null) {
 	const container = document.getElementById("resultsContainer");
@@ -663,13 +759,11 @@ export function renderResults(result, optimizeMode = "campaign", upgradeConfig =
 		resultCard.appendChild(createProgressionSection(result.lastCleared));
 	}
 
-	// Upgrade suggestions (only for campaign)
+	// Upgrade suggestions section (with button)
 	if (optimizeMode === "campaign" && upgradeConfig) {
-		const analyzer = new UpgradeAnalyzer(upgradeConfig);
-		const analysis = analyzer.analyzeUpgrades(result.formation, result.lastCleared, optimizeMode);
-
-		if (analysis) {
-			renderUpgradeSuggestions(analysis, resultCard);
+		const upgradeSection = createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig);
+		if (upgradeSection) {
+			resultCard.appendChild(upgradeSection);
 		}
 	}
 
