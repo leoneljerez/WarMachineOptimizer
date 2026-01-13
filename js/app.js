@@ -201,6 +201,23 @@ function getArtifactArray() {
 let currentWorker = null;
 
 /**
+ * Cleans up worker resources properly
+ * @param {Worker} worker - Worker to clean up
+ */
+function cleanupWorker(worker) {
+	if (!worker) return;
+
+	// Remove event listeners to break closure references
+	worker.onmessage = null;
+	worker.onerror = null;
+
+	// Terminate the worker thread
+	worker.terminate();
+
+	console.log("Worker cleaned up");
+}
+
+/**
  * Runs the optimization in a web worker
  */
 function runOptimization() {
@@ -210,8 +227,9 @@ function runOptimization() {
 		return;
 	}
 
+	// Clean up any existing worker
 	if (currentWorker) {
-		currentWorker.terminate();
+		cleanupWorker(currentWorker);
 		currentWorker = null;
 		showToast("Previous optimization cancelled", "info");
 	}
@@ -250,7 +268,9 @@ function runOptimization() {
 	});
 
 	worker.onmessage = async function (e) {
+		const workerRef = currentWorker; // Capture reference
 		currentWorker = null;
+
 		const result = e.data;
 
 		if (result.error) {
@@ -258,6 +278,7 @@ function runOptimization() {
 			console.error(error);
 			showToast("Optimization failed. Please try again.", "danger");
 			setLoading(false);
+			cleanupWorker(workerRef); // Clean up on error
 			return;
 		}
 
@@ -279,14 +300,22 @@ function runOptimization() {
 		renderResults(result, store.optimizeMode, upgradeConfig);
 		switchToResultsTab();
 		setLoading(false);
+
+		// Clean up worker after successful completion
+		cleanupWorker(workerRef);
 	};
 
 	worker.onerror = function (err) {
+		const workerRef = currentWorker; // Capture reference
 		currentWorker = null;
+
 		const error = new Error("Worker error occurred", { cause: err });
 		console.error(error);
 		showToast("Optimization failed. Please try again.", "danger");
 		setLoading(false);
+
+		// Clean up worker on error
+		cleanupWorker(workerRef);
 	};
 }
 
