@@ -74,7 +74,7 @@ export class UpgradeAnalyzer {
 		}
 
 		// Find next uncompleted star (weakest enemy)
-		const nextTarget = this.findNextTarget(lastCleared);
+		const nextTarget = this.findNextTarget(lastCleared, formation);
 		if (!nextTarget) {
 			return null; // Campaign complete!
 		}
@@ -91,13 +91,17 @@ export class UpgradeAnalyzer {
 	}
 
 	/**
-	 * Finds the next uncompleted mission/difficulty by selecting the weakest enemy
-	 * Considers all difficulties that aren't maxed out and picks the one with lowest power
+	 * Finds the next uncompleted mission/difficulty by considering both power requirement and enemy power
+	 * Calculates the total power deficit (requirement gap + enemy gap) and picks the lowest
 	 * @param {Object} lastCleared - Last cleared missions by difficulty
-	 * @returns {{difficulty: string, mission: number, enemyPower: Decimal} | null}
+	 * @param {Array} formation - Current formation to calculate our power
+	 * @returns {{difficulty: string, mission: number, requiredPower: Decimal, enemyPower: Decimal, totalDeficit: Decimal} | null}
 	 */
-	findNextTarget(lastCleared) {
+	findNextTarget(lastCleared, formation) {
 		const candidates = [];
+
+		// Calculate our current power once
+		const ourPower = Calculator.computeSquadPower(formation, "campaign");
 
 		// Collect all next missions across difficulties
 		for (let i = 0; i < AppConfig.DIFFICULTIES.length; i++) {
@@ -106,13 +110,29 @@ export class UpgradeAnalyzer {
 
 			if (cleared < AppConfig.MAX_MISSIONS_PER_DIFFICULTY) {
 				const nextMission = cleared + 1;
+
+				// Get required power to start the mission
+				const requiredPower = Calculator.requiredPowerForMission(nextMission, diff.key);
+
+				// Get enemy team power
 				const enemyFormation = Calculator.getEnemyTeamForMission(nextMission, diff.key);
 				const enemyPower = Calculator.computeSquadPower(enemyFormation, "campaign");
+
+				// Calculate deficits (how much we're lacking)
+				// If we exceed the requirement/enemy, the deficit is 0
+				const requirementDeficit = requiredPower.gt(ourPower) ? requiredPower.sub(ourPower) : new Decimal(0);
+
+				const enemyDeficit = enemyPower.gt(ourPower) ? enemyPower.sub(ourPower) : new Decimal(0);
+
+				// Total deficit is the sum of both gaps
+				const totalDeficit = requirementDeficit.add(enemyDeficit);
 
 				candidates.push({
 					difficulty: diff.key,
 					mission: nextMission,
+					requiredPower,
 					enemyPower,
+					totalDeficit,
 				});
 			}
 		}
@@ -121,8 +141,9 @@ export class UpgradeAnalyzer {
 			return null; // Campaign complete
 		}
 
-		// Sort by power (lowest first) and return the weakest
-		candidates.sort((a, b) => a.enemyPower.cmp(b.enemyPower));
+		// Sort by total deficit (lowest first) - this is the easiest to reach
+		candidates.sort((a, b) => a.totalDeficit.cmp(b.totalDeficit));
+
 		return candidates[0];
 	}
 
