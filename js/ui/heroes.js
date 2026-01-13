@@ -1,17 +1,40 @@
 // ui/heroes.js
 import { createSection, createFormRow, createNumberInput, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
+import { createHeroesBulkTable } from "./bulkEdit.js";
+
+// Track current view mode
+let currentHeroView = "normal"; // "normal" or "bulk"
 
 /**
  * Renders the hero list and sets up selection
  * @param {import('../app.js').Hero[]} heroes - Array of hero objects
  */
 export function renderHeroes(heroes) {
+	if (currentHeroView === "bulk") {
+		renderHeroesBulkView(heroes);
+		return;
+	}
+
 	const list = document.getElementById("heroList");
 	const details = document.getElementById("heroDetails");
 
 	list.replaceChildren();
 	details.replaceChildren();
+
+	// Hide bulk container if it exists
+	const bulkContainer = document.getElementById("heroesBulkContainer");
+	if (bulkContainer) {
+		bulkContainer.style.display = "none";
+	}
+
+	// Show normal containers
+	const heroesSection = document.querySelector("#heroesTab .row.g-3");
+	Array.from(heroesSection.children).forEach((child) => {
+		if (child.id !== "heroesBulkContainer") {
+			child.style.display = "";
+		}
+	});
 
 	let selectedButton = null;
 	const fragment = document.createDocumentFragment();
@@ -142,4 +165,77 @@ function resetHero(hero) {
 	hero.percentages.damage = AppConfig.DEFAULTS.HERO_PERCENTAGE;
 	hero.percentages.health = AppConfig.DEFAULTS.HERO_PERCENTAGE;
 	hero.percentages.armor = AppConfig.DEFAULTS.HERO_PERCENTAGE;
+}
+
+/**
+ * Renders the bulk edit view for heroes
+ * @param {import('../app.js').Hero[]} heroes - Array of hero objects
+ */
+function renderHeroesBulkView(heroes) {
+	const heroesSection = document.querySelector("#heroesTab .row.g-3");
+
+	// Hide all children (list and details containers)
+	Array.from(heroesSection.children).forEach((child) => {
+		child.style.display = "none";
+	});
+
+	// Find or create bulk container
+	let bulkContainer = document.getElementById("heroesBulkContainer");
+	if (!bulkContainer) {
+		bulkContainer = document.createElement("div");
+		bulkContainer.id = "heroesBulkContainer";
+		bulkContainer.className = "col-12";
+		heroesSection.appendChild(bulkContainer);
+	}
+
+	bulkContainer.style.display = "block";
+	bulkContainer.replaceChildren();
+
+	// Create card
+	const card = document.createElement("div");
+	card.className = "card card-hover";
+
+	const cardHeader = document.createElement("div");
+	cardHeader.className = "card-header d-flex justify-content-between align-items-center";
+
+	const title = document.createElement("h5");
+	title.className = "mb-0";
+	title.textContent = "Bulk Edit - All Heroes";
+
+	const backButton = document.createElement("button");
+	backButton.type = "button";
+	backButton.className = "btn btn-sm btn-outline-secondary";
+	backButton.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Back to Normal View';
+	backButton.addEventListener("click", async () => {
+		currentHeroView = "normal";
+		const { store } = await import("../app.js");
+		renderHeroes(store.heroes);
+	});
+
+	cardHeader.append(title, backButton);
+
+	const cardBody = document.createElement("div");
+	cardBody.className = "card-body p-0";
+
+	// Import triggerAutoSave dynamically
+	const triggerAutoSave = async () => {
+		const { triggerAutoSave: fn } = await import("../app.js");
+		const { store } = await import("../app.js");
+		fn(store);
+	};
+
+	const bulkTable = createHeroesBulkTable(heroes, triggerAutoSave);
+	cardBody.appendChild(bulkTable);
+
+	card.append(cardHeader, cardBody);
+	bulkContainer.appendChild(card);
+}
+
+/**
+ * Switches to bulk edit view
+ * @param {import('../app.js').Hero[]} heroes - Array of hero objects
+ */
+export function switchToBulkEditHeroes(heroes) {
+	currentHeroView = "bulk";
+	renderHeroes(heroes);
 }

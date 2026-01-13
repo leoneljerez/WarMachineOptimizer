@@ -476,6 +476,23 @@ function setupEventListeners() {
 			resetSettingsToDefaults();
 		});
 	}
+
+	// Bulk edit buttons
+	const bulkEditMachinesBtn = document.getElementById("bulkEditMachinesBtn");
+	if (bulkEditMachinesBtn) {
+		bulkEditMachinesBtn.addEventListener("click", async () => {
+			const { switchToBulkEditMachines } = await import("./ui/machines.js");
+			switchToBulkEditMachines(store.machines);
+		});
+	}
+
+	const bulkEditHeroesBtn = document.getElementById("bulkEditHeroesBtn");
+	if (bulkEditHeroesBtn) {
+		bulkEditHeroesBtn.addEventListener("click", async () => {
+			const { switchToBulkEditHeroes } = await import("./ui/heroes.js");
+			switchToBulkEditHeroes(store.heroes);
+		});
+	}
 }
 
 /**

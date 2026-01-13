@@ -1,17 +1,40 @@
 // ui/machines.js
 import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
+import { createMachinesBulkTable } from "./bulkEdit.js";
+
+// Track current view mode
+let currentMachineView = "normal"; // "normal" or "bulk"
 
 /**
  * Renders the machine list and sets up selection
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function renderMachines(machines) {
+	if (currentMachineView === "bulk") {
+		renderMachinesBulkView(machines);
+		return;
+	}
+
 	const list = document.getElementById("machineList");
 	const details = document.getElementById("machineDetails");
 
 	list.replaceChildren();
 	details.replaceChildren();
+
+	// Hide bulk container if it exists
+	const bulkContainer = document.getElementById("machinesBulkContainer");
+	if (bulkContainer) {
+		bulkContainer.style.display = "none";
+	}
+
+	// Show normal containers
+	const machinesSection = document.querySelector("#machinesTab > div:last-child"); // Target the row.g-3 that contains list and details
+	Array.from(machinesSection.children).forEach((child) => {
+		if (child.id !== "machinesBulkContainer") {
+			child.style.display = "";
+		}
+	});
 
 	let selectedButton = null;
 	const fragment = document.createDocumentFragment();
@@ -167,4 +190,78 @@ function resetMachine(machine) {
 	machine.blueprints.damage = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
 	machine.blueprints.health = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
 	machine.blueprints.armor = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
+}
+
+/**
+ * Renders the bulk edit view for machines
+ * @param {import('../app.js').Machine[]} machines - Array of machine objects
+ */
+function renderMachinesBulkView(machines) {
+	// Target the specific row that contains list and details (last child of machinesTab)
+	const machinesSection = document.querySelector("#machinesTab > div:last-child"); // This is the row.g-3
+
+	// Hide all children (list and details containers)
+	Array.from(machinesSection.children).forEach((child) => {
+		child.style.display = "none";
+	});
+
+	// Find or create bulk container
+	let bulkContainer = document.getElementById("machinesBulkContainer");
+	if (!bulkContainer) {
+		bulkContainer = document.createElement("div");
+		bulkContainer.id = "machinesBulkContainer";
+		bulkContainer.className = "col-12";
+		machinesSection.appendChild(bulkContainer);
+	}
+
+	bulkContainer.style.display = "block";
+	bulkContainer.replaceChildren();
+
+	// Create card
+	const card = document.createElement("div");
+	card.className = "card card-hover";
+
+	const cardHeader = document.createElement("div");
+	cardHeader.className = "card-header d-flex justify-content-between align-items-center";
+
+	const title = document.createElement("h5");
+	title.className = "mb-0";
+	title.textContent = "Bulk Edit - All Machines";
+
+	const backButton = document.createElement("button");
+	backButton.type = "button";
+	backButton.className = "btn btn-sm btn-outline-secondary";
+	backButton.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Back to Normal View';
+	backButton.addEventListener("click", async () => {
+		currentMachineView = "normal";
+		const { store } = await import("../app.js");
+		renderMachines(store.machines);
+	});
+
+	cardHeader.append(title, backButton);
+
+	const cardBody = document.createElement("div");
+	cardBody.className = "card-body p-0";
+
+	// Import triggerAutoSave dynamically
+	const triggerAutoSave = async () => {
+		const { triggerAutoSave: fn } = await import("../app.js");
+		const { store } = await import("../app.js");
+		fn(store);
+	};
+
+	const bulkTable = createMachinesBulkTable(machines, triggerAutoSave);
+	cardBody.appendChild(bulkTable);
+
+	card.append(cardHeader, cardBody);
+	bulkContainer.appendChild(card);
+}
+
+/**
+ * Switches to bulk edit view
+ * @param {import('../app.js').Machine[]} machines - Array of machine objects
+ */
+export function switchToBulkEditMachines(machines) {
+	currentMachineView = "bulk";
+	renderMachines(machines);
 }
