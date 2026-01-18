@@ -301,10 +301,9 @@ export class Optimizer {
 	arrangeByRole(team, mission = 1, difficulty = "easy", enemyStats = null) {
 		if (!team || team.length === 0) return [];
 
-		// Calculate only if not provided
 		const stats = enemyStats || Calculator.enemyAttributes(mission, difficulty);
 
-		// Pre-categorize machines
+		// Categorize machines by role and effectiveness
 		const categorized = team.reduce((acc, machine) => {
 			let category;
 
@@ -320,28 +319,48 @@ export class Optimizer {
 			return acc;
 		}, {});
 
+		// Sort useless machines by health
 		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.cmp(a.battleStats.health));
 
-		// Sort tanks: Goliath first, then by health (descending - strongest tanks first)
-		const tanks = (categorized.tank ?? []).toSorted((a, b) => {
-			// Goliath always goes first
-			if (a.name === "Goliath" && b.name !== "Goliath") return -1;
-			if (b.name === "Goliath" && a.name !== "Goliath") return 1;
+		// Separate and sort tanks: those that miss, Goliath, and those that can hit
+		const tankList = categorized.tank ?? [];
+		let goliath = null;
+		const tanksCanHit = [];
+		const tanksMiss = [];
 
-			// Otherwise sort by health (descending - strongest first)
-			return b.battleStats.health.cmp(a.battleStats.health);
-		});
+		for (const tank of tankList) {
+			if (tank.name === "Goliath") {
+				goliath = tank;
+				continue;
+			}
 
-		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.cmp(b.battleStats.damage));
-
-		let strongestDPS = null;
-		if (remaining.length > 0 && team.length === 5) {
-			strongestDPS = remaining.at(-1);
-			remaining = remaining.slice(0, -1);
+			const dmgDealt = Calculator.computeDamageTaken(tank.battleStats.damage, stats.armor);
+			(dmgDealt.gt(0) ? tanksCanHit : tanksMiss).push(tank);
 		}
 
+		// Sort both tank groups by health (descending)
+		const sortByHealth = (a, b) => b.battleStats.health.cmp(a.battleStats.health);
+		tanksCanHit.sort(sortByHealth);
+		tanksMiss.sort(sortByHealth);
+
+		// Assemble tanks: miss -> Goliath -> can hit
+		const tanks = [...tanksMiss];
+		if (goliath) tanks.push(goliath);
+		tanks.push(...tanksCanHit);
+
+		// Sort remaining DPS by damage (ascending)
+		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.cmp(b.battleStats.damage));
+
+		// Extract strongest DPS for special positioning (only for full teams)
+		let strongestDPS = null;
+		if (remaining.length > 0 && team.length === 5) {
+			strongestDPS = remaining.pop();
+		}
+
+		// Build final formation
 		const formation = [...useless, ...tanks, ...remaining];
 
+		// Insert strongest DPS in second-to-last position
 		if (strongestDPS) {
 			formation.splice(formation.length - 1, 0, strongestDPS);
 		}
