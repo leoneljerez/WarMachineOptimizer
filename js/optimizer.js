@@ -321,7 +321,17 @@ export class Optimizer {
 		}, {});
 
 		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.cmp(a.battleStats.health));
-		const tanks = (categorized.tank ?? []).toSorted((a, b) => a.battleStats.health.cmp(b.battleStats.health));
+
+		// Sort tanks: Goliath first, then by health (descending - strongest tanks first)
+		const tanks = (categorized.tank ?? []).toSorted((a, b) => {
+			// Goliath always goes first
+			if (a.name === "Goliath" && b.name !== "Goliath") return -1;
+			if (b.name === "Goliath" && a.name !== "Goliath") return 1;
+
+			// Otherwise sort by health (descending - strongest first)
+			return b.battleStats.health.cmp(a.battleStats.health);
+		});
+
 		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.cmp(b.battleStats.damage));
 
 		let strongestDPS = null;
