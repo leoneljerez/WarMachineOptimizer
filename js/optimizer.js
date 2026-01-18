@@ -310,7 +310,7 @@ export class Optimizer {
 
 			if (machine.role === "tank") {
 				const potentialDamage = Calculator.computeDamageTaken(stats.damage, machine.battleStats.armor);
-				category = potentialDamage.gt(machine.battleStats.health.mul(0.5)) ? "useless" : "tank";
+				category = potentialDamage.gt(machine.battleStats.health.mul(0.4)) ? "useless" : "tank";
 			} else {
 				const dmgDealt = Calculator.computeDamageTaken(machine.battleStats.damage, stats.armor);
 				category = dmgDealt.eq(0) ? "useless" : "remaining";
