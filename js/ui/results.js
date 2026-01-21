@@ -28,19 +28,15 @@ function formatPower(decimal) {
  * @param {string} mode - "battle" or "arena"
  */
 function updateMachineStats(card, mode) {
-	const machine = machineCardRegistry.get(card);
-	if (!machine) return;
+	const entry = machineCardRegistry.get(card);
+	if (!entry) return;
 
-	const stats = mode === "arena" ? machine.arenaStats : machine.battleStats;
+	const { machine, stats } = entry;
+	const values = mode === "arena" ? machine.arenaStats : machine.battleStats;
 
-	// Use cached elements for better performance
-	const damageEl = card.querySelector(".damage .value");
-	const healthEl = card.querySelector(".health .value");
-	const armorEl = card.querySelector(".armor .value");
-
-	if (damageEl) damageEl.textContent = Calculator.toDecimal(stats.damage).toExponential(2);
-	if (healthEl) healthEl.textContent = Calculator.toDecimal(stats.health).toExponential(2);
-	if (armorEl) armorEl.textContent = Calculator.toDecimal(stats.armor).toExponential(2);
+	stats.damage.textContent = Calculator.toDecimal(values.damage).toExponential(2);
+	stats.health.textContent = Calculator.toDecimal(values.health).toExponential(2);
+	stats.armor.textContent = Calculator.toDecimal(values.armor).toExponential(2);
 }
 
 /**
@@ -60,7 +56,7 @@ function createCrewImage(hero) {
 		() => {
 			img.src = "img/heroes/placeholder.png";
 		},
-		{ once: true }
+		{ once: true },
 	);
 
 	return img;
@@ -75,9 +71,6 @@ function createCrewImage(hero) {
 function createMachineCard(machine, machineTemplate) {
 	const clone = machineTemplate.content.cloneNode(true);
 	const card = clone.querySelector(".machine-card");
-
-	// Use WeakMap to track machine data without direct property assignment
-	machineCardRegistry.set(card, machine);
 
 	// Get rarity color for accent
 	const rarityKey = machine.rarity?.toLowerCase() || "common";
@@ -134,7 +127,7 @@ function createMachineCard(machine, machineTemplate) {
 		() => {
 			img.src = "img/machines/placeholder.png";
 		},
-		{ once: true }
+		{ once: true },
 	);
 
 	// Machine name section
@@ -206,6 +199,17 @@ function createMachineCard(machine, machineTemplate) {
 
 		statItem.append(iconEl, valueEl);
 		statsContainer.appendChild(statItem);
+	});
+
+	const statEls = {
+		damage: card.querySelector(".stat.damage .value"),
+		health: card.querySelector(".stat.health .value"),
+		armor: card.querySelector(".stat.armor .value"),
+	};
+
+	machineCardRegistry.set(card, {
+		machine,
+		stats: statEls,
 	});
 
 	// Set initial stats
@@ -650,25 +654,14 @@ function populateFormation(container, formation, machineTemplate) {
 		return;
 	}
 
-	// Build position map
-	const slots = container.querySelectorAll(".machine-slot[data-position]");
-	const positionMap = new Map();
-
-	slots.forEach((slot) => {
-		const position = slot.getAttribute("data-position");
-		positionMap.set(position, slot);
-	});
-
 	// Populate slots
-	formation.forEach((machine, index) => {
-		const position = String(index + 1);
-		const slot = positionMap.get(position);
-
+	const slots = container.querySelectorAll(".machine-slot");
+	for (let i = 0; i < formation.length; i++) {
+		const slot = slots[slots.length - 1 - i]; // if order matches
 		if (slot) {
-			const machineCard = createMachineCard(machine, machineTemplate);
-			slot.appendChild(machineCard);
+			slot.appendChild(createMachineCard(formation[i], machineTemplate));
 		}
-	});
+	}
 }
 
 /**
@@ -677,41 +670,40 @@ function populateFormation(container, formation, machineTemplate) {
  * @param {HTMLElement} container - Results container element
  */
 function setupStatsToggle(result, container) {
-	const toggle = document.getElementById("statsToggle");
-	if (!toggle) return;
+    const toggle = document.getElementById("statsToggle");
+    if (!toggle) return;
 
-	const controller = new AbortController();
+    // Cache these selectors once
+    const powerResult = container.querySelector(".powerResult");
+    const powerTitle = container.querySelector(".powerTitle");
+    const machineCards = Array.from(container.querySelectorAll(".machine-card"));
 
-	// Store controller for cleanup
-	const existingController = cleanupRegistry.get(container);
-	if (existingController) {
-		existingController.abort();
-	}
-	cleanupRegistry.set(container, controller);
+    const controller = new AbortController();
+    const existingController = cleanupRegistry.get(container);
+    if (existingController) {
+        existingController.abort();
+    }
+    cleanupRegistry.set(container, controller);
 
-	toggle.addEventListener(
-		"change",
-		(e) => {
-			const mode = e.target.value;
+    toggle.addEventListener(
+        "change",
+        (e) => {
+            const mode = e.target.value;
 
-			// Update all machine card stats
-			const machineCards = document.querySelectorAll(".machine-card");
-			machineCards.forEach((card) => {
-				updateMachineStats(card, mode);
-			});
+            // Use for loop instead of forEach
+            for (let i = 0; i < machineCards.length; i++) {
+                updateMachineStats(machineCards[i], mode);
+            }
 
-			// Update power display
-			const power = mode === "arena" ? result.arenaPower : result.battlePower;
-			const title = mode === "arena" ? "Arena Power" : "Battle Power";
+            // Use cached selectors
+            const power = mode === "arena" ? result.arenaPower : result.battlePower;
+            const title = mode === "arena" ? "Arena Power" : "Battle Power";
 
-			const powerResult = document.querySelector(".powerResult");
-			const powerTitle = document.querySelector(".powerTitle");
-
-			if (powerResult) powerResult.textContent = formatPower(power);
-			if (powerTitle) powerTitle.textContent = title;
-		},
-		{ signal: controller.signal }
-	);
+            if (powerResult) powerResult.textContent = formatPower(power);
+            if (powerTitle) powerTitle.textContent = title;
+        },
+        { signal: controller.signal }
+    );
 }
 
 /**

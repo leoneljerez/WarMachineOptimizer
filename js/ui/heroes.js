@@ -2,6 +2,7 @@
 import { createSection, createFormRow, createNumberInput, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
 import { createHeroesBulkTable } from "./bulkEdit.js";
+import { triggerAutoSave, store } from "../app.js";
 
 // Track current view mode
 let currentHeroView = "normal"; // "normal" or "bulk"
@@ -90,7 +91,8 @@ function formatHeroStats(hero) {
  * @returns {boolean} True if configured
  */
 function isConfiguredHero(hero) {
-	return Object.values(hero.percentages).some((v) => v > 0);
+	const p = hero.percentages;
+	return p.damage > 0 || p.health > 0 || p.armor > 0;
 }
 
 /**
@@ -115,13 +117,6 @@ function createHeroDetailView(hero, updateListStats) {
 	const wrapper = document.createElement("div");
 	wrapper.className = "hero-detail-view";
 
-	// Import triggerAutoSave dynamically to avoid circular dependency
-	const triggerAutoSave = async () => {
-		const { triggerAutoSave: fn } = await import("../app.js");
-		const { store } = await import("../app.js");
-		fn(store);
-	};
-
 	const header = createDetailHeader({
 		image: hero.image,
 		name: hero.name,
@@ -130,7 +125,7 @@ function createHeroDetailView(hero, updateListStats) {
 				resetHero(hero);
 				wrapper.replaceWith(createHeroDetailView(hero, updateListStats));
 				updateListStats();
-				triggerAutoSave();
+				triggerAutoSave(store);
 			}
 		},
 	});
@@ -142,7 +137,7 @@ function createHeroDetailView(hero, updateListStats) {
 
 	const updateAndSave = () => {
 		updateListStats();
-		triggerAutoSave();
+		triggerAutoSave(store);
 	};
 
 	const percentSection = createSection("Crew Bonus", [
@@ -175,9 +170,10 @@ function renderHeroesBulkView(heroes) {
 	const heroesSection = document.querySelector("#heroesTab .row.g-3");
 
 	// Hide all children (list and details containers)
-	Array.from(heroesSection.children).forEach((child) => {
-		child.style.display = "none";
-	});
+	const children = heroesSection.children;
+	for (let i = 0; i < children.length; i++) {
+		children[i].style.display = "none";
+	}
 
 	// Find or create bulk container
 	let bulkContainer = document.getElementById("heroesBulkContainer");
@@ -217,14 +213,7 @@ function renderHeroesBulkView(heroes) {
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body p-0";
 
-	// Import triggerAutoSave dynamically
-	const triggerAutoSave = async () => {
-		const { triggerAutoSave: fn } = await import("../app.js");
-		const { store } = await import("../app.js");
-		fn(store);
-	};
-
-	const bulkTable = createHeroesBulkTable(heroes, triggerAutoSave);
+	const bulkTable = createHeroesBulkTable(heroes);
 	cardBody.appendChild(bulkTable);
 
 	card.append(cardHeader, cardBody);

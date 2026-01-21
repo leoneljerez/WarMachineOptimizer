@@ -49,6 +49,12 @@ export class BattleEngine {
 				return [sorted[0]];
 			}
 
+			case "last": {
+				const count = Math.min(ability.numTargets || 1, aliveMembers.length);
+				// Target from the end of the array
+				return aliveMembers.slice(-count);
+			}
+
 			default:
 				console.warn("Unknown targeting type:", ability.targeting);
 				return [];

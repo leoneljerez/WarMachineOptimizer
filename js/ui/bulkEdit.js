@@ -1,5 +1,6 @@
 // ui/bulkEdit.js
 import { AppConfig } from "../config.js";
+import { triggerAutoSave, store } from "../app.js";
 
 /**
  * Creates a bulk edit table for machines
@@ -67,7 +68,7 @@ export function createMachinesBulkTable(machines, triggerAutoSave) {
  * @param {Function} triggerAutoSave - Auto-save callback
  * @returns {HTMLElement} Table row
  */
-function createMachineRow(machine, index, triggerAutoSave) {
+function createMachineRow(machine, index) {
 	const row = document.createElement("tr");
 	row.setAttribute("role", "row");
 
@@ -75,22 +76,15 @@ function createMachineRow(machine, index, triggerAutoSave) {
 	const nameCell = document.createElement("td");
 	nameCell.setAttribute("role", "gridcell");
 
-	const nameContainer = document.createElement("div");
-	nameContainer.className = "d-flex align-items-center gap-2";
-
-	const img = document.createElement("img");
-	img.src = machine.image;
-	img.alt = "";
-	img.className = "rounded";
-	img.style.cssText = "width: 32px; height: 32px; object-fit: cover;";
-	img.setAttribute("aria-hidden", "true");
-
-	const nameText = document.createElement("span");
-	nameText.className = "fw-semibold";
-	nameText.textContent = machine.name;
-
-	nameContainer.append(img, nameText);
-	nameCell.appendChild(nameContainer);
+	nameCell.innerHTML = `
+        <div class="d-flex align-items-center gap-2">
+            <img src="${machine.image}" alt="" class="rounded" 
+                 style="width: 32px; height: 32px; object-fit: cover;" 
+                 aria-hidden="true">
+            <span class="fw-semibold">${machine.name}</span>
+        </div>
+    `;
+	
 	row.appendChild(nameCell);
 
 	// Rarity cell
@@ -113,7 +107,7 @@ function createMachineRow(machine, index, triggerAutoSave) {
 
 	raritySelect.addEventListener("change", (e) => {
 		machine.rarity = e.target.value;
-		triggerAutoSave();
+		triggerAutoSave(store);
 	});
 
 	rarityCell.appendChild(raritySelect);
@@ -136,7 +130,7 @@ function createMachineRow(machine, index, triggerAutoSave) {
 	levelInput.addEventListener("input", (e) => {
 		const val = parseInt(e.target.value, 10);
 		machine.level = isNaN(val) ? 0 : Math.max(0, val);
-		triggerAutoSave();
+		triggerAutoSave(store);
 	});
 
 	levelCell.appendChild(levelInput);
@@ -161,7 +155,7 @@ function createMachineRow(machine, index, triggerAutoSave) {
 		input.addEventListener("input", (e) => {
 			const val = parseInt(e.target.value, 10);
 			machine.blueprints[stat] = isNaN(val) ? 0 : Math.max(0, val);
-			triggerAutoSave();
+			triggerAutoSave(store);
 		});
 
 		cell.appendChild(input);
@@ -177,7 +171,7 @@ function createMachineRow(machine, index, triggerAutoSave) {
  * @param {Function} triggerAutoSave - Auto-save callback
  * @returns {HTMLElement} Table container
  */
-export function createHeroesBulkTable(heroes, triggerAutoSave) {
+export function createHeroesBulkTable(heroes) {
 	const container = document.createElement("div");
 	container.className = "table-responsive";
 	container.style.width = "100%";
@@ -218,7 +212,7 @@ export function createHeroesBulkTable(heroes, triggerAutoSave) {
 	const tbody = document.createElement("tbody");
 
 	heroes.forEach((hero, index) => {
-		const row = createHeroRow(hero, index, triggerAutoSave);
+		const row = createHeroRow(hero, index);
 		tbody.appendChild(row);
 	});
 
@@ -235,7 +229,7 @@ export function createHeroesBulkTable(heroes, triggerAutoSave) {
  * @param {Function} triggerAutoSave - Auto-save callback
  * @returns {HTMLElement} Table row
  */
-function createHeroRow(hero, index, triggerAutoSave) {
+function createHeroRow(hero, index) {
 	const row = document.createElement("tr");
 	row.setAttribute("role", "row");
 
@@ -280,7 +274,7 @@ function createHeroRow(hero, index, triggerAutoSave) {
 		input.addEventListener("input", (e) => {
 			const val = parseInt(e.target.value, 10);
 			hero.percentages[stat] = isNaN(val) ? 0 : Math.max(0, val);
-			triggerAutoSave();
+			triggerAutoSave(store);
 		});
 
 		cell.appendChild(input);

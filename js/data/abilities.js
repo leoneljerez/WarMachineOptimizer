@@ -40,10 +40,10 @@ export const abilitiesData = {
 	},
 
 	dmg_2x_130: {
-		description: "Deals 130% of its damage to 2 random enemies.",
+		description: "Deals 130% of its damage to the last 2 enemies.",
 		effect: "damage",
 		targets: "enemy",
-		targeting: "random",
+		targeting: "last",
 		numTargets: 2,
 		scaleStat: "damage",
 		multiplier: 1.3,
@@ -89,14 +89,14 @@ export const abilitiesData = {
 		multiplier: 3.0,
 	},
 
-	heal_random_2x_360: {
-		description: "Heals 2 random allies for 360% of its damage.",
+	heal_random_2x_350: {
+		description: "Heals 2 random allies for 350% of its damage.",
 		effect: "heal",
 		targets: "ally",
 		targeting: "random",
 		numTargets: 2,
 		scaleStat: "damage",
-		multiplier: 3.6,
+		multiplier: 3.5,
 	},
 
 	heal_all_150: {

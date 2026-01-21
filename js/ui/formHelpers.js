@@ -25,7 +25,9 @@
 export function createSection(title, rows) {
 	const section = document.createElement("section");
 	section.className = "mb-4";
-	section.setAttribute("aria-labelledby", `section-${CSS.escape(title)}`);
+
+	const sectionId = `section-${title.replace(/\s+/g, '-').toLowerCase()}`;
+    section.setAttribute("aria-labelledby", sectionId);
 
 	const heading = document.createElement("h5");
 	heading.className = "mb-3";
@@ -185,7 +187,9 @@ export function createListItem({ image, name, statsText, isConfigured, onClick }
 	container.append(thumb, textWrap);
 	btn.appendChild(container);
 
-	btn.addEventListener("click", onClick);
+	if (onClick) {
+		btn.addEventListener("click", onClick);
+	}
 
 	btn.__statsDiv = statsDiv;
 	btn.__badge = badge;

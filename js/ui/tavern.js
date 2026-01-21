@@ -1,44 +1,44 @@
 // ui/tavern.js
-import { AppConfig } from '../config.js';
+import { AppConfig } from "../config.js";
+import { triggerAutoSave, store } from "../app.js";
 
 /**
  * Renders the tavern cards with reset buttons
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function renderTavernCards(machines) {
-	// Import triggerAutoSave dynamically to avoid circular dependency
-	const triggerAutoSave = async () => {
-		const { triggerAutoSave: fn } = await import("../app.js");
-		const { store } = await import("../app.js");
-		fn(store);
-	};
-
 	const sections = [
 		{
 			containerId: "tavernCardsContainer",
 			type: "sacred",
 			resetText: "Reset All Sacred Cards",
-			property: "sacredLevel",
 		},
 		{
 			containerId: "scarabCardsContainer",
 			type: "inscription",
 			resetText: "Reset All Inscription Cards",
-			property: "inscriptionLevel",
 		},
 	];
 
 	const sortedMachines = [...machines].sort((a, b) => a.name.localeCompare(b.name));
 
-	sections.forEach(({ containerId, type, resetText, property }) => {
+	const cardPropertyMap = { sacred: "sacredLevel", inscription: "inscriptionLevel" };
+
+	for (let s = 0; s < sections.length; s++) {
+		const { containerId, type, resetText } = sections[s];
 		const container = document.getElementById(containerId);
-		container.replaceChildren();
+		const property = cardPropertyMap[type];
 
 		const resetBtn = createResetButton(resetText, () => {
 			if (confirm(`${resetText} to 0?`)) {
-				machines.forEach((m) => (m[property] = AppConfig.DEFAULTS.CARD_LEVEL));
-				renderTavernCards(machines);
-				triggerAutoSave();
+				// Use for loop
+				for (let i = 0; i < sortedMachines.length; i++) {
+					const m = sortedMachines[i];
+					m[property] = AppConfig.DEFAULTS.CARD_LEVEL;
+					const input = document.getElementById(`${type}-card-machine-${m.id}`);
+					if (input) input.value = AppConfig.DEFAULTS.CARD_LEVEL;
+				}
+				triggerAutoSave(store);
 			}
 		});
 
@@ -46,16 +46,19 @@ export function renderTavernCards(machines) {
 		grid.className = `row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 ${type}-view`;
 
 		const fragment = document.createDocumentFragment();
-		sortedMachines.forEach((machine) => {
+
+		// Use for loop instead of forEach
+		for (let i = 0; i < sortedMachines.length; i++) {
+			const machine = sortedMachines[i];
 			const col = document.createElement("div");
 			col.className = "col";
-			col.appendChild(createCardLevelCard(machine, type, triggerAutoSave));
+			col.appendChild(createCardLevelCard(machine, type, property));
 			fragment.appendChild(col);
-		});
-		grid.appendChild(fragment);
+		}
 
-		container.append(resetBtn, grid);
-	});
+		grid.appendChild(fragment);
+		container.replaceChildren(resetBtn, grid);
+	}
 }
 
 /**
@@ -82,10 +85,12 @@ function createResetButton(text, onClick) {
  * Creates a card for managing a machine's card level
  * @param {import('../app.js').Machine} machine - Machine object
  * @param {string} cardType - "sacred" or "inscription"
- * @param {Function} triggerAutoSave - Function to trigger auto-save
+ * @param {string} property - property name in machine ("sacredLevel" or "inscriptionLevel")
  * @returns {HTMLElement} Card element
  */
-function createCardLevelCard(machine, cardType, triggerAutoSave) {
+function createCardLevelCard(machine, cardType, property) {
+	const { name, image } = machine;
+
 	const card = document.createElement("div");
 	card.className = "card h-100 card-hover";
 
@@ -93,15 +98,31 @@ function createCardLevelCard(machine, cardType, triggerAutoSave) {
 	cardBody.className = "card-body d-flex flex-column align-items-center";
 
 	const img = document.createElement("img");
-	img.src = machine.image;
-	img.alt = machine.name;
+	img.src = image;
+	img.alt = name;
 	img.className = "rounded mb-2";
 	img.style.cssText = "width: 80px; height: 80px; object-fit: cover;";
 
 	const title = document.createElement("h6");
 	title.className = "card-title text-center mb-3";
-	title.textContent = machine.name;
+	title.textContent = name;
 
+	const inputGroup = createInputGroup(machine, cardType, property);
+
+	cardBody.append(img, title, inputGroup);
+	card.appendChild(cardBody);
+
+	return card;
+}
+
+/**
+ * Creates the input group for card level
+ * @param {import('../app.js').Machine} machine
+ * @param {string} cardType
+ * @param {string} property
+ * @returns {HTMLElement} Input group element
+ */
+function createInputGroup(machine, cardType, property) {
 	const inputId = `${cardType}-card-machine-${machine.id}`;
 
 	const inputGroup = document.createElement("div");
@@ -113,29 +134,22 @@ function createCardLevelCard(machine, cardType, triggerAutoSave) {
 	label.htmlFor = inputId;
 
 	const input = document.createElement("input");
-	input.type = "number";
-	input.className = "form-control";
-	input.id = inputId;
-	input.min = 0;
-	input.step = 1;
+	Object.assign(input, {
+		type: "number",
+		className: "form-control",
+		id: inputId,
+		min: 0,
+		step: 1,
+		value: machine[property],
+	});
 	input.setAttribute("aria-label", `${machine.name} ${cardType} card level`);
-
-	const propertyName = cardType === "sacred" ? "sacredLevel" : "inscriptionLevel";
-	input.value = machine[propertyName];
 
 	input.addEventListener("input", (e) => {
 		const val = parseInt(e.target.value, 10);
-		machine[propertyName] = isNaN(val) ? 0 : Math.max(0, val);
-		triggerAutoSave();
+		machine[property] = isNaN(val) ? 0 : Math.max(0, val);
+		triggerAutoSave(store);
 	});
 
-	inputGroup.appendChild(label);
-	inputGroup.appendChild(input);
-
-	cardBody.appendChild(img);
-	cardBody.appendChild(title);
-	cardBody.appendChild(inputGroup);
-	card.appendChild(cardBody);
-
-	return card;
+	inputGroup.append(label, input);
+	return inputGroup;
 }

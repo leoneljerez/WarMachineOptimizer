@@ -1,28 +1,27 @@
 // ui/artifacts.js
 import { AppConfig } from "../config.js";
+import { triggerAutoSave, store } from "../app.js";
 
 /**
  * Renders artifact configuration cards
  * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
  */
 export function renderArtifacts(artifacts) {
-	const container = document.getElementById("artifactsContainer");
-	container.replaceChildren();
+    const container = document.getElementById("artifactsContainer");
+    const stats = AppConfig.ARTIFACT_STATS;
+    const percentages = AppConfig.ARTIFACT_PERCENTAGES;
 
-	const stats = AppConfig.ARTIFACT_STATS;
-	const percentages = AppConfig.ARTIFACT_PERCENTAGES;
+    const fragment = document.createDocumentFragment();
+    
+    // Use for loop instead of for...of for better performance
+    for (let i = 0; i < stats.length; i++) {
+        const col = document.createElement("div");
+        col.className = "col";
+        col.appendChild(createArtifactCard(stats[i], percentages, artifacts));
+        fragment.appendChild(col);
+    }
 
-	const fragment = document.createDocumentFragment();
-
-	for (let i = 0; i < stats.length; i++) {
-		const col = document.createElement("div");
-		col.className = "col";
-		const card = createArtifactCard(stats[i], percentages, artifacts);
-		col.appendChild(card);
-		fragment.appendChild(col);
-	}
-
-	container.appendChild(fragment);
+    container.replaceChildren(fragment);
 }
 
 /**
@@ -33,13 +32,6 @@ export function renderArtifacts(artifacts) {
  * @returns {HTMLElement} Card element
  */
 function createArtifactCard(stat, percentages, artifacts) {
-	// Import triggerAutoSave dynamically to avoid circular dependency
-	const triggerAutoSave = async () => {
-		const { triggerAutoSave: fn } = await import("../app.js");
-		const { store } = await import("../app.js");
-		fn(store);
-	};
-
 	const card = document.createElement("div");
 	card.className = "card h-100 card-hover bg-body-tertiary bg-opacity-25";
 
@@ -70,7 +62,9 @@ function createArtifactCard(stat, percentages, artifacts) {
 	const grid = document.createElement("div");
 	grid.className = "row g-2";
 
-	percentages.forEach((pct) => {
+	for (let i = 0; i < percentages.length; i++) {
+		const pct = percentages[i];
+
 		const col = document.createElement("div");
 		col.className = "col-6";
 
@@ -100,13 +94,13 @@ function createArtifactCard(stat, percentages, artifacts) {
 			const newTotal = Object.values(artifacts[stat]).reduce((sum, v) => sum + v, 0);
 			totalBadge.textContent = `Total: ${newTotal}`;
 
-			triggerAutoSave();
+			triggerAutoSave(store);
 		});
 
 		inputGroup.append(label, input);
 		col.appendChild(inputGroup);
 		grid.appendChild(col);
-	});
+	}
 
 	body.appendChild(grid);
 	card.appendChild(body);
@@ -119,5 +113,15 @@ function createArtifactCard(stat, percentages, artifacts) {
  * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
  */
 export function resetAllArtifacts(artifacts) {
-	AppConfig.ARTIFACT_STATS.forEach((stat) => AppConfig.ARTIFACT_PERCENTAGES.forEach((pct) => (artifacts[stat][pct] = 0)));
+	const stats = AppConfig.ARTIFACT_STATS;
+	const pcts = AppConfig.ARTIFACT_PERCENTAGES;
+
+	for (let i = 0; i < stats.length; i++) {
+		const stat = stats[i];
+		const artifactStat = artifacts[stat];
+
+		for (let j = 0; j < pcts.length; j++) {
+			artifactStat[pcts[j]] = 0;
+		}
+	}
 }

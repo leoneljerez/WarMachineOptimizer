@@ -77,7 +77,7 @@ export const machinesData = [
 		role: "healer",
 		tags: ["Healer", "AOE"],
 		image: "img/machines/hunter.webp",
-		ability: { key: "heal_random_2x_360" },
+		ability: { key: "heal_random_2x_350" },
 		baseStats: { damage: 400, health: 4900, armor: 130 },
 	},
 	{

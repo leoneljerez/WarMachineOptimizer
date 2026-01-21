@@ -2,6 +2,7 @@
 import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
 import { createMachinesBulkTable } from "./bulkEdit.js";
+import { triggerAutoSave, store } from "../app.js";
 
 // Track current view mode
 let currentMachineView = "normal"; // "normal" or "bulk"
@@ -11,8 +12,10 @@ let currentMachineView = "normal"; // "normal" or "bulk"
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function renderMachines(machines) {
+	const machinesSection = document.querySelector("#machinesTab > div:last-child");
+
 	if (currentMachineView === "bulk") {
-		renderMachinesBulkView(machines);
+		renderMachinesBulkView(machines, machinesSection);
 		return;
 	}
 
@@ -22,28 +25,24 @@ export function renderMachines(machines) {
 	list.replaceChildren();
 	details.replaceChildren();
 
-	// Hide bulk container if it exists
-	const bulkContainer = document.getElementById("machinesBulkContainer");
-	if (bulkContainer) {
-		bulkContainer.style.display = "none";
+	// Show normal containers, hide bulk
+	const children = machinesSection.children;
+	for (let i = 0; i < children.length; i++) {
+		children[i].style.display = (children[i].id === "machinesBulkContainer") ? "none" : "";
 	}
-
-	// Show normal containers
-	const machinesSection = document.querySelector("#machinesTab > div:last-child"); // Target the row.g-3 that contains list and details
-	Array.from(machinesSection.children).forEach((child) => {
-		if (child.id !== "machinesBulkContainer") {
-			child.style.display = "";
-		}
-	});
 
 	let selectedButton = null;
 	const fragment = document.createDocumentFragment();
+	
+	// Cache the length
+	const len = machines.length;
 
-	machines.forEach((machine, index) => {
+	for (let i = 0; i < len; i++) {
+		const machine = machines[i];
+		
 		const updateStats = () => {
 			const configured = isConfiguredMachine(machine);
-			const statsText = formatMachineStats(machine);
-			updateListItem(btn, statsText, configured);
+			updateListItem(btn, formatMachineStats(machine), configured);
 		};
 
 		const btn = createListItem({
@@ -53,17 +52,16 @@ export function renderMachines(machines) {
 			isConfigured: isConfiguredMachine(machine),
 			onClick: () => selectMachine(machine, btn, updateStats),
 		});
+		btn.dataset.machineId = machine.id;
 
 		fragment.appendChild(btn);
 
-		if (index === 0) {
+		if (i === 0) {
 			btn.classList.add("active");
 			selectedButton = btn;
-			queueMicrotask(() => {
-				renderMachineDetails(machine, details, updateStats);
-			});
+			queueMicrotask(() => renderMachineDetails(machine, details, updateStats));
 		}
-	});
+	}
 
 	list.appendChild(fragment);
 
@@ -80,8 +78,8 @@ export function renderMachines(machines) {
  * @param {import('../app.js').Machine} machine - Hero object
  * @returns {string} Formatted stats string
  */
-function formatMachineStats(machine) {
-	return `Lv. ${machine.level} • ${machine.rarity}`;
+function formatMachineStats({ level, rarity }) {
+	return `Lv. ${level} • ${rarity}`;
 }
 
 /**
@@ -89,12 +87,9 @@ function formatMachineStats(machine) {
  * @param {import('../app.js').Machine} machine - Machine object
  * @returns {boolean} True if configured
  */
-function isConfiguredMachine(machine) {
-	const { rarity, level, blueprints } = machine;
-	const hasBlueprints = Object.values(blueprints).some((v) => v > 0);
-	const hasLevel = level > 0;
-	const hasRarity = rarity.toLowerCase() !== "common";
-	return hasBlueprints || hasLevel || hasRarity;
+function isConfiguredMachine({ rarity, level, blueprints }) {
+	const hasBlueprints = Object.values(blueprints).some(v => v > 0);
+	return hasBlueprints || level > 0 || rarity.toLowerCase() !== "common";
 }
 
 /**
@@ -105,8 +100,7 @@ function isConfiguredMachine(machine) {
  */
 function renderMachineDetails(machine, container, updateListStats) {
 	container.replaceChildren();
-	const detailView = createMachineDetailView(machine, updateListStats);
-	container.appendChild(detailView);
+	container.appendChild(createMachineDetailView(machine, updateListStats));
 }
 
 /**
@@ -116,25 +110,19 @@ function renderMachineDetails(machine, container, updateListStats) {
  * @returns {HTMLElement} Detail view container
  */
 function createMachineDetailView(machine, updateListStats) {
+	const { id, name, image } = machine;
 	const wrapper = document.createElement("div");
 	wrapper.className = "machine-detail-view";
 
-	// Import triggerAutoSave dynamically to avoid circular dependency
-	const triggerAutoSave = async () => {
-		const { triggerAutoSave: fn } = await import("../app.js");
-		const { store } = await import("../app.js");
-		fn(store);
-	};
-
 	const header = createDetailHeader({
-		image: machine.image,
-		name: machine.name,
+		image,
+		name,
 		onReset: () => {
-			if (confirm(`Reset ${machine.name} to default values?`)) {
+			if (confirm(`Reset ${name} to default values?`)) {
 				resetMachine(machine);
 				wrapper.replaceWith(createMachineDetailView(machine, updateListStats));
 				updateListStats();
-				triggerAutoSave();
+				triggerAutoSave(store);
 			}
 		},
 	});
@@ -142,41 +130,35 @@ function createMachineDetailView(machine, updateListStats) {
 	const form = document.createElement("form");
 	form.className = "machine-form";
 
-	const machineId = `machine-${machine.id}`;
-
+	const machineId = `machine-${id}`;
 	const updateAndSave = () => {
 		updateListStats();
-		triggerAutoSave();
+		triggerAutoSave(store);
 	};
 
 	// General section
 	const generalSection = createSection("General", [
 		createFormRow(
 			"Rarity",
-			createSelect(
-				AppConfig.RARITY_LABELS,
-				machine.rarity,
-				(e) => {
-					machine.rarity = e.target.value;
-					updateAndSave();
-				},
-				`${machineId}-rarity`
-			),
+			createSelect(AppConfig.RARITY_LABELS, machine.rarity, e => { machine.rarity = e.target.value; updateAndSave(); }, `${machineId}-rarity`),
 			"col-md-6"
 		),
 		createFormRow("Level", createNumberInput(machine, "level", updateAndSave, 0, 1, `${machineId}-level`), "col-md-6"),
 	]);
 
-	// Blueprint Levels section
-	const blueprintSection = createSection("Blueprint Levels", [
-		createFormRow("Damage", createNumberInput(machine.blueprints, "damage", updateAndSave, 0, 1, `${machineId}-bp-damage`), "col-md-4"),
-		createFormRow("Health", createNumberInput(machine.blueprints, "health", updateAndSave, 0, 1, `${machineId}-bp-health`), "col-md-4"),
-		createFormRow("Armor", createNumberInput(machine.blueprints, "armor", updateAndSave, 0, 1, `${machineId}-bp-armor`), "col-md-4"),
-	]);
+	// Blueprint Levels section using mapping
+	const blueprintFields = ["damage", "health", "armor"];
+	const blueprintRows = blueprintFields.map(field =>
+		createFormRow(
+			field[0].toUpperCase() + field.slice(1),
+			createNumberInput(machine.blueprints, field, updateAndSave, 0, 1, `${machineId}-bp-${field}`),
+			"col-md-4"
+		)
+	);
+	const blueprintSection = createSection("Blueprint Levels", blueprintRows);
 
 	form.append(generalSection, blueprintSection);
 	wrapper.append(header, form);
-
 	return wrapper;
 }
 
@@ -187,23 +169,16 @@ function createMachineDetailView(machine, updateListStats) {
 function resetMachine(machine) {
 	machine.rarity = AppConfig.RARITY_LABELS[0];
 	machine.level = AppConfig.DEFAULTS.LEVEL;
-	machine.blueprints.damage = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
-	machine.blueprints.health = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
-	machine.blueprints.armor = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
+	Object.keys(machine.blueprints).forEach(key => machine.blueprints[key] = AppConfig.DEFAULTS.BLUEPRINT_LEVEL);
 }
 
 /**
  * Renders the bulk edit view for machines
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
-function renderMachinesBulkView(machines) {
-	// Target the specific row that contains list and details (last child of machinesTab)
-	const machinesSection = document.querySelector("#machinesTab > div:last-child"); // This is the row.g-3
-
-	// Hide all children (list and details containers)
-	Array.from(machinesSection.children).forEach((child) => {
-		child.style.display = "none";
-	});
+function renderMachinesBulkView(machines, machinesSection) {
+	// Hide normal containers
+	for (const child of machinesSection.children) child.style.display = "none";
 
 	// Find or create bulk container
 	let bulkContainer = document.getElementById("machinesBulkContainer");
@@ -212,12 +187,11 @@ function renderMachinesBulkView(machines) {
 		bulkContainer.id = "machinesBulkContainer";
 		bulkContainer.className = "col-12";
 		machinesSection.appendChild(bulkContainer);
+	} else {
+		bulkContainer.replaceChildren();
 	}
-
 	bulkContainer.style.display = "block";
-	bulkContainer.replaceChildren();
 
-	// Create card
 	const card = document.createElement("div");
 	card.className = "card card-hover";
 
@@ -232,9 +206,8 @@ function renderMachinesBulkView(machines) {
 	backButton.type = "button";
 	backButton.className = "btn btn-sm btn-outline-secondary";
 	backButton.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Back to Normal View';
-	backButton.addEventListener("click", async () => {
+	backButton.addEventListener("click", () => {
 		currentMachineView = "normal";
-		const { store } = await import("../app.js");
 		renderMachines(store.machines);
 	});
 
@@ -242,16 +215,7 @@ function renderMachinesBulkView(machines) {
 
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body p-0";
-
-	// Import triggerAutoSave dynamically
-	const triggerAutoSave = async () => {
-		const { triggerAutoSave: fn } = await import("../app.js");
-		const { store } = await import("../app.js");
-		fn(store);
-	};
-
-	const bulkTable = createMachinesBulkTable(machines, triggerAutoSave);
-	cardBody.appendChild(bulkTable);
+	cardBody.appendChild(createMachinesBulkTable(machines));
 
 	card.append(cardHeader, cardBody);
 	bulkContainer.appendChild(card);
