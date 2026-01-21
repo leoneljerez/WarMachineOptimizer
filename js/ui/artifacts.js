@@ -2,26 +2,50 @@
 import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
 
+const container = document.getElementById("artifactsContainer");
+const STAT_PERCENTAGES = AppConfig.ARTIFACT_PERCENTAGES;
+const ARTIFACT_STATS = AppConfig.ARTIFACT_STATS;
+
+if (container) {
+	container.addEventListener("input", (e) => {
+		const input = e.target;
+		if (input.type !== "number") return;
+
+		const val = input.value | 0;
+		const stat = input.dataset.stat;
+		const pct = input.dataset.pct;
+
+		const artifactData = store.artifacts[stat];
+		const oldVal = input.dataset.last | 0;
+		const newVal = val < 0 ? 0 : val;
+
+		artifactData[pct] = newVal;
+
+		const delta = newVal - oldVal;
+		if (delta !== 0) {
+			input._badge.textContent = `Total: ${(input._badge._total += delta)}`;
+			input.dataset.last = newVal;
+		}
+
+		triggerAutoSave(store);
+	});
+}
+
 /**
  * Renders artifact configuration cards
  * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
  */
 export function renderArtifacts(artifacts) {
-    const container = document.getElementById("artifactsContainer");
-    const stats = AppConfig.ARTIFACT_STATS;
-    const percentages = AppConfig.ARTIFACT_PERCENTAGES;
+	const fragment = document.createDocumentFragment();
 
-    const fragment = document.createDocumentFragment();
-    
-    // Use for loop instead of for...of for better performance
-    for (let i = 0; i < stats.length; i++) {
-        const col = document.createElement("div");
-        col.className = "col";
-        col.appendChild(createArtifactCard(stats[i], percentages, artifacts));
-        fragment.appendChild(col);
-    }
+	for (let i = 0; i < ARTIFACT_STATS.length; i++) {
+		const col = document.createElement("div");
+		col.className = "col";
+		col.appendChild(createArtifactCard(ARTIFACT_STATS[i], STAT_PERCENTAGES, artifacts));
+		fragment.appendChild(col);
+	}
 
-    container.replaceChildren(fragment);
+	container.replaceChildren(fragment);
 }
 
 /**
@@ -35,35 +59,32 @@ function createArtifactCard(stat, percentages, artifacts) {
 	const card = document.createElement("div");
 	card.className = "card h-100 card-hover bg-body-tertiary bg-opacity-25";
 
-	const body = document.createElement("div");
-	body.className = "card-body";
+	const cardBody = document.createElement("div");
+	cardBody.className = "card-body";
 
-	// Title + badge row
-	const titleRow = document.createElement("div");
-	titleRow.className = "d-flex justify-content-between align-items-center mb-3";
+	const header = document.createElement("div");
+	header.className = "d-flex justify-content-between align-items-center mb-3";
 
 	const title = document.createElement("h5");
 	title.className = "card-title mb-0 text-capitalize";
 	title.textContent = stat;
 
-	const values = Object.values(artifacts[stat]);
-	let total = 0;
-	for (let i = 0; i < values.length; i++) {
-		total += values[i];
-	}
-	const totalBadge = document.createElement("span");
-	totalBadge.className = "badge bg-primary";
-	totalBadge.textContent = `Total: ${total}`;
+	const badge = document.createElement("span");
+	badge.className = "badge bg-primary";
 
-	titleRow.append(title, totalBadge);
-	body.appendChild(titleRow);
+	header.append(title, badge);
+	cardBody.appendChild(header);
 
-	// Input grid: two columns
-	const grid = document.createElement("div");
-	grid.className = "row g-2";
+	const row = document.createElement("div");
+	row.className = "row g-2";
+
+	const data = artifacts[stat];
+	let initialTotal = 0;
 
 	for (let i = 0; i < percentages.length; i++) {
 		const pct = percentages[i];
+		const val = data[pct] | 0;
+		initialTotal += val;
 
 		const col = document.createElement("div");
 		col.className = "col-6";
@@ -71,40 +92,39 @@ function createArtifactCard(stat, percentages, artifacts) {
 		const inputGroup = document.createElement("div");
 		inputGroup.className = "input-group input-group-sm";
 
-		const label = document.createElement("span");
-		label.className = "input-group-text";
-		label.textContent = `${pct}%`;
-		label.style.width = "55px";
+		const span = document.createElement("span");
+		span.className = "input-group-text";
+		span.style.width = "55px";
+		span.textContent = pct + "%";
+
+		const inputId = `art-${stat}-${pct}`;
+		span.id = `label-${inputId}`;
 
 		const input = document.createElement("input");
 		input.type = "number";
-		input.min = 0;
-		input.step = 1;
-		input.value = artifacts[stat][pct];
 		input.className = "form-control form-control-sm";
-
-		const inputId = `artifact-${stat}-${pct}`;
+		input.value = val;
+		input.min = 0;
+		input.dataset.stat = stat;
+		input.dataset.pct = pct;
+		input.dataset.last = val;
 		input.id = inputId;
-		input.setAttribute("aria-label", `${stat} ${pct}% quantity`);
 
-		input.addEventListener("input", (e) => {
-			const val = parseInt(e.target.value, 10);
-			artifacts[stat][pct] = isNaN(val) ? 0 : Math.max(0, val);
+		input._badge = badge;
 
-			const newTotal = Object.values(artifacts[stat]).reduce((sum, v) => sum + v, 0);
-			totalBadge.textContent = `Total: ${newTotal}`;
+		input.setAttribute("aria-labelledby", span.id);
+		input.setAttribute("aria-label", stat + " " + pct + "%");
 
-			triggerAutoSave(store);
-		});
-
-		inputGroup.append(label, input);
+		inputGroup.append(span, input);
 		col.appendChild(inputGroup);
-		grid.appendChild(col);
+		row.appendChild(col);
 	}
 
-	body.appendChild(grid);
-	card.appendChild(body);
+	badge._total = initialTotal;
+	badge.textContent = `Total: ${initialTotal}`;
 
+	cardBody.appendChild(row);
+	card.appendChild(cardBody);
 	return card;
 }
 
@@ -113,15 +133,28 @@ function createArtifactCard(stat, percentages, artifacts) {
  * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
  */
 export function resetAllArtifacts(artifacts) {
-	const stats = AppConfig.ARTIFACT_STATS;
-	const pcts = AppConfig.ARTIFACT_PERCENTAGES;
+	for (let i = 0; i < ARTIFACT_STATS.length; i++) {
+		const stat = ARTIFACT_STATS[i];
+		const statObj = artifacts[stat];
+		let firstInput = null;
 
-	for (let i = 0; i < stats.length; i++) {
-		const stat = stats[i];
-		const artifactStat = artifacts[stat];
+		for (let j = 0; j < STAT_PERCENTAGES.length; j++) {
+			const pct = STAT_PERCENTAGES[j];
+			statObj[pct] = 0;
 
-		for (let j = 0; j < pcts.length; j++) {
-			artifactStat[pcts[j]] = 0;
+			const input = document.getElementById(`art-${stat}-${pct}`);
+			if (input) {
+				input.value = 0;
+				input.dataset.last = 0;
+				if (!firstInput) firstInput = input;
+			}
+		}
+
+		if (firstInput) {
+			const badge = firstInput._badge;
+			badge._total = 0;
+			badge.textContent = "Total: 0";
 		}
 	}
+	triggerAutoSave(store);
 }
