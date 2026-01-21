@@ -49,14 +49,22 @@ export class BattleEngine {
 
 			case "lowest": {
 				// Target the ally with lowest current HP
-				const sorted = [...aliveMembers].sort((a, b) => a.battleStats.health.cmp(b.battleStats.health));
-				return [sorted[0]];
+				let lowest = aliveMembers[0];
+				let minHP = lowest.battleStats.health;
+				for (let i = 1; i < aliveMembers.length; i++) {
+					const m = aliveMembers[i];
+					if (m.battleStats.health.lt(minHP)) {
+						lowest = m;
+						minHP = m.battleStats.health;
+					}
+				}
+				return [lowest];
 			}
 
 			case "last": {
-				const count = Math.min(ability.numTargets || 1, aliveMembers.length);
-				// Target from the end of the array
-				return aliveMembers.slice(-count);
+				const count = ability.numTargets || 1;
+				if (count >= aliveMembers.length) return aliveMembers;
+				return aliveMembers.slice(aliveMembers.length - count);
 			}
 
 			default:
@@ -75,7 +83,7 @@ export class BattleEngine {
 
 		for (let i = 0; i < targets.length; i++) {
 			const target = targets[i];
-			if (target.isDead) return; // Skip dead targets
+			if (target.isDead) continue; // Skip dead targets
 
 			const currentHP = Calculator.toDecimal(target.battleStats.health);
 			const maxHP = Calculator.toDecimal(target.battleStats.maxHealth || target.battleStats.health);
