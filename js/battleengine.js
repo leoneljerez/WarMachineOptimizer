@@ -10,6 +10,7 @@ import { AppConfig } from "./config.js";
 export class BattleEngine {
 	/** @type {Decimal} */
 	static ZERO = new Decimal(0);
+	static TARGET_ORDER = AppConfig.ATTACK_ORDER;
 
 	/**
 	 * Selects targets based on ability targeting type
@@ -21,7 +22,10 @@ export class BattleEngine {
 	static selectAbilityTargets(team, ability, caster) {
 		if (!ability || !team) return [];
 
-		const aliveMembers = team.filter((m) => !m.isDead);
+		const aliveMembers = [];
+		for (let i = 0; i < team.length; i++) {
+			if (!team[i].isDead) aliveMembers.push(team[i]);
+		}
 
 		if (aliveMembers.length === 0) return [];
 
@@ -69,7 +73,8 @@ export class BattleEngine {
 	static applyHealing(targets, healAmount) {
 		if (!targets || targets.length === 0) return;
 
-		targets.forEach((target) => {
+		for (let i = 0; i < targets.length; i++) {
+			const target = targets[i];
 			if (target.isDead) return; // Skip dead targets
 
 			const currentHP = Calculator.toDecimal(target.battleStats.health);
@@ -78,7 +83,7 @@ export class BattleEngine {
 
 			const newHP = Decimal.min(currentHP.add(heal), maxHP);
 			target.battleStats.health = newHP;
-		});
+		}
 	}
 
 	/**
@@ -91,7 +96,8 @@ export class BattleEngine {
 
 		const ZERO = BattleEngine.ZERO;
 
-		targets.forEach((target) => {
+		for (let i = 0; i < targets.length; i++) {
+			const target = targets[i];
 			if (target.isDead) return; // Skip already dead targets
 
 			const actualDamage = Calculator.computeDamageTaken(damageAmount, target.battleStats.armor);
@@ -107,7 +113,7 @@ export class BattleEngine {
 			} else {
 				target.battleStats.health = newHealth;
 			}
-		});
+		}
 	}
 
 	/**
@@ -124,7 +130,7 @@ export class BattleEngine {
 		}
 
 		// Determine which team the caster belongs to
-		const isPlayerMachine = playerTeam.some((m) => m === caster);
+		const isPlayerMachine = caster.isPlayer;
 
 		// Select target team based on ability type
 		let targetTeam;
@@ -184,16 +190,17 @@ export class BattleEngine {
 		}
 
 		const ZERO = BattleEngine.ZERO;
-		const targetOrder = AppConfig.ATTACK_ORDER;
+		const targetOrder = BattleEngine.TARGET_ORDER;
 
 		// Clone teams
-		const cloneTeam = (team) =>
+		const cloneTeam = (team, bool) =>
 			team.map((m) => {
 				if (!m.battleStats) {
 					throw new Error(`Machine missing battleStats: ${JSON.stringify(m)}`);
 				}
 				return {
 					...m,
+					isPlayer: bool,
 					ability: m.ability ? { ...m.ability } : null,
 					battleStats: {
 						health: Calculator.toDecimal(m.battleStats.health),
@@ -205,24 +212,42 @@ export class BattleEngine {
 				};
 			});
 
-		const players = cloneTeam(playerTeam);
-		const enemies = cloneTeam(enemyTeam);
+		const players = cloneTeam(playerTeam, true);
+		const enemies = cloneTeam(enemyTeam, false);
 
 		// Helper functions
-		const hasAlive = (team) => team.some((m) => !m.isDead);
+		const hasAlive = (team) => {
+			for (let i = 0; i < team.length; i++) {
+				if (!team[i].isDead) return true;
+			}
+			return false;
+		};
+
 		const getNextTarget = (team) => {
-			for (const idx of targetOrder) {
-				if (idx < team.length && !team[idx].isDead) {
-					return team[idx];
+			for (let i = 0; i < targetOrder.length; i++) {
+				const idx = targetOrder[i];
+				if (idx < team.length) {
+					const m = team[idx];
+					if (!m.isDead) return m;
 				}
 			}
 			return null;
 		};
-		const getTotalHP = (team) => team.reduce((sum, m) => (m.isDead ? sum : sum.add(m.battleStats.health)), ZERO);
+
+		const getTotalHP = (team) => {
+			let sum = ZERO;
+			for (let i = 0; i < team.length; i++) {
+				if (!team[i].isDead) {
+					sum = sum.add(team[i].battleStats.health);
+				}
+			}
+			return sum;
+		};
 
 		// Attack phase (handles both with and without abilities)
 		const attackPhase = (attackers, defenders, attackersTeam, defendersTeam) => {
-			for (const attackerIdx of targetOrder) {
+			for (let i = 0; i < targetOrder.length; i++) {
+				const attackerIdx = targetOrder[i];
 				if (!hasAlive(defenders)) break;
 				if (attackerIdx >= attackers.length || attackers[attackerIdx].isDead) {
 					continue;
@@ -233,10 +258,12 @@ export class BattleEngine {
 				if (!target) break;
 
 				// Auto attack
-				const damage = Calculator.computeDamageTaken(attacker.battleStats.damage, target.battleStats.armor);
+				const attackerStats = attacker.battleStats;
+				const targetStats = target.battleStats;
+				const damage = Calculator.computeDamageTaken(attackerStats.damage, targetStats.armor);
 
 				if (!damage.eq(0)) {
-					const newHealth = target.battleStats.health.sub(damage).max(0);
+					const newHealth = targetStats.health.sub(damage).max(0);
 					if (newHealth.eq(0)) {
 						target.battleStats.health = ZERO;
 						target.isDead = true;
