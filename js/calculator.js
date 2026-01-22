@@ -10,6 +10,7 @@ import { AppConfig } from "./config.js";
 export class Calculator {
 	/** @type {Decimal} */
 	static ZERO = new Decimal(0);
+	static ONE = new Decimal(1);
 
 	static enemyStatsCache = new Map();
 
@@ -19,22 +20,11 @@ export class Calculator {
 	 * @returns {Decimal} Decimal instance
 	 */
 	static toDecimal(value) {
-		// already a Decimal instance
-		if (value instanceof Decimal) {
-			return value;
-		}
-
-		// primitive number
-		if (typeof value === "number") {
-			return new Decimal(value);
-		}
-
-		// Serialized Decimal from worker/storage
+		if (value instanceof Decimal) return value;
+		if (typeof value === "number") return new Decimal(value);
 		if (value && typeof value === "object" && "mag" in value) {
 			return Decimal.fromComponents(value.sign, value.layer, value.mag);
 		}
-
-		// Fallback for strings and edge cases
 		return new Decimal(value);
 	}
 
@@ -49,9 +39,9 @@ export class Calculator {
 		const dmg = Calculator.toDecimal(enemyDamage);
 		const armor = Calculator.toDecimal(characterArmor);
 
-		if (armor.gte(dmg)) return new Decimal(0);
+		if (armor.gte(dmg)) return Calculator.ZERO;
 
-		return dmg.sub(armor).max(0);
+		return dmg.sub(armor);
 	}
 
 	/**
@@ -96,9 +86,7 @@ export class Calculator {
 		const cacheKey = `${missionNumber}:${difficulty}:${milestoneBase}`;
 
 		const cached = Calculator.enemyStatsCache.get(cacheKey);
-		if (cached) {
-			return cached;
-		}
+		if (cached) return cached;
 
 		const diffMultiplier = AppConfig.getDifficultyMultiplier(difficulty);
 		const missionNum = missionNumber - 1;
@@ -130,8 +118,7 @@ export class Calculator {
 	static getEnemyTeamForMission(missionNumber, difficulty, milestoneBase = AppConfig.MILESTONE_SCALE_FACTOR) {
 		const enemyStats = Calculator.enemyAttributes(missionNumber, difficulty, milestoneBase);
 
-		return Array.from({ length: AppConfig.FORMATION_SIZE }, (_, i) => ({
-			name: `Enemy${i + 1}`,
+		const enemyTemplate = {
 			baseStats: {
 				damage: enemyStats.damage,
 				health: enemyStats.health,
@@ -144,7 +131,13 @@ export class Calculator {
 				armor: enemyStats.armor,
 			},
 			isDead: false,
-		}));
+		};
+
+		const result = new Array(AppConfig.FORMATION_SIZE);
+		for (let i = 0; i < AppConfig.FORMATION_SIZE; i++) {
+			result[i] = { ...enemyTemplate, name: `Enemy${i + 1}` };
+		}
+		return result;
 	}
 
 	/**
@@ -217,13 +210,13 @@ export class Calculator {
 	 */
 	static computeBasicAttribute(base, levelBonus, engineerBonus, blueprintBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonus) {
 		return Calculator.toDecimal(base)
-			.mul(new Decimal(1).add(levelBonus))
-			.mul(new Decimal(1).add(engineerBonus))
-			.mul(new Decimal(1).add(blueprintBonus))
-			.mul(new Decimal(1).add(rarityBonus))
-			.mul(new Decimal(1).add(sacredBonus))
-			.mul(new Decimal(1).add(inscriptionBonus))
-			.mul(new Decimal(1).add(artifactBonus));
+			.mul(Calculator.ONE.add(levelBonus))
+			.mul(Calculator.ONE.add(engineerBonus))
+			.mul(Calculator.ONE.add(blueprintBonus))
+			.mul(Calculator.ONE.add(rarityBonus))
+			.mul(Calculator.ONE.add(sacredBonus))
+			.mul(Calculator.ONE.add(inscriptionBonus))
+			.mul(Calculator.ONE.add(artifactBonus));
 	}
 
 	/**
@@ -234,7 +227,7 @@ export class Calculator {
 	 * @returns {Decimal} Total artifact bonus as decimal multiplier
 	 */
 	static computeArtifactBonus(artifactArray, stat) {
-		let total = new Decimal(1);
+		let total = Calculator.ONE;
 
 		for (let i = 0; i < artifactArray.length; i++) {
 			const artifact = artifactArray[i];
@@ -247,7 +240,7 @@ export class Calculator {
 				if (!quantity || quantity <= 0) continue;
 
 				const percent = Number(percentStr);
-				const multiplier = new Decimal(1).add(percent / 100).pow(quantity);
+				const multiplier = Calculator.ONE.add(percent / 100).pow(quantity);
 				total = total.mul(multiplier);
 			}
 		}
@@ -267,13 +260,10 @@ export class Calculator {
 	static calculateArenaAttributes(machine, globalRarityLevels = 0, scarabLevel = 0, riftRank = "") {
 		const base = new Decimal(AppConfig.LEVEL_BONUS_BASE);
 
-		// Scarab bonus: min(max(floor((scarabLevel - 3) / 2) + 1, 0) * 0.002, 1)
 		const scarabBonus = Decimal.min(Decimal.max(new Decimal(scarabLevel).sub(3).div(2).floor().add(1), 0).mul(0.002), 1);
 
-		// Rift rank bonuses
 		const riftBonus = new Decimal(AppConfig.getRiftBonus(riftRank));
 
-		// Mech Fury bonus: 1.05^globalRarityLevels - 1
 		const mechFuryBonus = base.pow(globalRarityLevels).sub(1);
 
 		const baseDamage = Calculator.toDecimal(machine.baseStats.damage);
@@ -284,15 +274,15 @@ export class Calculator {
 		const battleHealth = Calculator.toDecimal(machine.battleStats.health);
 		const battleArmor = Calculator.toDecimal(machine.battleStats.armor);
 
-		// Ratio of battle stats to base stats
 		const divDmg = battleDamage.div(baseDamage);
 		const divHp = battleHealth.div(baseHealth);
 		const divArm = battleArmor.div(baseArmor);
 
-		// Arena formula: base * (log10(ratio) + 1)^2 * bonuses
-		const arenaDmg = baseDamage.mul(Decimal.log10(divDmg).add(1).pow(2)).mul(mechFuryBonus.add(1)).mul(scarabBonus.add(1)).mul(riftBonus.add(1));
-		const arenaHp = baseHealth.mul(Decimal.log10(divHp).add(1).pow(2)).mul(mechFuryBonus.add(1)).mul(scarabBonus.add(1)).mul(riftBonus.add(1));
-		const arenaArm = baseArmor.mul(Decimal.log10(divArm).add(1).pow(2)).mul(mechFuryBonus.add(1)).mul(scarabBonus.add(1)).mul(riftBonus.add(1));
+		const totalBonus = Calculator.ONE.add(mechFuryBonus).mul(Calculator.ONE.add(scarabBonus)).mul(Calculator.ONE.add(riftBonus));
+
+		const arenaDmg = baseDamage.mul(Decimal.log10(divDmg).add(1).pow(2)).mul(totalBonus);
+		const arenaHp = baseHealth.mul(Decimal.log10(divHp).add(1).pow(2)).mul(totalBonus);
+		const arenaArm = baseArmor.mul(Decimal.log10(divArm).add(1).pow(2)).mul(totalBonus);
 
 		return {
 			damage: arenaDmg,
@@ -313,48 +303,38 @@ export class Calculator {
 	static calculateBattleAttributes(machine, crewList = [], globalRarityLevels = 0, artifactArray = [], engineerLevel = 0) {
 		const base = new Decimal(AppConfig.LEVEL_BONUS_BASE);
 
-		// Level bonus: 1.05^(level - 1) - 1
 		const levelBonus = base.pow(machine.level - 1).sub(1);
 
-		// Engineer bonus: 1.05^(engineer_level - 1) - 1
 		const engineerBonus = base.pow(engineerLevel - 1).sub(1);
 
-		// Blueprint bonus: 1.05^blueprint_level - 1
 		const dmgBPBonus = base.pow(machine.blueprints.damage).sub(1);
 		const hpBPBonus = base.pow(machine.blueprints.health).sub(1);
 		const armBPBonus = base.pow(machine.blueprints.armor).sub(1);
 
-		// Rarity bonus: 1.05^(machine_rarity + global_rarity) - 1
 		const rarityLevel = AppConfig.getRarityLevel(machine.rarity?.toLowerCase() || "common");
 		const rarityBonus = base.pow(rarityLevel + globalRarityLevels).sub(1);
 
-		// Card bonuses: 1.05^card_level - 1
 		const sacredBonus = base.pow(machine.sacredLevel).sub(1);
 		const inscriptionBonus = base.pow(machine.inscriptionLevel).sub(1);
 
-		// Artifact bonuses (multiplicative)
 		const artifactBonusDmg = Calculator.computeArtifactBonus(artifactArray, "damage");
 		const artifactBonusHp = Calculator.computeArtifactBonus(artifactArray, "health");
 		const artifactBonusArm = Calculator.computeArtifactBonus(artifactArray, "armor");
 
-		// Base stats
 		const baseDamage = Calculator.toDecimal(machine.baseStats.damage);
 		const baseHealth = Calculator.toDecimal(machine.baseStats.health);
 		const baseArmor = Calculator.toDecimal(machine.baseStats.armor);
 
-		// Calculate basic attributes (before crew)
 		const basicDmg = Calculator.computeBasicAttribute(baseDamage, levelBonus, engineerBonus, dmgBPBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonusDmg);
 		const basicHp = Calculator.computeBasicAttribute(baseHealth, levelBonus, engineerBonus, hpBPBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonusHp);
 		const basicArm = Calculator.computeBasicAttribute(baseArmor, levelBonus, engineerBonus, armBPBonus, rarityBonus, sacredBonus, inscriptionBonus, artifactBonusArm);
 
-		// Crew bonuses (additive)
 		const crewBonus = Calculator.computeCrewBonus(crewList);
 
-		// Final battle attributes: basic * (1 + crew_bonus)
 		return {
-			damage: basicDmg.mul(new Decimal(1).add(crewBonus.dmg)),
-			health: basicHp.mul(new Decimal(1).add(crewBonus.hp)),
-			armor: basicArm.mul(new Decimal(1).add(crewBonus.arm)),
+			damage: basicDmg.mul(Calculator.ONE.add(crewBonus.dmg)),
+			health: basicHp.mul(Calculator.ONE.add(crewBonus.hp)),
+			armor: basicArm.mul(Calculator.ONE.add(crewBonus.arm)),
 		};
 	}
 
@@ -385,7 +365,7 @@ export class Calculator {
 	 * @returns {Decimal} Total squad power
 	 */
 	static computeSquadPower(machines = [], mode = "campaign") {
-		let total = new Decimal(0);
+		let total = Calculator.ZERO;
 		const useArena = mode === "arena";
 
 		for (let i = 0; i < machines.length; i++) {

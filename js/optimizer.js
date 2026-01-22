@@ -64,7 +64,6 @@ export class Optimizer {
 		const weights = mode === "campaign" ? AppConfig.HERO_SCORING.CAMPAIGN : AppConfig.HERO_SCORING.ARENA;
 		const roleWeights = role === "tank" ? weights.TANK : weights.DPS;
 
-		// 1. Stat Gain (Relative to 100%)
 		const dmgScore = new Decimal(hero.percentages.damage).div(100).mul(roleWeights.damage);
 		const hpScore = new Decimal(hero.percentages.health).div(100).mul(roleWeights.health);
 		const armScore = new Decimal(hero.percentages.armor).div(100).mul(roleWeights.armor);
@@ -72,7 +71,6 @@ export class Optimizer {
 		let baseScore = dmgScore.add(hpScore).add(armScore);
 		if (baseScore.lte(0)) return new Decimal(0);
 
-		// 2. Power Tier Multiplier (Uses log to keep numbers manageable)
 		const power = Calculator.computeMachinePower(currentStats);
 		const logPower = power.gt(0) ? power.log10().add(1) : new Decimal(1);
 
@@ -133,13 +131,13 @@ export class Optimizer {
 		const m = machineSlots.length;
 		const size = Math.max(n, m);
 
-		let weight = Array.from({ length: size + 1 }, () => Array(size + 1).fill(new Decimal(0)));
-		let lx = Array(size + 1).fill(new Decimal(0));
-		let ly = Array(size + 1).fill(new Decimal(0));
-		let matchY = Array(size + 1).fill(0);
-		let slack = Array(size + 1).fill(new Decimal(0));
-		let pre = Array(size + 1).fill(0);
-		let visY = Array(size + 1).fill(false);
+		const weight = Array.from({ length: size + 1 }, () => Array(size + 1).fill(new Decimal(0)));
+		const lx = Array(size + 1).fill(new Decimal(0));
+		const ly = Array(size + 1).fill(new Decimal(0));
+		const matchY = Array(size + 1).fill(0);
+		const slack = Array(size + 1).fill(new Decimal(0));
+		const pre = Array(size + 1).fill(0);
+		const visY = Array(size + 1).fill(false);
 
 		for (let i = 1; i <= n; i++) {
 			for (let j = 1; j <= m; j++) {
@@ -151,8 +149,11 @@ export class Optimizer {
 			}
 		}
 
+		const EPSILON = new Decimal(1e-12);
+		const INF = new Decimal("1e308");
+
 		for (let i = 1; i <= size; i++) {
-			slack.fill(new Decimal("1e308"));
+			slack.fill(INF);
 			visY.fill(false);
 			pre.fill(0);
 			let curY = 0;
@@ -160,12 +161,13 @@ export class Optimizer {
 
 			do {
 				visY[curY] = true;
-				let curX = matchY[curY],
-					delta = new Decimal("1e308"),
-					nextY = 0;
+				const curX = matchY[curY];
+				let delta = INF;
+				let nextY = 0;
+
 				for (let y = 1; y <= size; y++) {
 					if (!visY[y]) {
-						let curDiff = lx[curX].add(ly[y]).sub(weight[curX][y]);
+						const curDiff = lx[curX].add(ly[y]).sub(weight[curX][y]);
 						if (curDiff.lt(slack[y])) {
 							slack[y] = curDiff;
 							pre[y] = curY;
@@ -176,21 +178,23 @@ export class Optimizer {
 						}
 					}
 				}
-				// Precision Guard for break_eternity.js
-				if (delta.lt(1e-12)) delta = new Decimal(0);
+
+				if (delta.lt(EPSILON)) delta = new Decimal(0);
 				if (delta.gt(0)) {
 					for (let j = 0; j <= size; j++) {
 						if (visY[j]) {
 							lx[matchY[j]] = lx[matchY[j]].sub(delta);
 							ly[j] = ly[j].add(delta);
-						} else slack[j] = slack[j].sub(delta);
+						} else {
+							slack[j] = slack[j].sub(delta);
+						}
 					}
 				}
 				curY = nextY;
 			} while (matchY[curY] !== 0);
 
 			while (curY !== 0) {
-				let prevY = pre[curY];
+				const prevY = pre[curY];
 				matchY[curY] = matchY[prevY];
 				curY = prevY;
 			}
@@ -217,7 +221,6 @@ export class Optimizer {
 	optimizeCrewGlobally(machines, mode = "campaign") {
 		if (!this.heroes?.length || !machines?.length) return machines;
 
-		// 1. Filter to top heroes to keep KM performance snappy (N^3 complexity)
 		const requiredSlots = machines.length * this.maxSlots;
 		const sortedHeroes = [...this.heroes]
 			.sort((a, b) => {
@@ -234,19 +237,15 @@ export class Optimizer {
 			}
 		}
 
-		// 2. Precompute the correct stat block for the mode
 		const modeContextStats = new Map();
 		for (const machine of machines) {
 			const stats = this.calculateAllStats(machine, []);
-			// Assign the correct stat object based on mode
 			const relevantStats = mode === "arena" ? stats.arenaStats : stats.battleStats;
 			modeContextStats.set(machine.id, relevantStats);
 		}
 
-		// 3. Run the KM Algorithm
 		const machineCrewMap = this.kmAssignment(sortedHeroes, machineSlots, modeContextStats, mode);
 
-		// 4. Map results back to the machine objects
 		return machines.map((machine) => {
 			const crew = machineCrewMap.get(machine.id) ?? [];
 			const stats = this.calculateAllStats(machine, crew);
@@ -261,7 +260,7 @@ export class Optimizer {
 
 	/**
 	 * Selects the best five machines based on power
-	 * @param {import('./app.js').Machine[]} optimizedMachines - Machines to select from
+	 * @param {import('./app.js').Machine[]} ownedMachines - Machines to select from
 	 * @param {string} mode - "campaign" or "arena"
 	 * @returns {import('./app.js').Machine[]} Top 5 machines
 	 */
@@ -279,7 +278,6 @@ export class Optimizer {
 			};
 		});
 
-		//in cases with low stat values, level was a better way to pick
 		machinesWithPower.sort((a, b) => b.machine.level - a.machine.level);
 
 		return machinesWithPower.slice(0, 5).map((m) => ({
@@ -303,7 +301,6 @@ export class Optimizer {
 
 		const stats = enemyStats || Calculator.enemyAttributes(mission, difficulty);
 
-		// Categorize machines by role and effectiveness
 		const categorized = team.reduce((acc, machine) => {
 			let category;
 
@@ -319,10 +316,8 @@ export class Optimizer {
 			return acc;
 		}, {});
 
-		// Sort useless machines by health
 		const useless = (categorized.useless ?? []).toSorted((a, b) => b.battleStats.health.cmp(a.battleStats.health));
 
-		// Separate and sort tanks: those that miss, Goliath, and those that can hit
 		const tankList = categorized.tank ?? [];
 		let goliath = null;
 		const tanksCanHit = [];
@@ -338,29 +333,23 @@ export class Optimizer {
 			(dmgDealt.gt(0) ? tanksCanHit : tanksMiss).push(tank);
 		}
 
-		// Sort both tank groups by health (descending)
 		const sortByHealth = (a, b) => b.battleStats.health.cmp(a.battleStats.health);
 		tanksCanHit.sort(sortByHealth);
 		tanksMiss.sort(sortByHealth);
 
-		// Assemble tanks: miss -> Goliath -> can hit
 		const tanks = [...tanksMiss];
 		if (goliath) tanks.push(goliath);
 		tanks.push(...tanksCanHit);
 
-		// Sort remaining DPS by damage (ascending)
 		let remaining = (categorized.remaining ?? []).toSorted((a, b) => a.battleStats.damage.cmp(b.battleStats.damage));
 
-		// Extract strongest DPS for special positioning (only for full teams)
 		let strongestDPS = null;
 		if (remaining.length > 0 && team.length === 5) {
 			strongestDPS = remaining.pop();
 		}
 
-		// Build final formation
 		const formation = [...useless, ...tanks, ...remaining];
 
-		// Insert strongest DPS in second-to-last position
 		if (strongestDPS) {
 			formation.splice(formation.length - 1, 0, strongestDPS);
 		}
@@ -375,10 +364,9 @@ export class Optimizer {
 	 * @param {string} difficulty - Difficulty level
 	 * @param {number} maxSimulations - Maximum number of simulations to run
 	 * @param {Array<Object>|null} enemyFormation - Pre-calculated enemy formation (optional, for performance)
-	 * @returns {{clearable: boolean, simulations: number, winRate: number}} Result
+	 * @returns {boolean} Whether any simulation succeeded
 	 */
 	runMonteCarloSimulation(team, mission, difficulty, maxSimulations = AppConfig.MONTE_CARLO_SIMULATIONS, enemyFormation = null) {
-		// Calculate only if not provided
 		const enemies = enemyFormation || Calculator.getEnemyTeamForMission(mission, difficulty);
 
 		for (let i = 0; i < maxSimulations; i++) {
@@ -451,7 +439,6 @@ export class Optimizer {
 		let totalStars = 0;
 		let lastWinningTeam = [];
 
-		// Track last mission cleared per difficulty: {easy: 40, normal: 20, hard: 1, insane: null, nightmare: null}
 		const lastMissionByDifficulty = {};
 		difficulties.forEach((diff) => (lastMissionByDifficulty[diff] = null));
 
@@ -462,7 +449,6 @@ export class Optimizer {
 		let currentBestTeam = null;
 		let lastOptimizedMission = 0;
 
-		// Phase 1: Standard optimization with basic battle simulation
 		for (let mission = 1; mission <= maxMission; mission++) {
 			const shouldReoptimize = !currentBestTeam || mission - lastOptimizedMission >= AppConfig.REOPTIMIZE_INTERVAL;
 
@@ -478,17 +464,14 @@ export class Optimizer {
 			let missionHasClears = false;
 
 			for (const difficulty of difficulties) {
-				// Calculate enemy formation once
 				const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
 
-				// Extract stats from enemy formation (all enemies are identical)
 				const enemyStats = {
 					damage: enemyFormation[0].baseStats.damage,
 					health: enemyFormation[0].baseStats.health,
 					armor: enemyFormation[0].baseStats.armor,
 				};
 
-				// Pass enemyStats to avoid recalculation
 				const arrangedTeam = this.arrangeByRole(currentBestTeam, mission, difficulty, enemyStats);
 
 				const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
@@ -498,7 +481,6 @@ export class Optimizer {
 					break;
 				}
 
-				// Reuse enemyFormation for battle
 				const result = this.battleEngine.runBattle(arrangedTeam, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS, true);
 
 				if (result.playerWon) {
@@ -515,13 +497,11 @@ export class Optimizer {
 				}
 			}
 
-			// Stop if we can't clear any difficulty on this mission
 			if (!missionHasClears && mission > 1) {
 				break;
 			}
 		}
 
-		// Phase 2: Monte Carlo simulation to push stars further
 		const monteCarloResult = this.pushStarsWithMonteCarlo(lastWinningTeam, lastMissionByDifficulty, difficulties);
 
 		totalStars += monteCarloResult.additionalStars;
