@@ -4,20 +4,14 @@ import { AppConfig } from "../config.js";
 import { createMachinesBulkTable } from "./bulkEdit.js";
 import { triggerAutoSave, store } from "../app.js";
 
-// Track current view mode and selected machine
-let currentMachineView = "normal";
-let currentMachineId = null;
-let eventHandlersAttached = false;
-let machinesMap = new Map();
+// Track current view mode
+let currentMachineView = "normal"; // "normal" or "bulk"
 
 /**
  * Renders the machine list and sets up selection
+ * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function renderMachines(machines) {
-	// Update machines map for O(1) lookups
-	machinesMap.clear();
-	machines.forEach(machine => machinesMap.set(machine.id, machine));
-
 	const machinesSection = document.querySelector("#machinesTab > div:last-child");
 
 	if (currentMachineView === "bulk") {
@@ -28,183 +22,61 @@ export function renderMachines(machines) {
 	const list = document.getElementById("machineList");
 	const details = document.getElementById("machineDetails");
 
+	list.replaceChildren();
+	details.replaceChildren();
+
 	// Show normal containers, hide bulk
 	const children = machinesSection.children;
 	for (let i = 0; i < children.length; i++) {
 		children[i].style.display = (children[i].id === "machinesBulkContainer") ? "none" : "";
 	}
 
-	// Render list
-	renderMachineList(machines, list);
-
-	// Attach event handlers once
-	if (!eventHandlersAttached) {
-		attachMachineEventHandlers();
-		eventHandlersAttached = true;
-	}
-
-	// Select machine
-	const machineToSelect = currentMachineId
-		? machinesMap.get(currentMachineId) || machines[0]
-		: machines[0];
-
-	if (machineToSelect) {
-		currentMachineId = machineToSelect.id;
-		updateActiveButton(list, machineToSelect.id);
-		renderMachineDetails(machineToSelect, details);
-	}
-}
-
-/**
- * Renders just the machine list
- */
-function renderMachineList(machines, list) {
+	let selectedButton = null;
 	const fragment = document.createDocumentFragment();
+	
+	// Cache the length
+	const len = machines.length;
 
-	machines.forEach((machine) => {
+	for (let i = 0; i < len; i++) {
+		const machine = machines[i];
+		
+		const updateStats = () => {
+			const configured = isConfiguredMachine(machine);
+			updateListItem(btn, formatMachineStats(machine), configured);
+		};
+
 		const btn = createListItem({
-			id: machine.id,
 			image: machine.image,
 			name: machine.name,
 			statsText: formatMachineStats(machine),
 			isConfigured: isConfiguredMachine(machine),
+			onClick: () => selectMachine(machine, btn, updateStats),
 		});
+		btn.dataset.machineId = machine.id;
 
 		fragment.appendChild(btn);
-	});
 
-	list.replaceChildren(fragment);
-}
-
-/**
- * Updates which button is active
- */
-function updateActiveButton(list, machineId) {
-	const buttons = list.querySelectorAll('.list-group-item');
-	buttons.forEach(btn => {
-		btn.classList.toggle('active', btn.dataset.itemId === machineId);
-	});
-}
-
-/**
- * Attaches event handlers using delegation
- */
-function attachMachineEventHandlers() {
-	const list = document.getElementById("machineList");
-	const details = document.getElementById("machineDetails");
-
-	// List click delegation
-	list.addEventListener("click", (e) => {
-		const btn = e.target.closest('.list-group-item');
-		if (!btn) return;
-
-		const machineId = btn.dataset.itemId;
-		const machine = machinesMap.get(machineId);
-		if (!machine) return;
-
-		currentMachineId = machineId;
-		updateActiveButton(list, machineId);
-		renderMachineDetails(machine, details);
-	});
-
-	// Details form delegation for inputs
-	details.addEventListener("input", (e) => {
-		const input = e.target;
-		const machine = machinesMap.get(currentMachineId);
-		if (!machine) return;
-
-		if (input.type === "number") {
-			const key = input.dataset.key;
-			if (!key) return;
-
-			const val = parseInt(input.value, 10);
-			
-			// Determine if it's a blueprint or top-level property
-			if (key in machine.blueprints) {
-				machine.blueprints[key] = isNaN(val) ? 0 : Math.max(0, val);
-			} else if (key === "level") {
-				machine[key] = isNaN(val) ? 0 : Math.max(0, val);
-			}
-
-			// Update list item
-			const btn = list.querySelector(`[data-item-id="${currentMachineId}"]`);
-			if (btn) {
-				updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-			}
-
-			triggerAutoSave(store);
+		if (i === 0) {
+			btn.classList.add("active");
+			selectedButton = btn;
+			queueMicrotask(() => renderMachineDetails(machine, details, updateStats));
 		}
-	});
+	}
 
-	// Details form delegation for select
-	details.addEventListener("change", (e) => {
-		const select = e.target;
-		if (select.tagName !== "SELECT") return;
+	list.appendChild(fragment);
 
-		const machine = machinesMap.get(currentMachineId);
-		if (!machine) return;
-
-		const key = select.dataset.key;
-		if (key === "rarity") {
-			machine.rarity = select.value;
-
-			const btn = list.querySelector(`[data-item-id="${currentMachineId}"]`);
-			if (btn) {
-				updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-			}
-
-			triggerAutoSave(store);
-		}
-	});
-
-	// Blur validation
-	details.addEventListener("blur", (e) => {
-		const input = e.target;
-		if (input.type !== "number") return;
-
-		const val = parseInt(input.value, 10);
-		const min = parseInt(input.min, 10) || 0;
-
-		if (isNaN(val) || val < min) {
-			input.value = min;
-
-			const machine = machinesMap.get(currentMachineId);
-			const key = input.dataset.key;
-			if (machine && key) {
-				if (key in machine.blueprints) {
-					machine.blueprints[key] = min;
-				} else if (key === "level") {
-					machine[key] = min;
-				}
-				triggerAutoSave(store);
-			}
-		}
-	}, true);
-
-	// Reset button delegation
-	details.addEventListener("click", (e) => {
-		const resetBtn = e.target.closest('[data-action="reset"]');
-		if (!resetBtn) return;
-
-		const machine = machinesMap.get(currentMachineId);
-		if (!machine) return;
-
-		if (confirm(`Reset ${machine.name} to default values?`)) {
-			resetMachine(machine);
-			renderMachineDetails(machine, details);
-
-			const btn = list.querySelector(`[data-item-id="${currentMachineId}"]`);
-			if (btn) {
-				updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-			}
-
-			triggerAutoSave(store);
-		}
-	});
+	function selectMachine(machine, btn, updateStats) {
+		if (selectedButton) selectedButton.classList.remove("active");
+		selectedButton = btn;
+		btn.classList.add("active");
+		renderMachineDetails(machine, details, updateStats);
+	}
 }
 
 /**
  * Formats machine stats for display
+ * @param {import('../app.js').Machine} machine - Hero object
+ * @returns {string} Formatted stats string
  */
 function formatMachineStats({ level, rarity }) {
 	return `Lv. ${level} • ${rarity}`;
@@ -212,6 +84,8 @@ function formatMachineStats({ level, rarity }) {
 
 /**
  * Checks if a machine has non-default configuration
+ * @param {import('../app.js').Machine} machine - Machine object
+ * @returns {boolean} True if configured
  */
 function isConfiguredMachine({ rarity, level, blueprints }) {
 	const hasBlueprints = Object.values(blueprints).some(v => v > 0);
@@ -220,8 +94,22 @@ function isConfiguredMachine({ rarity, level, blueprints }) {
 
 /**
  * Renders machine details in the detail pane
+ * @param {import('../app.js').Machine} machine - Machine object
+ * @param {HTMLElement} container - Detail container element
+ * @param {Function} updateListStats - Callback to update list stats
  */
-function renderMachineDetails(machine, container) {
+function renderMachineDetails(machine, container, updateListStats) {
+	container.replaceChildren();
+	container.appendChild(createMachineDetailView(machine, updateListStats));
+}
+
+/**
+ * Creates the detailed view for a machine
+ * @param {import('../app.js').Machine} machine - Machine object
+ * @param {Function} updateListStats - Callback to update list stats
+ * @returns {HTMLElement} Detail view container
+ */
+function createMachineDetailView(machine, updateListStats) {
 	const { id, name, image } = machine;
 	const wrapper = document.createElement("div");
 	wrapper.className = "machine-detail-view";
@@ -229,29 +117,41 @@ function renderMachineDetails(machine, container) {
 	const header = createDetailHeader({
 		image,
 		name,
+		onReset: () => {
+			if (confirm(`Reset ${name} to default values?`)) {
+				resetMachine(machine);
+				wrapper.replaceWith(createMachineDetailView(machine, updateListStats));
+				updateListStats();
+				triggerAutoSave(store);
+			}
+		},
 	});
 
 	const form = document.createElement("form");
 	form.className = "machine-form";
 
 	const machineId = `machine-${id}`;
+	const updateAndSave = () => {
+		updateListStats();
+		triggerAutoSave(store);
+	};
 
 	// General section
 	const generalSection = createSection("General", [
 		createFormRow(
 			"Rarity",
-			createSelect(AppConfig.RARITY_LABELS, machine.rarity, `${machineId}-rarity`, "rarity"),
+			createSelect(AppConfig.RARITY_LABELS, machine.rarity, e => { machine.rarity = e.target.value; updateAndSave(); }, `${machineId}-rarity`),
 			"col-md-6"
 		),
-		createFormRow("Level", createNumberInput(machine.level, 0, 1, `${machineId}-level`, "level"), "col-md-6"),
+		createFormRow("Level", createNumberInput(machine, "level", updateAndSave, 0, 1, `${machineId}-level`), "col-md-6"),
 	]);
 
-	// Blueprint Levels section
+	// Blueprint Levels section using mapping
 	const blueprintFields = ["damage", "health", "armor"];
 	const blueprintRows = blueprintFields.map(field =>
 		createFormRow(
 			field[0].toUpperCase() + field.slice(1),
-			createNumberInput(machine.blueprints[field], 0, 1, `${machineId}-bp-${field}`, field),
+			createNumberInput(machine.blueprints, field, updateAndSave, 0, 1, `${machineId}-bp-${field}`),
 			"col-md-4"
 		)
 	);
@@ -259,12 +159,12 @@ function renderMachineDetails(machine, container) {
 
 	form.append(generalSection, blueprintSection);
 	wrapper.append(header, form);
-
-	container.replaceChildren(wrapper);
+	return wrapper;
 }
 
 /**
  * Resets a machine to default values
+ * @param {import('../app.js').Machine} machine - Machine object
  */
 function resetMachine(machine) {
 	machine.rarity = AppConfig.RARITY_LABELS[0];
@@ -274,6 +174,7 @@ function resetMachine(machine) {
 
 /**
  * Renders the bulk edit view for machines
+ * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 function renderMachinesBulkView(machines, machinesSection) {
 	// Hide normal containers
@@ -322,22 +223,9 @@ function renderMachinesBulkView(machines, machinesSection) {
 
 /**
  * Switches to bulk edit view
+ * @param {import('../app.js').Machine[]} machines - Array of machine objects
  */
 export function switchToBulkEditMachines(machines) {
 	currentMachineView = "bulk";
 	renderMachines(machines);
-}
-
-/**
- * Updates a specific machine in the list (call this when data changes externally)
- */
-export function updateMachineInList(machineId) {
-	const list = document.getElementById("machineList");
-	const btn = list.querySelector(`[data-item-id="${machineId}"]`);
-	if (!btn) return;
-
-	const machine = machinesMap.get(machineId);
-	if (!machine) return;
-
-	updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
 }

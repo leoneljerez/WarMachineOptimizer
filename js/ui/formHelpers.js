@@ -6,7 +6,7 @@
  * @property {string} name - Display name
  * @property {string} statsText - Stats text to display
  * @property {boolean} isConfigured - Whether item is configured
- * @property {string} id - Unique identifier
+ * @property {Function} onClick - Click handler
  */
 
 /**
@@ -27,11 +27,11 @@ export function createSection(title, rows) {
 	section.className = "mb-4";
 
 	const sectionId = `section-${title.replace(/\s+/g, '-').toLowerCase()}`;
-	section.setAttribute("aria-labelledby", sectionId);
+    section.setAttribute("aria-labelledby", sectionId);
 
 	const heading = document.createElement("h5");
 	heading.className = "mb-3";
-	heading.id = sectionId;
+	heading.id = `section-${CSS.escape(title)}`;
 	heading.textContent = title;
 
 	const rowContainer = document.createElement("div");
@@ -72,43 +72,61 @@ export function createFormRow(labelText, input, colClass = "col-12", inputId = n
 }
 
 /**
- * Creates a number input element (no event listeners - use delegation)
- * @param {number} value - Initial value
+ * Creates a number input element
+ * @param {Object} obj - Object to bind to
+ * @param {string} key - Property key
+ * @param {Function} updateCallback - Update callback
  * @param {number} min - Minimum value
  * @param {number} step - Step value
  * @param {string} id - Input ID
- * @param {string} dataKey - Data attribute key for identification
  * @returns {HTMLInputElement} Input element
  */
-export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "") {
+export function createNumberInput(obj, key, updateCallback, min = 0, step = 1, id = "") {
 	const input = document.createElement("input");
 	input.type = "number";
 	input.className = "form-control";
 	input.min = min;
 	input.step = step;
-	input.value = value;
-	input.setAttribute("aria-label", `${dataKey} value`);
+	input.value = obj[key];
+	input.setAttribute("aria-label", `${key} value`);
 
-	if (id) input.id = id;
-	if (dataKey) input.dataset.key = dataKey;
+	if (id) {
+		input.id = id;
+	}
+
+	input.addEventListener("input", (e) => {
+		const val = parseInt(e.target.value, 10);
+		obj[key] = isNaN(val) ? 0 : Math.max(min, val);
+		updateCallback();
+	});
+
+	input.addEventListener("blur", (e) => {
+		const val = parseInt(e.target.value, 10);
+		if (isNaN(val) || val < min) {
+			e.target.value = min;
+			obj[key] = min;
+			updateCallback();
+		}
+	});
 
 	return input;
 }
 
 /**
- * Creates a select dropdown element (no event listeners - use delegation)
+ * Creates a select dropdown element
  * @param {string[]} options - Array of option values
  * @param {string} currentValue - Currently selected value
+ * @param {Function} onChange - Change handler
  * @param {string} id - Select ID
- * @param {string} dataKey - Data attribute key for identification
  * @returns {HTMLSelectElement} Select element
  */
-export function createSelect(options, currentValue, id = "", dataKey = "") {
+export function createSelect(options, currentValue, onChange, id = "") {
 	const select = document.createElement("select");
 	select.className = "form-select";
 
-	if (id) select.id = id;
-	if (dataKey) select.dataset.key = dataKey;
+	if (id) {
+		select.id = id;
+	}
 
 	const fragment = document.createDocumentFragment();
 
@@ -121,20 +139,21 @@ export function createSelect(options, currentValue, id = "", dataKey = "") {
 	});
 
 	select.appendChild(fragment);
+	select.addEventListener("change", onChange);
+
 	return select;
 }
 
 /**
- * Creates a list item button (no click handler - use delegation)
+ * Creates a list item button
  * @param {ListItemConfig} config - List item configuration
  * @returns {HTMLButtonElement} Button element
  */
-export function createListItem({ image, name, statsText, isConfigured, id }) {
+export function createListItem({ image, name, statsText, isConfigured, onClick }) {
 	const btn = document.createElement("button");
 	btn.type = "button";
 	btn.className = "list-group-item list-group-item-action";
 	btn.setAttribute("aria-label", `Select ${name}`);
-	btn.dataset.itemId = id;
 
 	const container = document.createElement("div");
 	container.className = "d-flex align-items-center gap-2";
@@ -168,6 +187,13 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 	container.append(thumb, textWrap);
 	btn.appendChild(container);
 
+	if (onClick) {
+		btn.addEventListener("click", onClick);
+	}
+
+	btn.__statsDiv = statsDiv;
+	btn.__badge = badge;
+
 	return btn;
 }
 
@@ -178,34 +204,24 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
  * @param {boolean} isConfigured - New configuration state
  */
 export function updateListItem(btn, statsText, isConfigured) {
-	const statsDiv = btn.querySelector('.text-secondary.small');
-	const badge = btn.querySelector('.badge');
-
-	if (statsDiv && statsDiv.textContent !== statsText) {
-		statsDiv.textContent = statsText;
-		statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
+	if (btn.__statsDiv) {
+		btn.__statsDiv.textContent = statsText;
+		btn.__statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
 	}
 
-	if (badge) {
-		const newClass = `badge ms-2 ${isConfigured ? "bg-success" : "bg-secondary"}`;
-		const newText = isConfigured ? "Configured" : "Default";
-		
-		if (badge.className !== newClass) {
-			badge.className = newClass;
-		}
-		if (badge.textContent !== newText) {
-			badge.textContent = newText;
-			badge.setAttribute("aria-label", newText === "Configured" ? "Configured" : "Using default values");
-		}
+	if (btn.__badge) {
+		btn.__badge.className = `badge ms-2 ${isConfigured ? "bg-success" : "bg-secondary"}`;
+		btn.__badge.textContent = isConfigured ? "Configured" : "Default";
+		btn.__badge.setAttribute("aria-label", isConfigured ? "Configured" : "Using default values");
 	}
 }
 
 /**
- * Creates a detail header with image and reset button (no event listener - use delegation)
+ * Creates a detail header with image and reset button
  * @param {DetailHeaderConfig} config - Header configuration
  * @returns {HTMLElement} Header element
  */
-export function createDetailHeader({ image, name }) {
+export function createDetailHeader({ image, name, onReset }) {
 	const header = document.createElement("div");
 	header.className = "text-center mb-4";
 
@@ -224,7 +240,7 @@ export function createDetailHeader({ image, name }) {
 	resetBtn.className = "btn btn-sm btn-outline-danger mt-3";
 	resetBtn.textContent = "Reset to Default";
 	resetBtn.setAttribute("aria-label", `Reset ${name} to default values`);
-	resetBtn.dataset.action = "reset";
+	resetBtn.addEventListener("click", onReset);
 
 	header.append(img, title, resetBtn);
 
