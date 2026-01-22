@@ -5,10 +5,9 @@ import { triggerAutoSave, store } from "../app.js";
 /**
  * Creates a bulk edit table for machines
  * @param {import('../app.js').Machine[]} machines - Array of machine objects
- * @param {Function} triggerAutoSave - Auto-save callback
  * @returns {HTMLElement} Table container
  */
-export function createMachinesBulkTable(machines, triggerAutoSave) {
+export function createMachinesBulkTable(machines) {
 	const container = document.createElement("div");
 	container.className = "table-responsive";
 	container.style.width = "100%";
@@ -17,45 +16,36 @@ export function createMachinesBulkTable(machines, triggerAutoSave) {
 	table.className = "table table-striped table-hover align-middle";
 	table.setAttribute("role", "grid");
 
-	// Create thead
 	const thead = document.createElement("thead");
 	thead.className = "table-dark sticky-top";
-
 	const headerRow = document.createElement("tr");
 	headerRow.setAttribute("role", "row");
 
-	const headers = [
-		{ text: "Machine", width: "200px" },
-		{ text: "Rarity", width: "150px" },
-		{ text: "Level", width: "100px" },
-		{ text: "Damage BP", width: "110px" },
-		{ text: "Health BP", width: "110px" },
-		{ text: "Armor BP", width: "110px" },
-	];
+	const headers = ["Machine", "Rarity", "Level", "Damage BP", "Health BP", "Armor BP"];
+	const widths = ["200px", "150px", "100px", "110px", "110px", "110px"];
 
-	headers.forEach((header) => {
+	for (let i = 0; i < 6; i++) {
 		const th = document.createElement("th");
 		th.setAttribute("role", "columnheader");
 		th.scope = "col";
-		th.textContent = header.text;
-		if (header.width) {
-			th.style.width = header.width;
-		}
+		th.textContent = headers[i];
+		th.style.width = widths[i];
 		headerRow.appendChild(th);
-	});
+	}
 
 	thead.appendChild(headerRow);
 	table.appendChild(thead);
 
-	// Create tbody - NO SORTING, use original order
 	const tbody = document.createElement("tbody");
+	const fragment = document.createDocumentFragment();
+	const machinesLen = machines.length;
 
-	machines.forEach((machine, index) => {
-		const row = createMachineRow(machine, index, triggerAutoSave);
-		tbody.appendChild(row);
-	});
+	for (let i = 0; i < machinesLen; i++) {
+		fragment.appendChild(createMachineRow(machines[i], i));
+	}
 
-	table.appendChild(tbody);
+	tbody.appendChild(fragment);
+	table.append(thead, tbody);
 	container.appendChild(table);
 
 	return container;
@@ -65,29 +55,32 @@ export function createMachinesBulkTable(machines, triggerAutoSave) {
  * Creates a single machine row
  * @param {import('../app.js').Machine} machine - Machine object
  * @param {number} index - Row index
- * @param {Function} triggerAutoSave - Auto-save callback
  * @returns {HTMLElement} Table row
  */
 function createMachineRow(machine, index) {
 	const row = document.createElement("tr");
 	row.setAttribute("role", "row");
 
-	// Machine name cell with image
 	const nameCell = document.createElement("td");
 	nameCell.setAttribute("role", "gridcell");
+	const nameDiv = document.createElement("div");
+	nameDiv.className = "d-flex align-items-center gap-2";
 
-	nameCell.innerHTML = `
-        <div class="d-flex align-items-center gap-2">
-            <img src="${machine.image}" alt="" class="rounded" 
-                 style="width: 32px; height: 32px; object-fit: cover;" 
-                 aria-hidden="true">
-            <span class="fw-semibold">${machine.name}</span>
-        </div>
-    `;
-	
+	const img = document.createElement("img");
+	img.src = machine.image;
+	img.alt = "";
+	img.className = "rounded";
+	img.style.cssText = "width:32px;height:32px;object-fit:cover";
+	img.setAttribute("aria-hidden", "true");
+
+	const nameSpan = document.createElement("span");
+	nameSpan.className = "fw-semibold";
+	nameSpan.textContent = machine.name;
+
+	nameDiv.append(img, nameSpan);
+	nameCell.appendChild(nameDiv);
 	row.appendChild(nameCell);
 
-	// Rarity cell
 	const rarityCell = document.createElement("td");
 	rarityCell.setAttribute("role", "gridcell");
 
@@ -95,15 +88,18 @@ function createMachineRow(machine, index) {
 	raritySelect.className = "form-select form-select-sm";
 	raritySelect.id = `bulk-machine-${machine.id}-rarity`;
 	raritySelect.setAttribute("aria-label", `${machine.name} rarity`);
-	raritySelect.tabIndex = index * 5 + 1; // Structured tab order
+	raritySelect.tabIndex = index * 5 + 1;
 
-	AppConfig.RARITY_LABELS.forEach((rarity) => {
+	const rarityLabels = AppConfig.RARITY_LABELS;
+	const rarityLen = rarityLabels.length;
+	for (let i = 0; i < rarityLen; i++) {
+		const rarity = rarityLabels[i];
 		const option = document.createElement("option");
 		option.value = rarity;
 		option.textContent = rarity;
 		option.selected = machine.rarity === rarity;
 		raritySelect.appendChild(option);
-	});
+	}
 
 	raritySelect.addEventListener("change", (e) => {
 		machine.rarity = e.target.value;
@@ -113,7 +109,6 @@ function createMachineRow(machine, index) {
 	rarityCell.appendChild(raritySelect);
 	row.appendChild(rarityCell);
 
-	// Level cell
 	const levelCell = document.createElement("td");
 	levelCell.setAttribute("role", "gridcell");
 
@@ -136,9 +131,9 @@ function createMachineRow(machine, index) {
 	levelCell.appendChild(levelInput);
 	row.appendChild(levelCell);
 
-	// Blueprint cells
 	const blueprintStats = ["damage", "health", "armor"];
-	blueprintStats.forEach((stat, statIndex) => {
+	for (let i = 0; i < 3; i++) {
+		const stat = blueprintStats[i];
 		const cell = document.createElement("td");
 		cell.setAttribute("role", "gridcell");
 
@@ -150,7 +145,7 @@ function createMachineRow(machine, index) {
 		input.step = 1;
 		input.value = machine.blueprints[stat];
 		input.setAttribute("aria-label", `${machine.name} ${stat} blueprint`);
-		input.tabIndex = index * 5 + 3 + statIndex;
+		input.tabIndex = index * 5 + 3 + i;
 
 		input.addEventListener("input", (e) => {
 			const val = parseInt(e.target.value, 10);
@@ -160,7 +155,7 @@ function createMachineRow(machine, index) {
 
 		cell.appendChild(input);
 		row.appendChild(cell);
-	});
+	}
 
 	return row;
 }
@@ -180,43 +175,36 @@ export function createHeroesBulkTable(heroes) {
 	table.className = "table table-striped table-hover align-middle";
 	table.setAttribute("role", "grid");
 
-	// Create thead
 	const thead = document.createElement("thead");
 	thead.className = "table-dark sticky-top";
-
 	const headerRow = document.createElement("tr");
 	headerRow.setAttribute("role", "row");
 
-	const headers = [
-		{ text: "Hero", width: "200px" },
-		{ text: "Damage %", width: "120px" },
-		{ text: "Health %", width: "120px" },
-		{ text: "Armor %", width: "120px" },
-	];
+	const headers = ["Hero", "Damage %", "Health %", "Armor %"];
+	const widths = ["200px", "120px", "120px", "120px"];
 
-	headers.forEach((header) => {
+	for (let i = 0; i < 4; i++) {
 		const th = document.createElement("th");
 		th.setAttribute("role", "columnheader");
 		th.scope = "col";
-		th.textContent = header.text;
-		if (header.width) {
-			th.style.width = header.width;
-		}
+		th.textContent = headers[i];
+		th.style.width = widths[i];
 		headerRow.appendChild(th);
-	});
+	}
 
 	thead.appendChild(headerRow);
 	table.appendChild(thead);
 
-	// Create tbody - NO SORTING, use original order
 	const tbody = document.createElement("tbody");
+	const fragment = document.createDocumentFragment();
+	const heroesLen = heroes.length;
 
-	heroes.forEach((hero, index) => {
-		const row = createHeroRow(hero, index);
-		tbody.appendChild(row);
-	});
+	for (let i = 0; i < heroesLen; i++) {
+		fragment.appendChild(createHeroRow(heroes[i], i));
+	}
 
-	table.appendChild(tbody);
+	tbody.appendChild(fragment);
+	table.append(thead, tbody);
 	container.appendChild(table);
 
 	return container;
@@ -226,14 +214,12 @@ export function createHeroesBulkTable(heroes) {
  * Creates a single hero row
  * @param {import('../app.js').Hero} hero - Hero object
  * @param {number} index - Row index
- * @param {Function} triggerAutoSave - Auto-save callback
  * @returns {HTMLElement} Table row
  */
 function createHeroRow(hero, index) {
 	const row = document.createElement("tr");
 	row.setAttribute("role", "row");
 
-	// Hero name cell with image
 	const nameCell = document.createElement("td");
 	nameCell.setAttribute("role", "gridcell");
 
@@ -244,7 +230,7 @@ function createHeroRow(hero, index) {
 	img.src = hero.image;
 	img.alt = "";
 	img.className = "rounded";
-	img.style.cssText = "width: 32px; height: 32px; object-fit: cover;";
+	img.style.cssText = "width:32px;height:32px;object-fit:cover";
 	img.setAttribute("aria-hidden", "true");
 
 	const nameText = document.createElement("span");
@@ -255,9 +241,9 @@ function createHeroRow(hero, index) {
 	nameCell.appendChild(nameContainer);
 	row.appendChild(nameCell);
 
-	// Percentage cells
 	const stats = ["damage", "health", "armor"];
-	stats.forEach((stat, statIndex) => {
+	for (let i = 0; i < 3; i++) {
+		const stat = stats[i];
 		const cell = document.createElement("td");
 		cell.setAttribute("role", "gridcell");
 
@@ -269,7 +255,7 @@ function createHeroRow(hero, index) {
 		input.step = 20;
 		input.value = hero.percentages[stat];
 		input.setAttribute("aria-label", `${hero.name} ${stat} percentage`);
-		input.tabIndex = index * 3 + 1 + statIndex;
+		input.tabIndex = index * 3 + 1 + i;
 
 		input.addEventListener("input", (e) => {
 			const val = parseInt(e.target.value, 10);
@@ -279,7 +265,7 @@ function createHeroRow(hero, index) {
 
 		cell.appendChild(input);
 		row.appendChild(cell);
-	});
+	}
 
 	return row;
 }

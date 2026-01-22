@@ -8,39 +8,48 @@ let currentHeroView = "normal";
 let currentHeroId = null;
 let heroesMap = new Map();
 
+// Cache DOM elements
+let listElement = null;
+let detailsElement = null;
+
 /**
  * Renders the hero list and sets up selection
  * @param {import('../app.js').Hero[]} heroes - Array of hero objects
  */
 export function renderHeroes(heroes) {
 	heroesMap.clear();
-	heroes.forEach((hero) => heroesMap.set(String(hero.id), hero));
+	const heroesLen = heroes.length;
+	for (let i = 0; i < heroesLen; i++) {
+		heroesMap.set(String(heroes[i].id), heroes[i]);
+	}
 
 	if (currentHeroView === "bulk") {
 		renderHeroesBulkView(heroes);
 		return;
 	}
 
-	const list = document.getElementById("heroList");
-	const details = document.getElementById("heroDetails");
+	listElement = listElement || document.getElementById("heroList");
+	detailsElement = detailsElement || document.getElementById("heroDetails");
 
 	const bulkContainer = document.getElementById("heroesBulkContainer");
 	if (bulkContainer) bulkContainer.style.display = "none";
 
 	const heroesSection = document.querySelector("#heroesTab .row.g-3");
-	Array.from(heroesSection.children).forEach((child) => {
-		if (child.id !== "heroesBulkContainer") child.style.display = "";
-	});
+	const children = heroesSection.children;
+	const childrenLen = children.length;
+	for (let i = 0; i < childrenLen; i++) {
+		if (children[i].id !== "heroesBulkContainer") children[i].style.display = "";
+	}
 
-	setupHeroEventDelegation(list, details);
-	renderHeroList(heroes, list);
+	setupHeroEventDelegation(listElement, detailsElement);
+	renderHeroList(heroes, listElement);
 
 	const heroToSelect = currentHeroId ? heroesMap.get(currentHeroId) || heroes[0] : heroes[0];
 
 	if (heroToSelect) {
 		currentHeroId = String(heroToSelect.id);
-		updateActiveButton(list, currentHeroId);
-		renderHeroDetails(heroToSelect, details);
+		updateActiveButton(listElement, currentHeroId);
+		renderHeroDetails(heroToSelect, detailsElement);
 	}
 }
 
@@ -72,12 +81,9 @@ function handleHeroListClick(e) {
 	const hero = heroesMap.get(heroId);
 	if (!hero) return;
 
-	const list = document.getElementById("heroList");
-	const details = document.getElementById("heroDetails");
-
 	currentHeroId = heroId;
-	updateActiveButton(list, heroId);
-	renderHeroDetails(hero, details);
+	updateActiveButton(listElement, heroId);
+	renderHeroDetails(hero, detailsElement);
 }
 
 function handleHeroInput(e) {
@@ -93,8 +99,7 @@ function handleHeroInput(e) {
 	const val = parseInt(input.value, 10);
 	hero.percentages[key] = isNaN(val) ? 0 : Math.max(0, val);
 
-	const list = document.getElementById("heroList");
-	const btn = list.querySelector(`[data-item-id="${currentHeroId}"]`);
+	const btn = listElement.querySelector(`[data-item-id="${currentHeroId}"]`);
 	if (btn) {
 		updateListItem(btn, formatHeroStats(hero), isConfiguredHero(hero));
 	}
@@ -131,11 +136,9 @@ function handleHeroReset(e) {
 	if (confirm(`Reset ${hero.name} to default values?`)) {
 		resetHero(hero);
 
-		const details = document.getElementById("heroDetails");
-		renderHeroDetails(hero, details);
+		renderHeroDetails(hero, detailsElement);
 
-		const list = document.getElementById("heroList");
-		const btn = list.querySelector(`[data-item-id="${currentHeroId}"]`);
+		const btn = listElement.querySelector(`[data-item-id="${currentHeroId}"]`);
 		if (btn) {
 			updateListItem(btn, formatHeroStats(hero), isConfiguredHero(hero));
 		}
@@ -146,8 +149,10 @@ function handleHeroReset(e) {
 
 function renderHeroList(heroes, list) {
 	const fragment = document.createDocumentFragment();
+	const heroesLen = heroes.length;
 
-	heroes.forEach((hero) => {
+	for (let i = 0; i < heroesLen; i++) {
+		const hero = heroes[i];
 		const btn = createListItem({
 			id: String(hero.id),
 			image: hero.image,
@@ -157,16 +162,17 @@ function renderHeroList(heroes, list) {
 		});
 
 		fragment.appendChild(btn);
-	});
+	}
 
 	list.replaceChildren(fragment);
 }
 
 function updateActiveButton(list, heroId) {
 	const buttons = list.querySelectorAll(".list-group-item");
-	buttons.forEach((btn) => {
-		btn.classList.toggle("active", btn.dataset.itemId === heroId);
-	});
+	const buttonsLen = buttons.length;
+	for (let i = 0; i < buttonsLen; i++) {
+		buttons[i].classList.toggle("active", buttons[i].dataset.itemId === heroId);
+	}
 }
 
 function formatHeroStats(hero) {
@@ -205,16 +211,18 @@ function renderHeroDetails(hero, container) {
 }
 
 function resetHero(hero) {
-	hero.percentages.damage = AppConfig.DEFAULTS.HERO_PERCENTAGE;
-	hero.percentages.health = AppConfig.DEFAULTS.HERO_PERCENTAGE;
-	hero.percentages.armor = AppConfig.DEFAULTS.HERO_PERCENTAGE;
+	const defaultPct = AppConfig.DEFAULTS.HERO_PERCENTAGE;
+	hero.percentages.damage = defaultPct;
+	hero.percentages.health = defaultPct;
+	hero.percentages.armor = defaultPct;
 }
 
 function renderHeroesBulkView(heroes) {
 	const heroesSection = document.querySelector("#heroesTab .row.g-3");
 
 	const children = heroesSection.children;
-	for (let i = 0; i < children.length; i++) {
+	const childrenLen = children.length;
+	for (let i = 0; i < childrenLen; i++) {
 		children[i].style.display = "none";
 	}
 
@@ -242,7 +250,12 @@ function renderHeroesBulkView(heroes) {
 	const backButton = document.createElement("button");
 	backButton.type = "button";
 	backButton.className = "btn btn-sm btn-outline-secondary";
-	backButton.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Back to Normal View';
+
+	const backIcon = document.createElement("i");
+	backIcon.className = "bi bi-arrow-left me-2";
+	backButton.appendChild(backIcon);
+	backButton.appendChild(document.createTextNode("Back to Normal View"));
+
 	backButton.addEventListener("click", async () => {
 		currentHeroView = "normal";
 		const { store } = await import("../app.js");
@@ -265,8 +278,7 @@ export function switchToBulkEditHeroes(heroes) {
 }
 
 export function updateHeroInList(heroId) {
-	const list = document.getElementById("heroList");
-	const btn = list.querySelector(`[data-item-id="${heroId}"]`);
+	const btn = listElement.querySelector(`[data-item-id="${heroId}"]`);
 	if (!btn) return;
 
 	const hero = heroesMap.get(heroId);

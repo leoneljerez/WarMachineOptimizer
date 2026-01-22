@@ -8,12 +8,19 @@ let currentMachineView = "normal";
 let currentMachineId = null;
 let machinesMap = new Map();
 
+// Cache DOM elements
+let listElement = null;
+let detailsElement = null;
+
 /**
  * Renders the machine list and sets up selection
  */
 export function renderMachines(machines) {
 	machinesMap.clear();
-	machines.forEach((machine) => machinesMap.set(String(machine.id), machine));
+	const machinesLen = machines.length;
+	for (let i = 0; i < machinesLen; i++) {
+		machinesMap.set(String(machines[i].id), machines[i]);
+	}
 
 	const machinesSection = document.querySelector("#machinesTab > div:last-child");
 
@@ -22,23 +29,24 @@ export function renderMachines(machines) {
 		return;
 	}
 
-	const list = document.getElementById("machineList");
-	const details = document.getElementById("machineDetails");
+	listElement = listElement || document.getElementById("machineList");
+	detailsElement = detailsElement || document.getElementById("machineDetails");
 
 	const children = machinesSection.children;
-	for (let i = 0; i < children.length; i++) {
+	const childrenLen = children.length;
+	for (let i = 0; i < childrenLen; i++) {
 		children[i].style.display = children[i].id === "machinesBulkContainer" ? "none" : "";
 	}
 
-	setupMachineEventDelegation(list, details);
-	renderMachineList(machines, list);
+	setupMachineEventDelegation(listElement, detailsElement);
+	renderMachineList(machines, listElement);
 
 	const machineToSelect = currentMachineId ? machinesMap.get(currentMachineId) || machines[0] : machines[0];
 
 	if (machineToSelect) {
 		currentMachineId = String(machineToSelect.id);
-		updateActiveButton(list, currentMachineId);
-		renderMachineDetails(machineToSelect, details);
+		updateActiveButton(listElement, currentMachineId);
+		renderMachineDetails(machineToSelect, detailsElement);
 	}
 }
 
@@ -71,12 +79,9 @@ function handleMachineListClick(e) {
 	const machine = machinesMap.get(machineId);
 	if (!machine) return;
 
-	const list = document.getElementById("machineList");
-	const details = document.getElementById("machineDetails");
-
 	currentMachineId = machineId;
-	updateActiveButton(list, machineId);
-	renderMachineDetails(machine, details);
+	updateActiveButton(listElement, machineId);
+	renderMachineDetails(machine, detailsElement);
 }
 
 function handleMachineInput(e) {
@@ -97,8 +102,7 @@ function handleMachineInput(e) {
 		machine[key] = isNaN(val) ? 0 : Math.max(0, val);
 	}
 
-	const list = document.getElementById("machineList");
-	const btn = list.querySelector(`[data-item-id="${currentMachineId}"]`);
+	const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
 	if (btn) {
 		updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
 	}
@@ -117,8 +121,7 @@ function handleMachineChange(e) {
 	if (key === "rarity") {
 		machine.rarity = select.value;
 
-		const list = document.getElementById("machineList");
-		const btn = list.querySelector(`[data-item-id="${currentMachineId}"]`);
+		const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
 		if (btn) {
 			updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
 		}
@@ -160,11 +163,9 @@ function handleMachineReset(e) {
 	if (confirm(`Reset ${machine.name} to default values?`)) {
 		resetMachine(machine);
 
-		const details = document.getElementById("machineDetails");
-		renderMachineDetails(machine, details);
+		renderMachineDetails(machine, detailsElement);
 
-		const list = document.getElementById("machineList");
-		const btn = list.querySelector(`[data-item-id="${currentMachineId}"]`);
+		const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
 		if (btn) {
 			updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
 		}
@@ -175,8 +176,10 @@ function handleMachineReset(e) {
 
 function renderMachineList(machines, list) {
 	const fragment = document.createDocumentFragment();
+	const machinesLen = machines.length;
 
-	machines.forEach((machine) => {
+	for (let i = 0; i < machinesLen; i++) {
+		const machine = machines[i];
 		const btn = createListItem({
 			id: String(machine.id),
 			image: machine.image,
@@ -186,16 +189,17 @@ function renderMachineList(machines, list) {
 		});
 
 		fragment.appendChild(btn);
-	});
+	}
 
 	list.replaceChildren(fragment);
 }
 
 function updateActiveButton(list, machineId) {
 	const buttons = list.querySelectorAll(".list-group-item");
-	buttons.forEach((btn) => {
-		btn.classList.toggle("active", btn.dataset.itemId === machineId);
-	});
+	const buttonsLen = buttons.length;
+	for (let i = 0; i < buttonsLen; i++) {
+		buttons[i].classList.toggle("active", buttons[i].dataset.itemId === machineId);
+	}
 }
 
 function formatMachineStats({ level, rarity }) {
@@ -203,8 +207,12 @@ function formatMachineStats({ level, rarity }) {
 }
 
 function isConfiguredMachine({ rarity, level, blueprints }) {
-	const hasBlueprints = Object.values(blueprints).some((v) => v > 0);
-	return hasBlueprints || level > 0 || rarity.toLowerCase() !== "common";
+	const values = Object.values(blueprints);
+	const valuesLen = values.length;
+	for (let i = 0; i < valuesLen; i++) {
+		if (values[i] > 0) return true;
+	}
+	return level > 0 || rarity.toLowerCase() !== "common";
 }
 
 function renderMachineDetails(machine, container) {
@@ -228,9 +236,11 @@ function renderMachineDetails(machine, container) {
 	]);
 
 	const blueprintFields = ["damage", "health", "armor"];
-	const blueprintRows = blueprintFields.map((field) =>
-		createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(machine.blueprints[field], 0, 1, `${machineId}-bp-${field}`, field), "col-md-4"),
-	);
+	const blueprintRows = [];
+	for (let i = 0; i < 3; i++) {
+		const field = blueprintFields[i];
+		blueprintRows.push(createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(machine.blueprints[field], 0, 1, `${machineId}-bp-${field}`, field), "col-md-4"));
+	}
 	const blueprintSection = createSection("Blueprint Levels", blueprintRows);
 
 	form.append(generalSection, blueprintSection);
@@ -242,11 +252,17 @@ function renderMachineDetails(machine, container) {
 function resetMachine(machine) {
 	machine.rarity = AppConfig.RARITY_LABELS[0];
 	machine.level = AppConfig.DEFAULTS.LEVEL;
-	Object.keys(machine.blueprints).forEach((key) => (machine.blueprints[key] = AppConfig.DEFAULTS.BLUEPRINT_LEVEL));
+	const keys = Object.keys(machine.blueprints);
+	const keysLen = keys.length;
+	for (let i = 0; i < keysLen; i++) {
+		machine.blueprints[keys[i]] = AppConfig.DEFAULTS.BLUEPRINT_LEVEL;
+	}
 }
 
 function renderMachinesBulkView(machines, machinesSection) {
-	for (const child of machinesSection.children) child.style.display = "none";
+	const children = machinesSection.children;
+	const childrenLen = children.length;
+	for (let i = 0; i < childrenLen; i++) children[i].style.display = "none";
 
 	let bulkContainer = document.getElementById("machinesBulkContainer");
 	if (!bulkContainer) {
@@ -272,7 +288,12 @@ function renderMachinesBulkView(machines, machinesSection) {
 	const backButton = document.createElement("button");
 	backButton.type = "button";
 	backButton.className = "btn btn-sm btn-outline-secondary";
-	backButton.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Back to Normal View';
+
+	const backIcon = document.createElement("i");
+	backIcon.className = "bi bi-arrow-left me-2";
+	backButton.appendChild(backIcon);
+	backButton.appendChild(document.createTextNode("Back to Normal View"));
+
 	backButton.addEventListener("click", () => {
 		currentMachineView = "normal";
 		renderMachines(store.machines);
@@ -294,8 +315,7 @@ export function switchToBulkEditMachines(machines) {
 }
 
 export function updateMachineInList(machineId) {
-	const list = document.getElementById("machineList");
-	const btn = list.querySelector(`[data-item-id="${machineId}"]`);
+	const btn = listElement.querySelector(`[data-item-id="${machineId}"]`);
 	if (!btn) return;
 
 	const machine = machinesMap.get(machineId);

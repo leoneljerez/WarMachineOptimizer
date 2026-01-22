@@ -20,19 +20,18 @@ export function renderTavernCards(machines) {
 		},
 	];
 
-	const sortedMachines = [...machines].sort((a, b) => a.name.localeCompare(b.name));
-
+	const sortedMachines = machines.slice().sort((a, b) => a.name.localeCompare(b.name));
 	const cardPropertyMap = { sacred: "sacredLevel", inscription: "inscriptionLevel" };
 
-	for (let s = 0; s < sections.length; s++) {
+	for (let s = 0; s < 2; s++) {
 		const { containerId, type, resetText } = sections[s];
 		const container = document.getElementById(containerId);
 		const property = cardPropertyMap[type];
 
 		const resetBtn = createResetButton(resetText, () => {
 			if (confirm(`${resetText} to 0?`)) {
-				// Use for loop
-				for (let i = 0; i < sortedMachines.length; i++) {
+				const machinesLen = sortedMachines.length;
+				for (let i = 0; i < machinesLen; i++) {
 					const m = sortedMachines[i];
 					m[property] = AppConfig.DEFAULTS.CARD_LEVEL;
 					const input = document.getElementById(`${type}-card-machine-${m.id}`);
@@ -46,9 +45,9 @@ export function renderTavernCards(machines) {
 		grid.className = `row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 ${type}-view`;
 
 		const fragment = document.createDocumentFragment();
+		const machinesLen = sortedMachines.length;
 
-		// Use for loop instead of forEach
-		for (let i = 0; i < sortedMachines.length; i++) {
+		for (let i = 0; i < machinesLen; i++) {
 			const machine = sortedMachines[i];
 			const col = document.createElement("div");
 			col.className = "col";
@@ -101,7 +100,7 @@ function createCardLevelCard(machine, cardType, property) {
 	img.src = image;
 	img.alt = name;
 	img.className = "rounded mb-2";
-	img.style.cssText = "width: 80px; height: 80px; object-fit: cover;";
+	img.style.cssText = "width:80px;height:80px;object-fit:cover";
 
 	const title = document.createElement("h6");
 	title.className = "card-title text-center mb-3";
@@ -134,14 +133,12 @@ function createInputGroup(machine, cardType, property) {
 	label.htmlFor = inputId;
 
 	const input = document.createElement("input");
-	Object.assign(input, {
-		type: "number",
-		className: "form-control",
-		id: inputId,
-		min: 0,
-		step: 1,
-		value: machine[property],
-	});
+	input.type = "number";
+	input.className = "form-control";
+	input.id = inputId;
+	input.min = 0;
+	input.step = 1;
+	input.value = machine[property];
 	input.setAttribute("aria-label", `${machine.name} ${cardType} card level`);
 
 	input.addEventListener("input", (e) => {

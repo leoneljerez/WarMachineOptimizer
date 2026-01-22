@@ -6,6 +6,9 @@ const container = document.getElementById("artifactsContainer");
 const STAT_PERCENTAGES = AppConfig.ARTIFACT_PERCENTAGES;
 const ARTIFACT_STATS = AppConfig.ARTIFACT_STATS;
 
+// Cache badge elements globally for O(1) lookup
+const badgeCache = new Map();
+
 if (container) {
 	container.addEventListener("input", (e) => {
 		const input = e.target;
@@ -23,7 +26,9 @@ if (container) {
 
 		const delta = newVal - oldVal;
 		if (delta !== 0) {
-			input._badge.textContent = `Total: ${(input._badge._total += delta)}`;
+			const badge = badgeCache.get(stat);
+			badge._total += delta;
+			badge.textContent = `Total: ${badge._total}`;
 			input.dataset.last = newVal;
 		}
 
@@ -37,8 +42,9 @@ if (container) {
  */
 export function renderArtifacts(artifacts) {
 	const fragment = document.createDocumentFragment();
+	const statsLen = ARTIFACT_STATS.length;
 
-	for (let i = 0; i < ARTIFACT_STATS.length; i++) {
+	for (let i = 0; i < statsLen; i++) {
 		const col = document.createElement("div");
 		col.className = "col";
 		col.appendChild(createArtifactCard(ARTIFACT_STATS[i], STAT_PERCENTAGES, artifacts));
@@ -80,8 +86,9 @@ function createArtifactCard(stat, percentages, artifacts) {
 
 	const data = artifacts[stat];
 	let initialTotal = 0;
+	const pctLen = percentages.length;
 
-	for (let i = 0; i < percentages.length; i++) {
+	for (let i = 0; i < pctLen; i++) {
 		const pct = percentages[i];
 		const val = data[pct] | 0;
 		initialTotal += val;
@@ -110,8 +117,6 @@ function createArtifactCard(stat, percentages, artifacts) {
 		input.dataset.last = val;
 		input.id = inputId;
 
-		input._badge = badge;
-
 		input.setAttribute("aria-labelledby", span.id);
 		input.setAttribute("aria-label", stat + " " + pct + "%");
 
@@ -122,6 +127,7 @@ function createArtifactCard(stat, percentages, artifacts) {
 
 	badge._total = initialTotal;
 	badge.textContent = `Total: ${initialTotal}`;
+	badgeCache.set(stat, badge);
 
 	cardBody.appendChild(row);
 	card.appendChild(cardBody);
@@ -133,12 +139,14 @@ function createArtifactCard(stat, percentages, artifacts) {
  * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
  */
 export function resetAllArtifacts(artifacts) {
-	for (let i = 0; i < ARTIFACT_STATS.length; i++) {
+	const statsLen = ARTIFACT_STATS.length;
+	const pctLen = STAT_PERCENTAGES.length;
+
+	for (let i = 0; i < statsLen; i++) {
 		const stat = ARTIFACT_STATS[i];
 		const statObj = artifacts[stat];
-		let firstInput = null;
 
-		for (let j = 0; j < STAT_PERCENTAGES.length; j++) {
+		for (let j = 0; j < pctLen; j++) {
 			const pct = STAT_PERCENTAGES[j];
 			statObj[pct] = 0;
 
@@ -146,12 +154,11 @@ export function resetAllArtifacts(artifacts) {
 			if (input) {
 				input.value = 0;
 				input.dataset.last = 0;
-				if (!firstInput) firstInput = input;
 			}
 		}
 
-		if (firstInput) {
-			const badge = firstInput._badge;
+		const badge = badgeCache.get(stat);
+		if (badge) {
 			badge._total = 0;
 			badge.textContent = "Total: 0";
 		}
