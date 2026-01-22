@@ -9,6 +9,7 @@ const ARTIFACT_STATS = AppConfig.ARTIFACT_STATS;
 // Cache badge elements globally for O(1) lookup
 const badgeCache = new Map();
 
+// Event delegation for artifact input changes
 if (container) {
 	container.addEventListener("input", (e) => {
 		const input = e.target;
@@ -37,8 +38,11 @@ if (container) {
 }
 
 /**
- * Renders artifact configuration cards
- * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
+ * Renders artifact configuration cards for all stat types
+ * @param {Object} artifacts - Artifact configuration object containing stat data
+ * @param {Object} artifacts.damage - Damage artifact percentage values
+ * @param {Object} artifacts.health - Health artifact percentage values
+ * @param {Object} artifacts.armor - Armor artifact percentage values
  */
 export function renderArtifacts(artifacts) {
 	const fragment = document.createDocumentFragment();
@@ -55,11 +59,11 @@ export function renderArtifacts(artifacts) {
 }
 
 /**
- * Creates an artifact card for a specific stat
+ * Creates an artifact card for a specific stat type
  * @param {string} stat - Stat type (damage, health, armor)
- * @param {number[]} percentages - Array of percentage tiers
- * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
- * @returns {HTMLElement} Card element
+ * @param {number[]} percentages - Array of percentage tiers (e.g., [20, 40, 60, 80, 100])
+ * @param {Object} artifacts - Artifact configuration object
+ * @returns {HTMLElement} Card element containing stat inputs and total badge
  */
 function createArtifactCard(stat, percentages, artifacts) {
 	const card = document.createElement("div");
@@ -135,8 +139,8 @@ function createArtifactCard(stat, percentages, artifacts) {
 }
 
 /**
- * Resets all artifact values to 0
- * @param {import('../app.js').Artifacts} artifacts - Artifact configuration object
+ * Resets all artifact values to 0 across all stat types
+ * @param {Object} artifacts - Artifact configuration object to reset
  */
 export function resetAllArtifacts(artifacts) {
 	const statsLen = ARTIFACT_STATS.length;

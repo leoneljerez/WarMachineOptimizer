@@ -3,8 +3,14 @@ import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
 
 /**
- * Renders the tavern cards with reset buttons
- * @param {import('../app.js').Machine[]} machines - Array of machine objects
+ * Renders the tavern cards sections (Sacred and Inscription)
+ * Creates grid layouts with card level inputs for each machine
+ * @param {Object[]} machines - Array of machine objects
+ * @param {string} machines[].id - Unique machine identifier
+ * @param {string} machines[].name - Machine name
+ * @param {string} machines[].image - Machine image URL
+ * @param {number} machines[].sacredLevel - Sacred card level
+ * @param {number} machines[].inscriptionLevel - Inscription card level
  */
 export function renderTavernCards(machines) {
 	const sections = [
@@ -61,10 +67,10 @@ export function renderTavernCards(machines) {
 }
 
 /**
- * Creates a reset button for the section
- * @param {string} text - Button text
- * @param {Function} onClick - Click handler
- * @returns {HTMLElement} Button element
+ * Creates a reset button for clearing all card levels in a section
+ * @param {string} text - Button text to display
+ * @param {Function} onClick - Click handler function
+ * @returns {HTMLElement} Button container element
  */
 function createResetButton(text, onClick) {
 	const buttonContainer = document.createElement("div");
@@ -82,10 +88,14 @@ function createResetButton(text, onClick) {
 
 /**
  * Creates a card for managing a machine's card level
- * @param {import('../app.js').Machine} machine - Machine object
- * @param {string} cardType - "sacred" or "inscription"
- * @param {string} property - property name in machine ("sacredLevel" or "inscriptionLevel")
- * @returns {HTMLElement} Card element
+ * @param {Object} machine - Machine object
+ * @param {string} machine.id - Machine identifier
+ * @param {string} machine.name - Machine name
+ * @param {string} machine.image - Machine image URL
+ * @param {number} machine[property] - Current card level value
+ * @param {string} cardType - Card type identifier ("sacred" or "inscription")
+ * @param {string} property - Property name on machine object ("sacredLevel" or "inscriptionLevel")
+ * @returns {HTMLElement} Card element with image, name, and input
  */
 function createCardLevelCard(machine, cardType, property) {
 	const { name, image } = machine;
@@ -115,11 +125,14 @@ function createCardLevelCard(machine, cardType, property) {
 }
 
 /**
- * Creates the input group for card level
- * @param {import('../app.js').Machine} machine
- * @param {string} cardType
- * @param {string} property
- * @returns {HTMLElement} Input group element
+ * Creates an input group for editing card level
+ * @param {Object} machine - Machine object
+ * @param {string} machine.id - Machine identifier
+ * @param {string} machine.name - Machine name
+ * @param {number} machine[property] - Current card level value
+ * @param {string} cardType - Card type identifier ("sacred" or "inscription")
+ * @param {string} property - Property name on machine object to update
+ * @returns {HTMLElement} Input group element with label and number input
  */
 function createInputGroup(machine, cardType, property) {
 	const inputId = `${cardType}-card-machine-${machine.id}`;

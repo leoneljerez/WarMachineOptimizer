@@ -4,8 +4,11 @@ import { AppConfig } from "../config.js";
 import { createHeroesBulkTable } from "./bulkEdit.js";
 import { triggerAutoSave, store } from "../app.js";
 
+/** @type {"normal"|"bulk"} Current view mode for heroes */
 let currentHeroView = "normal";
+/** @type {string|null} Currently selected hero ID */
 let currentHeroId = null;
+/** @type {Map<string, Object>} Map of hero IDs to hero objects for O(1) lookup */
 let heroesMap = new Map();
 
 // Cache DOM elements
@@ -13,8 +16,16 @@ let listElement = null;
 let detailsElement = null;
 
 /**
- * Renders the hero list and sets up selection
- * @param {import('../app.js').Hero[]} heroes - Array of hero objects
+ * Renders the hero list and detail view
+ * Handles both normal and bulk edit modes
+ * @param {Object[]} heroes - Array of hero objects
+ * @param {string} heroes[].id - Unique hero identifier
+ * @param {string} heroes[].name - Hero name
+ * @param {string} heroes[].image - Hero image URL
+ * @param {Object} heroes[].percentages - Hero stat percentages
+ * @param {number} heroes[].percentages.damage - Damage percentage bonus
+ * @param {number} heroes[].percentages.health - Health percentage bonus
+ * @param {number} heroes[].percentages.armor - Armor percentage bonus
  */
 export function renderHeroes(heroes) {
 	heroesMap.clear();
@@ -54,7 +65,9 @@ export function renderHeroes(heroes) {
 }
 
 /**
- * Sets up event delegation (idempotent)
+ * Sets up event delegation for hero list and details (idempotent)
+ * @param {HTMLElement} list - List container element
+ * @param {HTMLElement} details - Details container element
  */
 function setupHeroEventDelegation(list, details) {
 	if (list._hasHeroListeners && details._hasHeroListeners) return;
@@ -73,6 +86,10 @@ function setupHeroEventDelegation(list, details) {
 	}
 }
 
+/**
+ * Handles clicks on hero list items
+ * @param {Event} e - Click event
+ */
 function handleHeroListClick(e) {
 	const btn = e.target.closest(".list-group-item");
 	if (!btn) return;
@@ -86,6 +103,10 @@ function handleHeroListClick(e) {
 	renderHeroDetails(hero, detailsElement);
 }
 
+/**
+ * Handles input changes on hero percentage fields
+ * @param {Event} e - Input event
+ */
 function handleHeroInput(e) {
 	const input = e.target;
 	if (input.type !== "number") return;
@@ -107,6 +128,10 @@ function handleHeroInput(e) {
 	triggerAutoSave(store);
 }
 
+/**
+ * Handles blur events on number inputs to enforce minimum values
+ * @param {Event} e - Blur event
+ */
 function handleHeroBlur(e) {
 	const input = e.target;
 	if (input.type !== "number") return;
@@ -126,6 +151,10 @@ function handleHeroBlur(e) {
 	}
 }
 
+/**
+ * Handles reset button clicks for heroes
+ * @param {Event} e - Click event
+ */
 function handleHeroReset(e) {
 	const resetBtn = e.target.closest('[data-action="reset"]');
 	if (!resetBtn) return;
@@ -147,6 +176,11 @@ function handleHeroReset(e) {
 	}
 }
 
+/**
+ * Renders the hero list
+ * @param {Object[]} heroes - Array of hero objects
+ * @param {HTMLElement} list - List container element
+ */
 function renderHeroList(heroes, list) {
 	const fragment = document.createDocumentFragment();
 	const heroesLen = heroes.length;
@@ -167,6 +201,11 @@ function renderHeroList(heroes, list) {
 	list.replaceChildren(fragment);
 }
 
+/**
+ * Updates the active state of list buttons
+ * @param {HTMLElement} list - List container element
+ * @param {string} heroId - ID of the hero to mark as active
+ */
 function updateActiveButton(list, heroId) {
 	const buttons = list.querySelectorAll(".list-group-item");
 	const buttonsLen = buttons.length;
@@ -175,15 +214,32 @@ function updateActiveButton(list, heroId) {
 	}
 }
 
+/**
+ * Formats hero stats for display in list
+ * @param {Object} hero - Hero object
+ * @param {Object} hero.percentages - Hero stat percentages
+ * @returns {string} Formatted stats string
+ */
 function formatHeroStats(hero) {
 	return `Dmg ${hero.percentages.damage}% • Hp ${hero.percentages.health}% • Arm ${hero.percentages.armor}%`;
 }
 
+/**
+ * Checks if a hero has been configured (any stat > 0)
+ * @param {Object} hero - Hero object
+ * @param {Object} hero.percentages - Hero stat percentages
+ * @returns {boolean} True if any percentage is greater than 0
+ */
 function isConfiguredHero(hero) {
 	const p = hero.percentages;
 	return p.damage > 0 || p.health > 0 || p.armor > 0;
 }
 
+/**
+ * Renders the hero details form
+ * @param {Object} hero - Hero object
+ * @param {HTMLElement} container - Details container element
+ */
 function renderHeroDetails(hero, container) {
 	const wrapper = document.createElement("div");
 	wrapper.className = "hero-detail-view";
@@ -210,6 +266,10 @@ function renderHeroDetails(hero, container) {
 	container.replaceChildren(wrapper);
 }
 
+/**
+ * Resets a hero to default values
+ * @param {Object} hero - Hero object to reset
+ */
 function resetHero(hero) {
 	const defaultPct = AppConfig.DEFAULTS.HERO_PERCENTAGE;
 	hero.percentages.damage = defaultPct;
@@ -217,6 +277,10 @@ function resetHero(hero) {
 	hero.percentages.armor = defaultPct;
 }
 
+/**
+ * Renders the bulk edit view for all heroes
+ * @param {Object[]} heroes - Array of hero objects
+ */
 function renderHeroesBulkView(heroes) {
 	const heroesSection = document.querySelector("#heroesTab .row.g-3");
 
@@ -272,11 +336,19 @@ function renderHeroesBulkView(heroes) {
 	bulkContainer.appendChild(card);
 }
 
+/**
+ * Switches to bulk edit view for heroes
+ * @param {Object[]} heroes - Array of hero objects
+ */
 export function switchToBulkEditHeroes(heroes) {
 	currentHeroView = "bulk";
 	renderHeroes(heroes);
 }
 
+/**
+ * Updates a specific hero in the list view
+ * @param {string} heroId - ID of the hero to update
+ */
 export function updateHeroInList(heroId) {
 	const btn = listElement.querySelector(`[data-item-id="${heroId}"]`);
 	if (!btn) return;

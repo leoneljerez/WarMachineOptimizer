@@ -3,9 +3,18 @@ import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
 
 /**
- * Creates a bulk edit table for machines
- * @param {import('../app.js').Machine[]} machines - Array of machine objects
- * @returns {HTMLElement} Table container
+ * Creates a bulk edit table for machines with editable fields
+ * @param {Object[]} machines - Array of machine objects
+ * @param {string} machines[].id - Unique machine identifier
+ * @param {string} machines[].name - Machine name
+ * @param {string} machines[].image - Machine image URL
+ * @param {string} machines[].rarity - Machine rarity level
+ * @param {number} machines[].level - Machine level
+ * @param {Object} machines[].blueprints - Blueprint levels
+ * @param {number} machines[].blueprints.damage - Damage blueprint level
+ * @param {number} machines[].blueprints.health - Health blueprint level
+ * @param {number} machines[].blueprints.armor - Armor blueprint level
+ * @returns {HTMLElement} Table container with responsive wrapper
  */
 export function createMachinesBulkTable(machines) {
 	const container = document.createElement("div");
@@ -52,15 +61,22 @@ export function createMachinesBulkTable(machines) {
 }
 
 /**
- * Creates a single machine row
- * @param {import('../app.js').Machine} machine - Machine object
- * @param {number} index - Row index
- * @returns {HTMLElement} Table row
+ * Creates a single editable machine row for the bulk edit table
+ * @param {Object} machine - Machine object
+ * @param {string} machine.id - Machine identifier
+ * @param {string} machine.name - Machine name
+ * @param {string} machine.image - Machine image URL
+ * @param {string} machine.rarity - Machine rarity
+ * @param {number} machine.level - Machine level
+ * @param {Object} machine.blueprints - Blueprint levels
+ * @param {number} index - Row index for tab ordering
+ * @returns {HTMLElement} Table row with input fields
  */
 function createMachineRow(machine, index) {
 	const row = document.createElement("tr");
 	row.setAttribute("role", "row");
 
+	// Name cell with image
 	const nameCell = document.createElement("td");
 	nameCell.setAttribute("role", "gridcell");
 	const nameDiv = document.createElement("div");
@@ -81,6 +97,7 @@ function createMachineRow(machine, index) {
 	nameCell.appendChild(nameDiv);
 	row.appendChild(nameCell);
 
+	// Rarity select cell
 	const rarityCell = document.createElement("td");
 	rarityCell.setAttribute("role", "gridcell");
 
@@ -109,6 +126,7 @@ function createMachineRow(machine, index) {
 	rarityCell.appendChild(raritySelect);
 	row.appendChild(rarityCell);
 
+	// Level input cell
 	const levelCell = document.createElement("td");
 	levelCell.setAttribute("role", "gridcell");
 
@@ -131,6 +149,7 @@ function createMachineRow(machine, index) {
 	levelCell.appendChild(levelInput);
 	row.appendChild(levelCell);
 
+	// Blueprint cells (damage, health, armor)
 	const blueprintStats = ["damage", "health", "armor"];
 	for (let i = 0; i < 3; i++) {
 		const stat = blueprintStats[i];
@@ -161,10 +180,16 @@ function createMachineRow(machine, index) {
 }
 
 /**
- * Creates a bulk edit table for heroes
- * @param {import('../app.js').Hero[]} heroes - Array of hero objects
- * @param {Function} triggerAutoSave - Auto-save callback
- * @returns {HTMLElement} Table container
+ * Creates a bulk edit table for heroes with stat percentage inputs
+ * @param {Object[]} heroes - Array of hero objects
+ * @param {string} heroes[].id - Unique hero identifier
+ * @param {string} heroes[].name - Hero name
+ * @param {string} heroes[].image - Hero image URL
+ * @param {Object} heroes[].percentages - Hero stat percentages
+ * @param {number} heroes[].percentages.damage - Damage percentage bonus
+ * @param {number} heroes[].percentages.health - Health percentage bonus
+ * @param {number} heroes[].percentages.armor - Armor percentage bonus
+ * @returns {HTMLElement} Table container with responsive wrapper
  */
 export function createHeroesBulkTable(heroes) {
 	const container = document.createElement("div");
@@ -211,15 +236,20 @@ export function createHeroesBulkTable(heroes) {
 }
 
 /**
- * Creates a single hero row
- * @param {import('../app.js').Hero} hero - Hero object
- * @param {number} index - Row index
- * @returns {HTMLElement} Table row
+ * Creates a single editable hero row for the bulk edit table
+ * @param {Object} hero - Hero object
+ * @param {string} hero.id - Hero identifier
+ * @param {string} hero.name - Hero name
+ * @param {string} hero.image - Hero image URL
+ * @param {Object} hero.percentages - Hero stat percentages
+ * @param {number} index - Row index for tab ordering
+ * @returns {HTMLElement} Table row with percentage input fields
  */
 function createHeroRow(hero, index) {
 	const row = document.createElement("tr");
 	row.setAttribute("role", "row");
 
+	// Name cell with image
 	const nameCell = document.createElement("td");
 	nameCell.setAttribute("role", "gridcell");
 
@@ -241,6 +271,7 @@ function createHeroRow(hero, index) {
 	nameCell.appendChild(nameContainer);
 	row.appendChild(nameCell);
 
+	// Stat percentage cells (damage, health, armor)
 	const stats = ["damage", "health", "armor"];
 	for (let i = 0; i < 3; i++) {
 		const stat = stats[i];
