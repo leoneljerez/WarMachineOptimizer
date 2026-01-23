@@ -122,16 +122,21 @@ export class SettingsManager {
 	}
 }
 
+// Cache DOM element on module load
+const settingsModalBody = document.getElementById("settingsModalBody");
+
 /**
  * Renders the settings modal
  */
 export function renderSettingsModal() {
 	const settings = SettingsManager.loadSettings();
 
-	const container = document.getElementById("settingsModalBody");
-	if (!container) return;
+	if (!settingsModalBody) return;
 
-	container.replaceChildren();
+	settingsModalBody.replaceChildren();
+
+	// Use fragment for batch DOM operations
+	const fragment = document.createDocumentFragment();
 
 	// Info alert
 	const alert = document.createElement("div");
@@ -139,16 +144,17 @@ export function renderSettingsModal() {
 
 	const icon = document.createElement("i");
 	icon.className = "bi bi-info-circle me-2";
+	icon.setAttribute("aria-hidden", "true");
 
 	const strong = document.createElement("strong");
 	strong.textContent = "Hero Scoring Weights: ";
 
 	const text = document.createTextNode(
-		"These values control how heroes are prioritized when assigning crew for each mode. Higher values mean that stat is more important for that role. Changes apply to future optimizations."
+		"These values control how heroes are prioritized when assigning crew for each mode. Higher values mean that stat is more important for that role. Changes apply to future optimizations.",
 	);
 
 	alert.append(icon, strong, text);
-	container.appendChild(alert);
+	fragment.appendChild(alert);
 
 	// Create tabs for Campaign and Arena
 	const tabsNav = document.createElement("ul");
@@ -170,7 +176,8 @@ export function renderSettingsModal() {
 
 	tabContent.append(campaignPane, arenaPane);
 
-	container.append(tabsNav, tabContent);
+	fragment.append(tabsNav, tabContent);
+	settingsModalBody.appendChild(fragment);
 }
 
 /**
@@ -192,6 +199,8 @@ function createTab(label, target, active) {
 	button.setAttribute("data-bs-target", `#${target}`);
 	button.setAttribute("type", "button");
 	button.setAttribute("role", "tab");
+	button.setAttribute("aria-controls", target);
+	button.setAttribute("aria-selected", active ? "true" : "false");
 	button.textContent = label;
 
 	li.appendChild(button);
@@ -210,6 +219,7 @@ function createSettingsPane(mode, weights, active) {
 	pane.className = `tab-pane fade ${active ? "show active" : ""}`;
 	pane.id = `${mode}Settings`;
 	pane.setAttribute("role", "tabpanel");
+	pane.setAttribute("aria-labelledby", `${mode}Settings-tab`);
 
 	// Tank section
 	const tankCard = createWeightCard("Tank", mode, "tank", weights.tank);
@@ -244,41 +254,42 @@ function createWeightCard(label, mode, role, weights) {
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body";
 
-	//maybe its cleaner to do it this way?
-	/* const description = document.createElement("p");
-	description.className = "text-secondary small mb-3";
-	description.textContent = "Higher values prioritize that stat when assigning crew. These weights determine how heroes are scored for this role.";
-	cardBody.appendChild(description);*/
-
-	// Create inputs for each stat
+	// Create inputs for each stat using fragment
 	const stats = ["damage", "health", "armor"];
 	const row = document.createElement("div");
 	row.className = "row g-3";
 
-	stats.forEach((stat) => {
+	const rowFragment = document.createDocumentFragment();
+
+	for (let i = 0; i < 3; i++) {
+		const stat = stats[i];
 		const col = document.createElement("div");
 		col.className = "col-md-4";
+
+		const inputId = `${mode}-${role}-${stat}`;
 
 		const label = document.createElement("label");
 		label.className = "form-label text-capitalize";
 		label.textContent = stat;
-		label.htmlFor = `${mode}-${role}-${stat}`;
+		label.htmlFor = inputId;
 
 		const input = document.createElement("input");
 		input.type = "number";
 		input.className = "form-control";
-		input.id = `${mode}-${role}-${stat}`;
+		input.id = inputId;
 		input.min = "0";
 		input.step = "0.1";
 		input.value = weights[stat];
 		input.setAttribute("data-mode", mode);
 		input.setAttribute("data-role", role);
 		input.setAttribute("data-stat", stat);
+		input.setAttribute("aria-label", `${label} ${stat} weight`);
 
 		col.append(label, input);
-		row.appendChild(col);
-	});
+		rowFragment.appendChild(col);
+	}
 
+	row.appendChild(rowFragment);
 	cardBody.appendChild(row);
 	card.append(cardHeader, cardBody);
 
@@ -292,16 +303,18 @@ export function saveSettingsFromModal() {
 	const settings = SettingsManager.loadSettings();
 
 	// Collect all input values
-	const inputs = document.querySelectorAll("#settingsModalBody input[type='number']");
+	const inputs = settingsModalBody.querySelectorAll("input[type='number']");
+	const inputsLen = inputs.length;
 
-	inputs.forEach((input) => {
+	for (let i = 0; i < inputsLen; i++) {
+		const input = inputs[i];
 		const mode = input.getAttribute("data-mode");
 		const role = input.getAttribute("data-role");
 		const stat = input.getAttribute("data-stat");
 		const value = parseFloat(input.value) || 0;
 
 		settings.heroScoring[mode][role][stat] = value;
-	});
+	}
 
 	// Save and apply
 	SettingsManager.saveSettings(settings);
@@ -319,13 +332,16 @@ export function resetSettingsToDefaults() {
 	const defaults = SettingsManager.resetToDefaults();
 
 	// Update modal inputs
-	const inputs = document.querySelectorAll("#settingsModalBody input[type='number']");
-	inputs.forEach((input) => {
+	const inputs = settingsModalBody.querySelectorAll("input[type='number']");
+	const inputsLen = inputs.length;
+
+	for (let i = 0; i < inputsLen; i++) {
+		const input = inputs[i];
 		const mode = input.getAttribute("data-mode");
 		const role = input.getAttribute("data-role");
 		const stat = input.getAttribute("data-stat");
 		input.value = defaults.heroScoring[mode][role][stat];
-	});
+	}
 
 	showToast("Settings reset to defaults", "success");
 }
