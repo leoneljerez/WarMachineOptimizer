@@ -9,32 +9,38 @@ const ARTIFACT_STATS = AppConfig.ARTIFACT_STATS;
 // Cache badge elements globally for O(1) lookup
 const badgeCache = new Map();
 
-// Event delegation for artifact input changes
+// Single event delegation handler - set up once
 if (container) {
-	container.addEventListener("input", (e) => {
-		const input = e.target;
-		if (input.type !== "number") return;
+	container.addEventListener("input", handleArtifactInput);
+}
 
-		const val = input.value | 0;
-		const stat = input.dataset.stat;
-		const pct = input.dataset.pct;
+/**
+ * Handles all artifact input changes via delegation
+ * @param {Event} e - Input event
+ */
+function handleArtifactInput(e) {
+	const input = e.target;
+	if (input.type !== "number") return;
 
-		const artifactData = store.artifacts[stat];
-		const oldVal = input.dataset.last | 0;
-		const newVal = val < 0 ? 0 : val;
+	const val = input.value | 0;
+	const stat = input.dataset.stat;
+	const pct = input.dataset.pct;
 
-		artifactData[pct] = newVal;
+	const artifactData = store.artifacts[stat];
+	const oldVal = input.dataset.last | 0;
+	const newVal = val < 0 ? 0 : val;
 
-		const delta = newVal - oldVal;
-		if (delta !== 0) {
-			const badge = badgeCache.get(stat);
-			badge._total += delta;
-			badge.textContent = `Total: ${badge._total}`;
-			input.dataset.last = newVal;
-		}
+	artifactData[pct] = newVal;
 
-		triggerAutoSave(store);
-	});
+	const delta = newVal - oldVal;
+	if (delta !== 0) {
+		const badge = badgeCache.get(stat);
+		badge._total += delta;
+		badge.textContent = `Total: ${badge._total}`;
+		input.dataset.last = newVal;
+	}
+
+	triggerAutoSave(store);
 }
 
 /**

@@ -2,9 +2,96 @@
 import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
 
-// Event handler references for cleanup
-let sacredContainerInputHandler = null;
-let scarabContainerInputHandler = null;
+// Cache DOM elements on module load
+const sacredContainer = document.getElementById("tavernCardsContainer");
+const scarabContainer = document.getElementById("scarabCardsContainer");
+
+// Set up event delegation once on module load
+if (sacredContainer) {
+	sacredContainer.addEventListener("input", handleSacredInput);
+	sacredContainer.addEventListener("click", handleSacredReset);
+}
+
+if (scarabContainer) {
+	scarabContainer.addEventListener("input", handleScarabInput);
+	scarabContainer.addEventListener("click", handleScarabReset);
+}
+
+/**
+ * Handles input events for sacred cards
+ * @param {Event} e - Input event
+ */
+function handleSacredInput(e) {
+	const input = e.target;
+	if (input.type !== "number") return;
+
+	const machineId = parseInt(input.dataset.machineId, 10);
+	const machine = store.machines.find((m) => m.id === machineId);
+	if (!machine) return;
+
+	const val = parseInt(input.value, 10);
+	machine.sacredLevel = isNaN(val) ? 0 : Math.max(0, val);
+	triggerAutoSave(store);
+}
+
+/**
+ * Handles reset button for sacred cards
+ * @param {Event} e - Click event
+ */
+function handleSacredReset(e) {
+	const resetBtn = e.target.closest('[data-action="reset-sacred"]');
+	if (!resetBtn) return;
+
+	if (confirm("Reset All Sacred Cards to 0?")) {
+		const machines = store.machines;
+		const machinesLen = machines.length;
+		for (let i = 0; i < machinesLen; i++) {
+			const m = machines[i];
+			m.sacredLevel = AppConfig.DEFAULTS.CARD_LEVEL;
+			const input = document.getElementById(`sacred-card-machine-${m.id}`);
+			if (input) input.value = AppConfig.DEFAULTS.CARD_LEVEL;
+		}
+		triggerAutoSave(store);
+	}
+}
+
+/**
+ * Handles input events for inscription cards
+ * @param {Event} e - Input event
+ */
+function handleScarabInput(e) {
+	const input = e.target;
+	if (input.type !== "number") return;
+
+	const machineId = parseInt(input.dataset.machineId, 10);
+	const machine = store.machines.find((m) => m.id === machineId);
+	if (!machine) return;
+
+	const val = parseInt(input.value, 10);
+	machine.inscriptionLevel = isNaN(val) ? 0 : Math.max(0, val);
+	triggerAutoSave(store);
+}
+
+/**
+ * Handles reset button for inscription cards
+ * @param {Event} e - Click event
+ */
+function handleScarabReset(e) {
+	const resetBtn = e.target.closest('[data-action="reset-inscription"]');
+	if (!resetBtn) return;
+
+	if (confirm("Reset All Inscription Cards to 0?")) {
+		const machines = store.machines;
+		const machinesLen = machines.length;
+		for (let i = 0; i < machinesLen; i++) {
+			const m = machines[i];
+			m.inscriptionLevel = AppConfig.DEFAULTS.CARD_LEVEL;
+			const input = document.getElementById(`inscription-card-machine-${m.id}`);
+			if (input) input.value = AppConfig.DEFAULTS.CARD_LEVEL;
+		}
+		triggerAutoSave(store);
+	}
+}
 
 /**
  * Renders the tavern cards sections (Sacred and Inscription)
@@ -17,105 +104,51 @@ let scarabContainerInputHandler = null;
  * @param {number} machines[].inscriptionLevel - Inscription card level
  */
 export function renderTavernCards(machines) {
-	const sections = [
-		{
-			containerId: "tavernCardsContainer",
-			type: "sacred",
-			resetText: "Reset All Sacred Cards",
-		},
-		{
-			containerId: "scarabCardsContainer",
-			type: "inscription",
-			resetText: "Reset All Inscription Cards",
-		},
-	];
-
 	const sortedMachines = machines.slice().sort((a, b) => a.name.localeCompare(b.name));
-	const cardPropertyMap = { sacred: "sacredLevel", inscription: "inscriptionLevel" };
 
-	for (let s = 0; s < 2; s++) {
-		const { containerId, type, resetText } = sections[s];
-		const container = document.getElementById(containerId);
-		const property = cardPropertyMap[type];
+	// Render Sacred Cards
+	renderCardSection(sacredContainer, sortedMachines, "sacred", "sacredLevel", "Reset All Sacred Cards");
 
-		// Clean up previous event listeners
-		if (type === "sacred" && sacredContainerInputHandler) {
-			container.removeEventListener("input", sacredContainerInputHandler);
-			sacredContainerInputHandler = null;
-		} else if (type === "inscription" && scarabContainerInputHandler) {
-			container.removeEventListener("input", scarabContainerInputHandler);
-			scarabContainerInputHandler = null;
-		}
-
-		const resetBtn = createResetButton(resetText, () => {
-			if (confirm(`${resetText} to 0?`)) {
-				const machinesLen = sortedMachines.length;
-				for (let i = 0; i < machinesLen; i++) {
-					const m = sortedMachines[i];
-					m[property] = AppConfig.DEFAULTS.CARD_LEVEL;
-					const input = document.getElementById(`${type}-card-machine-${m.id}`);
-					if (input) input.value = AppConfig.DEFAULTS.CARD_LEVEL;
-				}
-				triggerAutoSave(store);
-			}
-		});
-
-		const grid = document.createElement("div");
-		grid.className = `row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 ${type}-view`;
-
-		const fragment = document.createDocumentFragment();
-		const machinesLen = sortedMachines.length;
-
-		for (let i = 0; i < machinesLen; i++) {
-			const machine = sortedMachines[i];
-			const col = document.createElement("div");
-			col.className = "col";
-			col.appendChild(createCardLevelCard(machine, type, property));
-			fragment.appendChild(col);
-		}
-
-		grid.appendChild(fragment);
-		container.replaceChildren(resetBtn, grid);
-
-		// Set up event delegation for this container
-		const inputHandler = createInputHandler(property);
-		container.addEventListener("input", inputHandler);
-
-		if (type === "sacred") {
-			sacredContainerInputHandler = inputHandler;
-		} else {
-			scarabContainerInputHandler = inputHandler;
-		}
-	}
+	// Render Inscription Cards
+	renderCardSection(scarabContainer, sortedMachines, "inscription", "inscriptionLevel", "Reset All Inscription Cards");
 }
 
 /**
- * Creates an input event handler for a specific card property
- * @param {string} property - Property name ("sacredLevel" or "inscriptionLevel")
- * @returns {Function} Event handler function
+ * Renders a single card section (sacred or inscription)
+ * @param {HTMLElement} container - Container element
+ * @param {Object[]} machines - Sorted array of machines
+ * @param {string} type - Card type ("sacred" or "inscription")
+ * @param {string} property - Property name on machine object
+ * @param {string} resetText - Reset button text
  */
-function createInputHandler(property) {
-	return (e) => {
-		const input = e.target;
-		if (input.type !== "number") return;
+function renderCardSection(container, machines, type, property, resetText) {
+	const resetBtn = createResetButton(resetText, type);
 
-		const machineId = parseInt(input.dataset.machineId, 10);
-		const machine = store.machines.find((m) => m.id === machineId);
-		if (!machine) return;
+	const grid = document.createElement("div");
+	grid.className = `row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3 ${type}-view`;
 
-		const val = parseInt(input.value, 10);
-		machine[property] = isNaN(val) ? 0 : Math.max(0, val);
-		triggerAutoSave(store);
-	};
+	const fragment = document.createDocumentFragment();
+	const machinesLen = machines.length;
+
+	for (let i = 0; i < machinesLen; i++) {
+		const machine = machines[i];
+		const col = document.createElement("div");
+		col.className = "col";
+		col.appendChild(createCardLevelCard(machine, type, property));
+		fragment.appendChild(col);
+	}
+
+	grid.appendChild(fragment);
+	container.replaceChildren(resetBtn, grid);
 }
 
 /**
  * Creates a reset button for clearing all card levels in a section
  * @param {string} text - Button text to display
- * @param {Function} onClick - Click handler function
+ * @param {string} type - Card type for data attribute
  * @returns {HTMLElement} Button container element
  */
-function createResetButton(text, onClick) {
+function createResetButton(text, type) {
 	const buttonContainer = document.createElement("div");
 	buttonContainer.className = "d-flex justify-content-end mb-3";
 
@@ -123,7 +156,7 @@ function createResetButton(text, onClick) {
 	button.type = "button";
 	button.className = "btn btn-sm btn-outline-danger";
 	button.textContent = text;
-	button.addEventListener("click", onClick);
+	button.dataset.action = `reset-${type}`;
 
 	buttonContainer.appendChild(button);
 	return buttonContainer;

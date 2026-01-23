@@ -10,17 +10,25 @@ let currentHeroId = null;
 /** @type {Map<string, Object>} Map of hero IDs to hero objects for O(1) lookup */
 let heroesMap = new Map();
 
-// Cache DOM elements
-let listElement = null;
-let detailsElement = null;
-let bulkContainer = null;
+// Cache DOM elements on module load
+const heroesSection = document.querySelector("#heroesTab .row.g-3");
+const listElement = document.getElementById("heroList");
+const detailsElement = document.getElementById("heroDetails");
+let bulkContainer = document.getElementById("heroesBulkContainer");
+
+// Create bulk container if it doesn't exist
+if (!bulkContainer && heroesSection) {
+	bulkContainer = document.createElement("div");
+	bulkContainer.id = "heroesBulkContainer";
+	bulkContainer.className = "col-12";
+	bulkContainer.style.display = "none";
+	heroesSection.appendChild(bulkContainer);
+}
 
 // Set up event delegation once on module load
-const heroesSection = document.querySelector("#heroesTab .row.g-3");
 if (heroesSection) {
 	heroesSection.addEventListener("click", handleAllClicks);
 	heroesSection.addEventListener("input", handleAllInputs);
-	heroesSection.addEventListener("change", handleAllChanges);
 	heroesSection.addEventListener("blur", handleAllBlurs, true);
 }
 
@@ -38,8 +46,8 @@ function handleAllClicks(e) {
 			if (!hero) return;
 
 			currentHeroId = heroId;
-			updateActiveButton(listElement, heroId);
-			renderHeroDetails(hero, detailsElement);
+			updateActiveButton(heroId);
+			renderHeroDetails(hero);
 			return;
 		}
 
@@ -51,13 +59,8 @@ function handleAllClicks(e) {
 
 			if (confirm(`Reset ${hero.name} to default values?`)) {
 				resetHero(hero);
-				renderHeroDetails(hero, detailsElement);
-
-				const listBtn = listElement.querySelector(`[data-item-id="${currentHeroId}"]`);
-				if (listBtn) {
-					updateListItem(listBtn, formatHeroStats(hero), isConfiguredHero(hero));
-				}
-
+				renderHeroDetails(hero);
+				updateHeroInList(currentHeroId);
 				triggerAutoSave(store);
 			}
 			return;
@@ -91,11 +94,7 @@ function handleAllInputs(e) {
 		const val = parseInt(input.value, 10);
 		hero.percentages[key] = isNaN(val) ? 0 : Math.max(0, val);
 
-		const btn = listElement.querySelector(`[data-item-id="${currentHeroId}"]`);
-		if (btn) {
-			updateListItem(btn, formatHeroStats(hero), isConfiguredHero(hero));
-		}
-
+		updateHeroInList(currentHeroId);
 		triggerAutoSave(store);
 	}
 	// Bulk view - table inputs
@@ -109,15 +108,6 @@ function handleAllInputs(e) {
 		hero.percentages[stat] = isNaN(val) ? 0 : Math.max(0, val);
 		triggerAutoSave(store);
 	}
-}
-
-/**
- * Handles all change events via delegation
- * @param {Event} e - Change event
- */
-// eslint-disable-next-line no-unused-vars
-function handleAllChanges(e) {
-	// Currently unused for heroes, but here for consistency
 }
 
 /**
@@ -177,35 +167,30 @@ export function renderHeroes(heroes) {
 		return;
 	}
 
-	listElement = listElement || document.getElementById("heroList");
-	detailsElement = detailsElement || document.getElementById("heroDetails");
-
-	bulkContainer = bulkContainer || document.getElementById("heroesBulkContainer");
-	if (bulkContainer) bulkContainer.style.display = "none";
-
+	// Show normal view, hide bulk view
+	bulkContainer.style.display = "none";
 	const children = heroesSection.children;
 	const childrenLen = children.length;
 	for (let i = 0; i < childrenLen; i++) {
 		if (children[i].id !== "heroesBulkContainer") children[i].style.display = "";
 	}
 
-	renderHeroList(heroes, listElement);
+	renderHeroList(heroes);
 
 	const heroToSelect = currentHeroId ? heroesMap.get(currentHeroId) || heroes[0] : heroes[0];
 
 	if (heroToSelect) {
 		currentHeroId = String(heroToSelect.id);
-		updateActiveButton(listElement, currentHeroId);
-		renderHeroDetails(heroToSelect, detailsElement);
+		updateActiveButton(currentHeroId);
+		renderHeroDetails(heroToSelect);
 	}
 }
 
 /**
  * Renders the hero list
  * @param {Object[]} heroes - Array of hero objects
- * @param {HTMLElement} list - List container element
  */
-function renderHeroList(heroes, list) {
+function renderHeroList(heroes) {
 	const fragment = document.createDocumentFragment();
 	const heroesLen = heroes.length;
 
@@ -222,16 +207,15 @@ function renderHeroList(heroes, list) {
 		fragment.appendChild(btn);
 	}
 
-	list.replaceChildren(fragment);
+	listElement.replaceChildren(fragment);
 }
 
 /**
  * Updates the active state of list buttons
- * @param {HTMLElement} list - List container element
  * @param {string} heroId - ID of the hero to mark as active
  */
-function updateActiveButton(list, heroId) {
-	const buttons = list.querySelectorAll(".list-group-item");
+function updateActiveButton(heroId) {
+	const buttons = listElement.querySelectorAll(".list-group-item");
 	const buttonsLen = buttons.length;
 	for (let i = 0; i < buttonsLen; i++) {
 		buttons[i].classList.toggle("active", buttons[i].dataset.itemId === heroId);
@@ -262,9 +246,8 @@ function isConfiguredHero(hero) {
 /**
  * Renders the hero details form
  * @param {Object} hero - Hero object
- * @param {HTMLElement} container - Details container element
  */
-function renderHeroDetails(hero, container) {
+function renderHeroDetails(hero) {
 	const wrapper = document.createElement("div");
 	wrapper.className = "hero-detail-view";
 
@@ -287,7 +270,7 @@ function renderHeroDetails(hero, container) {
 	form.appendChild(percentSection);
 	wrapper.append(header, form);
 
-	container.replaceChildren(wrapper);
+	detailsElement.replaceChildren(wrapper);
 }
 
 /**
@@ -411,22 +394,14 @@ function createHeroRow(hero, index) {
  * @param {Object[]} heroes - Array of hero objects
  */
 function renderHeroesBulkView(heroes) {
+	// Hide normal view, show bulk view
 	const children = heroesSection.children;
 	const childrenLen = children.length;
 	for (let i = 0; i < childrenLen; i++) {
 		children[i].style.display = "none";
 	}
 
-	bulkContainer = bulkContainer || document.getElementById("heroesBulkContainer");
-	if (!bulkContainer) {
-		bulkContainer = document.createElement("div");
-		bulkContainer.id = "heroesBulkContainer";
-		bulkContainer.className = "col-12";
-		heroesSection.appendChild(bulkContainer);
-	}
-
 	bulkContainer.style.display = "block";
-	bulkContainer.replaceChildren();
 
 	const card = document.createElement("div");
 	card.className = "card card-hover";
@@ -455,7 +430,7 @@ function renderHeroesBulkView(heroes) {
 	cardBody.appendChild(createHeroesBulkTable(heroes));
 
 	card.append(cardHeader, cardBody);
-	bulkContainer.appendChild(card);
+	bulkContainer.replaceChildren(card);
 }
 
 /**
@@ -472,7 +447,7 @@ export function switchToBulkEditHeroes(heroes) {
  * @param {string} heroId - ID of the hero to update
  */
 export function updateHeroInList(heroId) {
-	const btn = listElement?.querySelector(`[data-item-id="${heroId}"]`);
+	const btn = listElement.querySelector(`[data-item-id="${heroId}"]`);
 	if (!btn) return;
 
 	const hero = heroesMap.get(heroId);

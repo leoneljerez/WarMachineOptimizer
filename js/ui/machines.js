@@ -10,13 +10,22 @@ let currentMachineId = null;
 /** @type {Map<string, Object>} Map of machine IDs to machine objects for O(1) lookup */
 let machinesMap = new Map();
 
-// Cache DOM elements
-let listElement = null;
-let detailsElement = null;
-let bulkContainer = null;
+// Cache DOM elements on module load
+const machinesSection = document.querySelector("#machinesTab > div:last-child");
+const listElement = document.getElementById("machineList");
+const detailsElement = document.getElementById("machineDetails");
+let bulkContainer = document.getElementById("machinesBulkContainer");
+
+// Create bulk container if it doesn't exist
+if (!bulkContainer && machinesSection) {
+	bulkContainer = document.createElement("div");
+	bulkContainer.id = "machinesBulkContainer";
+	bulkContainer.className = "col-12";
+	bulkContainer.style.display = "none";
+	machinesSection.appendChild(bulkContainer);
+}
 
 // Set up event delegation once on module load
-const machinesSection = document.querySelector("#machinesTab > div:last-child");
 if (machinesSection) {
 	machinesSection.addEventListener("click", handleAllClicks);
 	machinesSection.addEventListener("input", handleAllInputs);
@@ -38,8 +47,8 @@ function handleAllClicks(e) {
 			if (!machine) return;
 
 			currentMachineId = machineId;
-			updateActiveButton(listElement, machineId);
-			renderMachineDetails(machine, detailsElement);
+			updateActiveButton(machineId);
+			renderMachineDetails(machine);
 			return;
 		}
 
@@ -51,13 +60,8 @@ function handleAllClicks(e) {
 
 			if (confirm(`Reset ${machine.name} to default values?`)) {
 				resetMachine(machine);
-				renderMachineDetails(machine, detailsElement);
-
-				const listBtn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
-				if (listBtn) {
-					updateListItem(listBtn, formatMachineStats(machine), isConfiguredMachine(machine));
-				}
-
+				renderMachineDetails(machine);
+				updateMachineInList(currentMachineId);
 				triggerAutoSave(store);
 			}
 			return;
@@ -96,11 +100,7 @@ function handleAllInputs(e) {
 			machine[key] = isNaN(val) ? 0 : Math.max(0, val);
 		}
 
-		const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
-		if (btn) {
-			updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-		}
-
+		updateMachineInList(currentMachineId);
 		triggerAutoSave(store);
 	}
 	// Bulk view - table inputs
@@ -139,12 +139,7 @@ function handleAllChanges(e) {
 		const key = select.dataset.key;
 		if (key === "rarity") {
 			machine.rarity = select.value;
-
-			const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
-			if (btn) {
-				updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-			}
-
+			updateMachineInList(currentMachineId);
 			triggerAutoSave(store);
 		}
 	}
@@ -226,34 +221,30 @@ export function renderMachines(machines) {
 		return;
 	}
 
-	listElement = listElement || document.getElementById("machineList");
-	detailsElement = detailsElement || document.getElementById("machineDetails");
-
-	bulkContainer = bulkContainer || document.getElementById("machinesBulkContainer");
-
+	// Show normal view, hide bulk view
+	bulkContainer.style.display = "none";
 	const children = machinesSection.children;
 	const childrenLen = children.length;
 	for (let i = 0; i < childrenLen; i++) {
 		children[i].style.display = children[i].id === "machinesBulkContainer" ? "none" : "";
 	}
 
-	renderMachineList(machines, listElement);
+	renderMachineList(machines);
 
 	const machineToSelect = currentMachineId ? machinesMap.get(currentMachineId) || machines[0] : machines[0];
 
 	if (machineToSelect) {
 		currentMachineId = String(machineToSelect.id);
-		updateActiveButton(listElement, currentMachineId);
-		renderMachineDetails(machineToSelect, detailsElement);
+		updateActiveButton(currentMachineId);
+		renderMachineDetails(machineToSelect);
 	}
 }
 
 /**
  * Renders the machine list
  * @param {Object[]} machines - Array of machine objects
- * @param {HTMLElement} list - List container element
  */
-function renderMachineList(machines, list) {
+function renderMachineList(machines) {
 	const fragment = document.createDocumentFragment();
 	const machinesLen = machines.length;
 
@@ -270,16 +261,15 @@ function renderMachineList(machines, list) {
 		fragment.appendChild(btn);
 	}
 
-	list.replaceChildren(fragment);
+	listElement.replaceChildren(fragment);
 }
 
 /**
  * Updates the active state of list buttons
- * @param {HTMLElement} list - List container element
  * @param {string} machineId - ID of the machine to mark as active
  */
-function updateActiveButton(list, machineId) {
-	const buttons = list.querySelectorAll(".list-group-item");
+function updateActiveButton(machineId) {
+	const buttons = listElement.querySelectorAll(".list-group-item");
 	const buttonsLen = buttons.length;
 	for (let i = 0; i < buttonsLen; i++) {
 		buttons[i].classList.toggle("active", buttons[i].dataset.itemId === machineId);
@@ -317,9 +307,8 @@ function isConfiguredMachine({ rarity, level, blueprints }) {
 /**
  * Renders the machine details form
  * @param {Object} machine - Machine object
- * @param {HTMLElement} container - Details container element
  */
-function renderMachineDetails(machine, container) {
+function renderMachineDetails(machine) {
 	const { id, name, image } = machine;
 	const wrapper = document.createElement("div");
 	wrapper.className = "machine-detail-view";
@@ -350,7 +339,7 @@ function renderMachineDetails(machine, container) {
 	form.append(generalSection, blueprintSection);
 	wrapper.append(header, form);
 
-	container.replaceChildren(wrapper);
+	detailsElement.replaceChildren(wrapper);
 }
 
 /**
@@ -518,19 +507,11 @@ function createMachineRow(machine, index) {
  * @param {Object[]} machines - Array of machine objects
  */
 function renderMachinesBulkView(machines) {
+	// Hide normal view, show bulk view
 	const children = machinesSection.children;
 	const childrenLen = children.length;
 	for (let i = 0; i < childrenLen; i++) children[i].style.display = "none";
 
-	bulkContainer = bulkContainer || document.getElementById("machinesBulkContainer");
-	if (!bulkContainer) {
-		bulkContainer = document.createElement("div");
-		bulkContainer.id = "machinesBulkContainer";
-		bulkContainer.className = "col-12";
-		machinesSection.appendChild(bulkContainer);
-	} else {
-		bulkContainer.replaceChildren();
-	}
 	bulkContainer.style.display = "block";
 
 	const card = document.createElement("div");
@@ -560,7 +541,7 @@ function renderMachinesBulkView(machines) {
 	cardBody.appendChild(createMachinesBulkTable(machines));
 
 	card.append(cardHeader, cardBody);
-	bulkContainer.appendChild(card);
+	bulkContainer.replaceChildren(card);
 }
 
 /**
@@ -577,7 +558,7 @@ export function switchToBulkEditMachines(machines) {
  * @param {string} machineId - ID of the machine to update
  */
 export function updateMachineInList(machineId) {
-	const btn = listElement?.querySelector(`[data-item-id="${machineId}"]`);
+	const btn = listElement.querySelector(`[data-item-id="${machineId}"]`);
 	if (!btn) return;
 
 	const machine = machinesMap.get(machineId);
