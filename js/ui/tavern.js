@@ -4,7 +4,7 @@ import { triggerAutoSave, store } from "../app.js";
 
 // Cache DOM elements on module load
 const sacredContainer = document.getElementById("tavernCardsContainer");
-const scarabContainer = document.getElementById("scarabCardsContainer");
+const inscriptionContainer = document.getElementById("scarabCardsContainer");
 
 // Set up event delegation once on module load
 if (sacredContainer) {
@@ -12,9 +12,9 @@ if (sacredContainer) {
 	sacredContainer.addEventListener("click", handleSacredReset);
 }
 
-if (scarabContainer) {
-	scarabContainer.addEventListener("input", handleScarabInput);
-	scarabContainer.addEventListener("click", handleScarabReset);
+if (inscriptionContainer) {
+	inscriptionContainer.addEventListener("input", handleInscriptionInput);
+	inscriptionContainer.addEventListener("click", handleInscriptionReset);
 }
 
 /**
@@ -59,7 +59,7 @@ function handleSacredReset(e) {
  * Handles input events for inscription cards
  * @param {Event} e - Input event
  */
-function handleScarabInput(e) {
+function handleInscriptionInput(e) {
 	const input = e.target;
 	if (input.type !== "number") return;
 
@@ -76,7 +76,7 @@ function handleScarabInput(e) {
  * Handles reset button for inscription cards
  * @param {Event} e - Click event
  */
-function handleScarabReset(e) {
+function handleInscriptionReset(e) {
 	const resetBtn = e.target.closest('[data-action="reset-inscription"]');
 	if (!resetBtn) return;
 
@@ -110,7 +110,7 @@ export function renderTavernCards(machines) {
 	renderCardSection(sacredContainer, sortedMachines, "sacred", "sacredLevel", "Reset All Sacred Cards");
 
 	// Render Inscription Cards
-	renderCardSection(scarabContainer, sortedMachines, "inscription", "inscriptionLevel", "Reset All Inscription Cards");
+	renderCardSection(inscriptionContainer, sortedMachines, "inscription", "inscriptionLevel", "Reset All Inscription Cards");
 }
 
 /**

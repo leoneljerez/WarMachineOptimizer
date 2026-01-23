@@ -7,7 +7,11 @@ import { createMachineRankDisplay, RarityColors } from "../utils/ranks.js";
 const machineCardRegistry = new WeakMap();
 
 // Store cleanup functions for better memory management
-const cleanupRegistry = new WeakMap();
+let currentCleanupController = null;
+
+// Cache DOM elements on module load
+const resultsContainer = document.getElementById("resultsContainer");
+const machineTemplate = document.getElementById("machineTemplate");
 
 /**
  * Formats a Decimal as a localized integer string or exponential notation
@@ -41,7 +45,9 @@ function updateMachineStats(card, mode) {
 
 /**
  * Creates a crew member image element with error handling
- * @param {import('../app.js').Hero} hero - Hero object
+ * @param {Object} hero - Hero object
+ * @param {string} hero.image - Hero image URL
+ * @param {string} hero.name - Hero name
  * @returns {HTMLImageElement} Image element
  */
 function createCrewImage(hero) {
@@ -64,11 +70,10 @@ function createCrewImage(hero) {
 
 /**
  * Creates a machine card for the formation display
- * @param {import('../app.js').Machine} machine - Machine object
- * @param {HTMLTemplateElement} machineTemplate - Template element
+ * @param {Object} machine - Machine object
  * @returns {DocumentFragment} Cloned template fragment
  */
-function createMachineCard(machine, machineTemplate) {
+function createMachineCard(machine) {
 	const clone = machineTemplate.content.cloneNode(true);
 	const card = clone.querySelector(".machine-card");
 
@@ -183,7 +188,8 @@ function createMachineCard(machine, machineTemplate) {
 		{ key: "armor", icon: "img/ui/armor.webp", label: "Armor" },
 	];
 
-	statTypes.forEach(({ key, icon, label }) => {
+	for (let i = 0; i < 3; i++) {
+		const { key, icon, label } = statTypes[i];
 		const statItem = document.createElement("div");
 		statItem.className = `stat ${key} stat-item`;
 
@@ -199,7 +205,7 @@ function createMachineCard(machine, machineTemplate) {
 
 		statItem.append(iconEl, valueEl);
 		statsContainer.appendChild(statItem);
-	});
+	}
 
 	const statEls = {
 		damage: card.querySelector(".stat.damage .value"),
@@ -227,9 +233,10 @@ function createMachineCard(machine, machineTemplate) {
 	crewMembers.className = "crew-members d-flex flex-wrap justify-content-center gap-2";
 
 	if (machine.crew && machine.crew.length > 0) {
-		machine.crew.forEach((hero) => {
-			crewMembers.appendChild(createCrewImage(hero));
-		});
+		const crewLen = machine.crew.length;
+		for (let i = 0; i < crewLen; i++) {
+			crewMembers.appendChild(createCrewImage(machine.crew[i]));
+		}
 	} else {
 		const emptyState = document.createElement("div");
 		emptyState.className = "text-white-50 small fst-italic py-2";
@@ -336,11 +343,13 @@ function createProgressionDisplay(lastCleared) {
 
 	// Use fragment to batch DOM operations
 	const fragment = document.createDocumentFragment();
+	const difficultiesLen = AppConfig.DIFFICULTIES.length;
 
-	AppConfig.DIFFICULTIES.forEach((diff) => {
+	for (let i = 0; i < difficultiesLen; i++) {
+		const diff = AppConfig.DIFFICULTIES[i];
 		const mission = lastCleared?.[diff.key] ?? 0;
 		fragment.appendChild(createProgressBar(diff, mission));
-	});
+	}
 
 	container.appendChild(fragment);
 	return container;
@@ -348,7 +357,7 @@ function createProgressionDisplay(lastCleared) {
 
 /**
  * Creates summary stats cards for campaign mode
- * @param {*} result - Optimization result
+ * @param {Object} result - Optimization result
  * @returns {HTMLElement} Stats container with three cards
  */
 function createCampaignStats(result) {
@@ -359,7 +368,8 @@ function createCampaignStats(result) {
 	let highestMission = 0;
 	let highestDifficulty = "None";
 
-	for (let i = AppConfig.DIFFICULTIES.length - 1; i >= 0; i--) {
+	const difficultiesLen = AppConfig.DIFFICULTIES.length;
+	for (let i = difficultiesLen - 1; i >= 0; i--) {
 		const diff = AppConfig.DIFFICULTIES[i];
 		const mission = result.lastCleared?.[diff.key] ?? 0;
 		if (mission > 0) {
@@ -389,7 +399,7 @@ function createCampaignStats(result) {
 
 /**
  * Creates summary stats cards for arena mode
- * @param {*} result - Optimization result
+ * @param {Object} result - Optimization result
  * @returns {HTMLElement} Stats container with one card
  */
 function createArenaStats(result) {
@@ -406,7 +416,7 @@ function createArenaStats(result) {
 
 /**
  * Creates summary stats cards based on mode
- * @param {*} result - Optimization result
+ * @param {Object} result - Optimization result
  * @param {string} optimizeMode - "campaign" or "arena"
  * @returns {HTMLElement} Stats container
  */
@@ -453,7 +463,15 @@ function createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig) {
 	}
 
 	// Check if campaign is complete
-	const isComplete = AppConfig.DIFFICULTIES.every((diff) => (result.lastCleared?.[diff.key] || 0) >= AppConfig.MAX_MISSIONS_PER_DIFFICULTY);
+	const difficultiesLen = AppConfig.DIFFICULTIES.length;
+	let isComplete = true;
+	for (let i = 0; i < difficultiesLen; i++) {
+		const diff = AppConfig.DIFFICULTIES[i];
+		if ((result.lastCleared?.[diff.key] || 0) < AppConfig.MAX_MISSIONS_PER_DIFFICULTY) {
+			isComplete = false;
+			break;
+		}
+	}
 
 	if (isComplete) {
 		return null; // Campaign complete, no upgrades needed
@@ -599,32 +617,43 @@ function createFormationHeader(optimizeMode) {
  */
 function createMachineSlot(position) {
 	const slot = document.createElement("div");
-	slot.className = "machine-slot card-hover";
+	slot.className = "machine-slot";
 	slot.setAttribute("data-position", position);
-	slot.style.minHeight = "150px";
 	return slot;
 }
 
 /**
  * Creates the formation grid structure
+ * @param {number} formationLength - Number of machines in formation
  * @returns {HTMLElement} Formation container
  */
-function createFormationGrid() {
+function createFormationGrid(formationLength) {
 	const container = document.createElement("div");
 	container.className = "row g-3 justify-content-center";
 	container.id = "formationContainer";
 
-	// Left Column (Positions 5, 4, 3)
+	// Determine how many slots to show
+	const slotsNeeded = formationLength;
+
+	// Left Column (Positions 5, 4, 3) - only if needed
 	const leftCol = document.createElement("div");
 	leftCol.className = "col-12 col-md-auto order-2 order-md-1";
 
 	const leftColumn = document.createElement("div");
 	leftColumn.className = "d-flex flex-column gap-2 left-column";
 
-	leftColumn.append(createMachineSlot("5"), createMachineSlot("4"), createMachineSlot("3"));
-	leftCol.appendChild(leftColumn);
+	// Only create slots that will be used
+	if (slotsNeeded >= 5) leftColumn.appendChild(createMachineSlot("5"));
+	if (slotsNeeded >= 4) leftColumn.appendChild(createMachineSlot("4"));
+	if (slotsNeeded >= 3) leftColumn.appendChild(createMachineSlot("3"));
 
-	// Right Column (Positions 2, 1)
+	// Only add left column if it has slots
+	if (leftColumn.children.length > 0) {
+		leftCol.appendChild(leftColumn);
+		container.appendChild(leftCol);
+	}
+
+	// Right Column (Positions 2, 1) - only if needed
 	const rightCol = document.createElement("div");
 	rightCol.className = "col-12 col-md-auto order-1 order-md-2";
 
@@ -632,10 +661,16 @@ function createFormationGrid() {
 	rightColumn.className = "d-flex flex-column gap-2 justify-content-center right-column";
 	rightColumn.style.height = "100%";
 
-	rightColumn.append(createMachineSlot("2"), createMachineSlot("1"));
-	rightCol.appendChild(rightColumn);
+	// Only create slots that will be used
+	if (slotsNeeded >= 2) rightColumn.appendChild(createMachineSlot("2"));
+	if (slotsNeeded >= 1) rightColumn.appendChild(createMachineSlot("1"));
 
-	container.append(leftCol, rightCol);
+	// Only add right column if it has slots
+	if (rightColumn.children.length > 0) {
+		rightCol.appendChild(rightColumn);
+		container.appendChild(rightCol);
+	}
+
 	return container;
 }
 
@@ -643,9 +678,8 @@ function createFormationGrid() {
  * Populates formation slots with machine cards
  * @param {HTMLElement} container - Formation container
  * @param {Array} formation - Formation array
- * @param {HTMLTemplateElement} machineTemplate - Machine card template
  */
-function populateFormation(container, formation, machineTemplate) {
+function populateFormation(container, formation) {
 	if (!formation || formation.length === 0) {
 		const emptyMsg = document.createElement("div");
 		emptyMsg.className = "col-12 text-center text-secondary";
@@ -656,86 +690,83 @@ function populateFormation(container, formation, machineTemplate) {
 
 	// Populate slots
 	const slots = container.querySelectorAll(".machine-slot");
-	for (let i = 0; i < formation.length; i++) {
-		const slot = slots[slots.length - 1 - i]; // if order matches
+	const formationLen = formation.length;
+	for (let i = 0; i < formationLen; i++) {
+		const slot = slots[slots.length - 1 - i];
 		if (slot) {
-			slot.appendChild(createMachineCard(formation[i], machineTemplate));
+			slot.appendChild(createMachineCard(formation[i]));
 		}
 	}
 }
 
 /**
  * Sets up the stats toggle event listener with proper cleanup
- * @param {*} result - Optimization result
- * @param {HTMLElement} container - Results container element
+ * @param {Object} result - Optimization result
+ * @param {Array<HTMLElement>} machineCards - Array of machine card elements
+ * @param {HTMLElement} powerResult - Power result element
+ * @param {HTMLElement} powerTitle - Power title element
  */
-function setupStatsToggle(result, container) {
-    const toggle = document.getElementById("statsToggle");
-    if (!toggle) return;
+function setupStatsToggle(result, machineCards, powerResult, powerTitle) {
+	const toggle = document.getElementById("statsToggle");
+	if (!toggle) return;
 
-    // Cache these selectors once
-    const powerResult = container.querySelector(".powerResult");
-    const powerTitle = container.querySelector(".powerTitle");
-    const machineCards = Array.from(container.querySelectorAll(".machine-card"));
+	// Abort previous controller if exists
+	if (currentCleanupController) {
+		currentCleanupController.abort();
+	}
 
-    const controller = new AbortController();
-    const existingController = cleanupRegistry.get(container);
-    if (existingController) {
-        existingController.abort();
-    }
-    cleanupRegistry.set(container, controller);
+	currentCleanupController = new AbortController();
 
-    toggle.addEventListener(
-        "change",
-        (e) => {
-            const mode = e.target.value;
+	toggle.addEventListener(
+		"change",
+		(e) => {
+			const mode = e.target.value;
 
-            // Use for loop instead of forEach
-            for (let i = 0; i < machineCards.length; i++) {
-                updateMachineStats(machineCards[i], mode);
-            }
+			// Update all machine cards
+			const cardsLen = machineCards.length;
+			for (let i = 0; i < cardsLen; i++) {
+				updateMachineStats(machineCards[i], mode);
+			}
 
-            // Use cached selectors
-            const power = mode === "arena" ? result.arenaPower : result.battlePower;
-            const title = mode === "arena" ? "Arena Power" : "Battle Power";
+			// Update power display
+			const power = mode === "arena" ? result.arenaPower : result.battlePower;
+			const title = mode === "arena" ? "Arena Power" : "Battle Power";
 
-            if (powerResult) powerResult.textContent = formatPower(power);
-            if (powerTitle) powerTitle.textContent = title;
-        },
-        { signal: controller.signal }
-    );
+			if (powerResult) powerResult.textContent = formatPower(power);
+			if (powerTitle) powerTitle.textContent = title;
+		},
+		{ signal: currentCleanupController.signal },
+	);
 }
 
 /**
- * Cleans up old machine cards and event listeners to prevent memory leaks
- * @param {HTMLElement} container - Results container element
+ * Cleans up old event listeners to prevent memory leaks
  */
-function cleanupResults(container) {
+function cleanupResults() {
 	// Abort any existing event listeners
-	const controller = cleanupRegistry.get(container);
-	if (controller) {
-		controller.abort();
+	if (currentCleanupController) {
+		currentCleanupController.abort();
+		currentCleanupController = null;
 	}
 
 	// Clear container DOM to release references
-	container.replaceChildren();
+	resultsContainer.replaceChildren();
 }
 
 /**
  * Main render function for optimization results
- * @param {*} result - Optimization result object
+ * @param {Object} result - Optimization result object
  * @param {string} optimizeMode - "campaign" or "arena"
  * @param {Object} upgradeConfig - Configuration for upgrade analyzer
  */
 export function renderResults(result, optimizeMode = "campaign", upgradeConfig = null) {
-	const container = document.getElementById("resultsContainer");
-	cleanupResults(container);
+	cleanupResults();
 
 	if (!result || !result.formation) {
 		const noResult = document.createElement("p");
 		noResult.className = "text-secondary";
 		noResult.textContent = "No results available. Click 'Optimize' to generate results.";
-		container.appendChild(noResult);
+		resultsContainer.appendChild(noResult);
 		return;
 	}
 
@@ -765,23 +796,29 @@ export function renderResults(result, optimizeMode = "campaign", upgradeConfig =
 	const formationGrid = document.createElement("div");
 	formationGrid.className = "results-view";
 
-	const formationContainer = createFormationGrid();
-	const machineTemplate = document.getElementById("machineTemplate");
+	// Create grid with only the needed slots
+	const formationContainer = createFormationGrid(result.formation.length);
 
-	populateFormation(formationContainer, result.formation, machineTemplate);
+	populateFormation(formationContainer, result.formation);
 
 	formationGrid.appendChild(formationContainer);
 	resultCard.appendChild(formationGrid);
 
 	fragment.appendChild(resultCard);
-	container.appendChild(fragment);
+	resultsContainer.appendChild(fragment);
 
-	// Update stats and setup toggle
+	// Cache elements before setup
 	const initialMode = optimizeMode === "arena" ? "arena" : "battle";
-	const machineCards = document.querySelectorAll(".machine-card");
-	machineCards.forEach((card) => {
-		updateMachineStats(card, initialMode);
-	});
+	const machineCards = Array.from(resultsContainer.querySelectorAll(".machine-card"));
+	const powerResult = resultsContainer.querySelector(".powerResult");
+	const powerTitle = resultsContainer.querySelector(".powerTitle");
 
-	setupStatsToggle(result, container);
+	// Update initial stats
+	const cardsLen = machineCards.length;
+	for (let i = 0; i < cardsLen; i++) {
+		updateMachineStats(machineCards[i], initialMode);
+	}
+
+	// Setup toggle with cached elements
+	setupStatsToggle(result, machineCards, powerResult, powerTitle);
 }
