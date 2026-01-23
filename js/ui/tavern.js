@@ -2,6 +2,10 @@
 import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
 
+// Event handler references for cleanup
+let sacredContainerInputHandler = null;
+let scarabContainerInputHandler = null;
+
 /**
  * Renders the tavern cards sections (Sacred and Inscription)
  * Creates grid layouts with card level inputs for each machine
@@ -34,6 +38,15 @@ export function renderTavernCards(machines) {
 		const container = document.getElementById(containerId);
 		const property = cardPropertyMap[type];
 
+		// Clean up previous event listeners
+		if (type === "sacred" && sacredContainerInputHandler) {
+			container.removeEventListener("input", sacredContainerInputHandler);
+			sacredContainerInputHandler = null;
+		} else if (type === "inscription" && scarabContainerInputHandler) {
+			container.removeEventListener("input", scarabContainerInputHandler);
+			scarabContainerInputHandler = null;
+		}
+
 		const resetBtn = createResetButton(resetText, () => {
 			if (confirm(`${resetText} to 0?`)) {
 				const machinesLen = sortedMachines.length;
@@ -63,7 +76,37 @@ export function renderTavernCards(machines) {
 
 		grid.appendChild(fragment);
 		container.replaceChildren(resetBtn, grid);
+
+		// Set up event delegation for this container
+		const inputHandler = createInputHandler(property);
+		container.addEventListener("input", inputHandler);
+
+		if (type === "sacred") {
+			sacredContainerInputHandler = inputHandler;
+		} else {
+			scarabContainerInputHandler = inputHandler;
+		}
 	}
+}
+
+/**
+ * Creates an input event handler for a specific card property
+ * @param {string} property - Property name ("sacredLevel" or "inscriptionLevel")
+ * @returns {Function} Event handler function
+ */
+function createInputHandler(property) {
+	return (e) => {
+		const input = e.target;
+		if (input.type !== "number") return;
+
+		const machineId = parseInt(input.dataset.machineId, 10);
+		const machine = store.machines.find((m) => m.id === machineId);
+		if (!machine) return;
+
+		const val = parseInt(input.value, 10);
+		machine[property] = isNaN(val) ? 0 : Math.max(0, val);
+		triggerAutoSave(store);
+	};
 }
 
 /**
@@ -153,12 +196,7 @@ function createInputGroup(machine, cardType, property) {
 	input.step = 1;
 	input.value = machine[property];
 	input.setAttribute("aria-label", `${machine.name} ${cardType} card level`);
-
-	input.addEventListener("input", (e) => {
-		const val = parseInt(e.target.value, 10);
-		machine[property] = isNaN(val) ? 0 : Math.max(0, val);
-		triggerAutoSave(store);
-	});
+	input.dataset.machineId = machine.id;
 
 	inputGroup.append(label, input);
 	return inputGroup;

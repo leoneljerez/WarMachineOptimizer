@@ -1,7 +1,6 @@
 // ui/machines.js
 import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
-import { createMachinesBulkTable } from "./bulkEdit.js";
 import { triggerAutoSave, store } from "../app.js";
 
 /** @type {"normal"|"bulk"} Current view mode for machines */
@@ -14,6 +13,192 @@ let machinesMap = new Map();
 // Cache DOM elements
 let listElement = null;
 let detailsElement = null;
+let bulkContainer = null;
+
+// Set up event delegation once on module load
+const machinesSection = document.querySelector("#machinesTab > div:last-child");
+if (machinesSection) {
+	machinesSection.addEventListener("click", handleAllClicks);
+	machinesSection.addEventListener("input", handleAllInputs);
+	machinesSection.addEventListener("change", handleAllChanges);
+	machinesSection.addEventListener("blur", handleAllBlurs, true);
+}
+
+/**
+ * Handles all click events via delegation
+ * @param {Event} e - Click event
+ */
+function handleAllClicks(e) {
+	// Handle list item clicks (normal view)
+	if (currentMachineView === "normal") {
+		const btn = e.target.closest(".list-group-item");
+		if (btn) {
+			const machineId = btn.dataset.itemId;
+			const machine = machinesMap.get(machineId);
+			if (!machine) return;
+
+			currentMachineId = machineId;
+			updateActiveButton(listElement, machineId);
+			renderMachineDetails(machine, detailsElement);
+			return;
+		}
+
+		// Handle reset button clicks (normal view)
+		const resetBtn = e.target.closest('[data-action="reset"]');
+		if (resetBtn) {
+			const machine = machinesMap.get(currentMachineId);
+			if (!machine) return;
+
+			if (confirm(`Reset ${machine.name} to default values?`)) {
+				resetMachine(machine);
+				renderMachineDetails(machine, detailsElement);
+
+				const listBtn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
+				if (listBtn) {
+					updateListItem(listBtn, formatMachineStats(machine), isConfiguredMachine(machine));
+				}
+
+				triggerAutoSave(store);
+			}
+			return;
+		}
+	}
+
+	// Handle bulk view back button
+	const backBtn = e.target.closest('[data-action="back-to-normal"]');
+	if (backBtn) {
+		currentMachineView = "normal";
+		renderMachines(store.machines);
+	}
+}
+
+/**
+ * Handles all input events via delegation
+ * @param {Event} e - Input event
+ */
+function handleAllInputs(e) {
+	const input = e.target;
+	if (input.type !== "number") return;
+
+	// Normal view - detail inputs
+	if (currentMachineView === "normal") {
+		const machine = machinesMap.get(currentMachineId);
+		if (!machine) return;
+
+		const key = input.dataset.key;
+		if (!key) return;
+
+		const val = parseInt(input.value, 10);
+
+		if (key in machine.blueprints) {
+			machine.blueprints[key] = isNaN(val) ? 0 : Math.max(0, val);
+		} else if (key === "level") {
+			machine[key] = isNaN(val) ? 0 : Math.max(0, val);
+		}
+
+		const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
+		if (btn) {
+			updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
+		}
+
+		triggerAutoSave(store);
+	}
+	// Bulk view - table inputs
+	else if (currentMachineView === "bulk") {
+		const machineId = input.dataset.machineId;
+		const field = input.dataset.field;
+		const machine = machinesMap.get(machineId);
+		if (!machine) return;
+
+		const val = parseInt(input.value, 10);
+		const validVal = isNaN(val) ? 0 : Math.max(0, val);
+
+		if (field === "level") {
+			machine.level = validVal;
+		} else if (field in machine.blueprints) {
+			machine.blueprints[field] = validVal;
+		}
+
+		triggerAutoSave(store);
+	}
+}
+
+/**
+ * Handles all change events via delegation
+ * @param {Event} e - Change event
+ */
+function handleAllChanges(e) {
+	const select = e.target;
+	if (select.tagName !== "SELECT") return;
+
+	// Normal view - rarity select
+	if (currentMachineView === "normal") {
+		const machine = machinesMap.get(currentMachineId);
+		if (!machine) return;
+
+		const key = select.dataset.key;
+		if (key === "rarity") {
+			machine.rarity = select.value;
+
+			const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
+			if (btn) {
+				updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
+			}
+
+			triggerAutoSave(store);
+		}
+	}
+	// Bulk view - rarity select
+	else if (currentMachineView === "bulk") {
+		const machineId = select.dataset.machineId;
+		const machine = machinesMap.get(machineId);
+		if (!machine) return;
+
+		machine.rarity = select.value;
+		triggerAutoSave(store);
+	}
+}
+
+/**
+ * Handles all blur events via delegation
+ * @param {Event} e - Blur event
+ */
+function handleAllBlurs(e) {
+	const input = e.target;
+	if (input.type !== "number") return;
+
+	const val = parseInt(input.value, 10);
+	const min = parseInt(input.min, 10) || 0;
+
+	if (isNaN(val) || val < min) {
+		input.value = min;
+
+		if (currentMachineView === "normal") {
+			const machine = machinesMap.get(currentMachineId);
+			const key = input.dataset.key;
+			if (machine && key) {
+				if (key in machine.blueprints) {
+					machine.blueprints[key] = min;
+				} else if (key === "level") {
+					machine[key] = min;
+				}
+				triggerAutoSave(store);
+			}
+		} else if (currentMachineView === "bulk") {
+			const machineId = input.dataset.machineId;
+			const field = input.dataset.field;
+			const machine = machinesMap.get(machineId);
+			if (machine && field) {
+				if (field === "level") {
+					machine.level = min;
+				} else if (field in machine.blueprints) {
+					machine.blueprints[field] = min;
+				}
+				triggerAutoSave(store);
+			}
+		}
+	}
+}
 
 /**
  * Renders the machine list and detail view
@@ -36,15 +221,15 @@ export function renderMachines(machines) {
 		machinesMap.set(String(machines[i].id), machines[i]);
 	}
 
-	const machinesSection = document.querySelector("#machinesTab > div:last-child");
-
 	if (currentMachineView === "bulk") {
-		renderMachinesBulkView(machines, machinesSection);
+		renderMachinesBulkView(machines);
 		return;
 	}
 
 	listElement = listElement || document.getElementById("machineList");
 	detailsElement = detailsElement || document.getElementById("machineDetails");
+
+	bulkContainer = bulkContainer || document.getElementById("machinesBulkContainer");
 
 	const children = machinesSection.children;
 	const childrenLen = children.length;
@@ -52,7 +237,6 @@ export function renderMachines(machines) {
 		children[i].style.display = children[i].id === "machinesBulkContainer" ? "none" : "";
 	}
 
-	setupMachineEventDelegation(listElement, detailsElement);
 	renderMachineList(machines, listElement);
 
 	const machineToSelect = currentMachineId ? machinesMap.get(currentMachineId) || machines[0] : machines[0];
@@ -61,152 +245,6 @@ export function renderMachines(machines) {
 		currentMachineId = String(machineToSelect.id);
 		updateActiveButton(listElement, currentMachineId);
 		renderMachineDetails(machineToSelect, detailsElement);
-	}
-}
-
-/**
- * Sets up event delegation for machine list and details (idempotent)
- * @param {HTMLElement} list - List container element
- * @param {HTMLElement} details - Details container element
- */
-function setupMachineEventDelegation(list, details) {
-	if (list._hasMachineListeners && details._hasMachineListeners) return;
-
-	if (!list._hasMachineListeners) {
-		const listContainer = list.classList.contains("list-group") ? list : list.querySelector(".list-group") || list;
-		listContainer.addEventListener("click", handleMachineListClick);
-		list._hasMachineListeners = true;
-	}
-
-	if (!details._hasMachineListeners) {
-		details.addEventListener("input", handleMachineInput);
-		details.addEventListener("change", handleMachineChange);
-		details.addEventListener("blur", handleMachineBlur, true);
-		details.addEventListener("click", handleMachineReset);
-		details._hasMachineListeners = true;
-	}
-}
-
-/**
- * Handles clicks on machine list items
- * @param {Event} e - Click event
- */
-function handleMachineListClick(e) {
-	const btn = e.target.closest(".list-group-item");
-	if (!btn) return;
-
-	const machineId = btn.dataset.itemId;
-	const machine = machinesMap.get(machineId);
-	if (!machine) return;
-
-	currentMachineId = machineId;
-	updateActiveButton(listElement, machineId);
-	renderMachineDetails(machine, detailsElement);
-}
-
-/**
- * Handles input changes on machine number fields
- * @param {Event} e - Input event
- */
-function handleMachineInput(e) {
-	const input = e.target;
-	if (input.type !== "number") return;
-
-	const machine = machinesMap.get(currentMachineId);
-	if (!machine) return;
-
-	const key = input.dataset.key;
-	if (!key) return;
-
-	const val = parseInt(input.value, 10);
-
-	if (key in machine.blueprints) {
-		machine.blueprints[key] = isNaN(val) ? 0 : Math.max(0, val);
-	} else if (key === "level") {
-		machine[key] = isNaN(val) ? 0 : Math.max(0, val);
-	}
-
-	const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
-	if (btn) {
-		updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-	}
-
-	triggerAutoSave(store);
-}
-
-/**
- * Handles change events on select elements (rarity)
- * @param {Event} e - Change event
- */
-function handleMachineChange(e) {
-	const select = e.target;
-	if (select.tagName !== "SELECT") return;
-
-	const machine = machinesMap.get(currentMachineId);
-	if (!machine) return;
-
-	const key = select.dataset.key;
-	if (key === "rarity") {
-		machine.rarity = select.value;
-
-		const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
-		if (btn) {
-			updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-		}
-
-		triggerAutoSave(store);
-	}
-}
-
-/**
- * Handles blur events on number inputs to enforce minimum values
- * @param {Event} e - Blur event
- */
-function handleMachineBlur(e) {
-	const input = e.target;
-	if (input.type !== "number") return;
-
-	const val = parseInt(input.value, 10);
-	const min = parseInt(input.min, 10) || 0;
-
-	if (isNaN(val) || val < min) {
-		input.value = min;
-
-		const machine = machinesMap.get(currentMachineId);
-		const key = input.dataset.key;
-		if (machine && key) {
-			if (key in machine.blueprints) {
-				machine.blueprints[key] = min;
-			} else if (key === "level") {
-				machine[key] = min;
-			}
-			triggerAutoSave(store);
-		}
-	}
-}
-
-/**
- * Handles reset button clicks for machines
- * @param {Event} e - Click event
- */
-function handleMachineReset(e) {
-	const resetBtn = e.target.closest('[data-action="reset"]');
-	if (!resetBtn) return;
-
-	const machine = machinesMap.get(currentMachineId);
-	if (!machine) return;
-
-	if (confirm(`Reset ${machine.name} to default values?`)) {
-		resetMachine(machine);
-
-		renderMachineDetails(machine, detailsElement);
-
-		const btn = listElement.querySelector(`[data-item-id="${currentMachineId}"]`);
-		if (btn) {
-			updateListItem(btn, formatMachineStats(machine), isConfiguredMachine(machine));
-		}
-
-		triggerAutoSave(store);
 	}
 }
 
@@ -330,16 +368,161 @@ function resetMachine(machine) {
 }
 
 /**
+ * Creates a bulk edit table for machines
+ * @param {Object[]} machines - Array of machine objects
+ * @returns {HTMLElement} Table container with responsive wrapper
+ */
+function createMachinesBulkTable(machines) {
+	const container = document.createElement("div");
+	container.className = "table-responsive";
+	container.style.width = "100%";
+
+	const table = document.createElement("table");
+	table.className = "table table-striped table-hover align-middle";
+	table.setAttribute("role", "grid");
+
+	const thead = document.createElement("thead");
+	thead.className = "table-dark sticky-top";
+	const headerRow = document.createElement("tr");
+	headerRow.setAttribute("role", "row");
+
+	const headers = ["Machine", "Rarity", "Level", "Damage BP", "Health BP", "Armor BP"];
+	const widths = ["200px", "150px", "100px", "110px", "110px", "110px"];
+
+	for (let i = 0; i < 6; i++) {
+		const th = document.createElement("th");
+		th.setAttribute("role", "columnheader");
+		th.scope = "col";
+		th.textContent = headers[i];
+		th.style.width = widths[i];
+		headerRow.appendChild(th);
+	}
+
+	thead.appendChild(headerRow);
+	table.appendChild(thead);
+
+	const tbody = document.createElement("tbody");
+	const fragment = document.createDocumentFragment();
+	const machinesLen = machines.length;
+
+	for (let i = 0; i < machinesLen; i++) {
+		fragment.appendChild(createMachineRow(machines[i], i));
+	}
+
+	tbody.appendChild(fragment);
+	table.append(thead, tbody);
+	container.appendChild(table);
+
+	return container;
+}
+
+/**
+ * Creates a single editable machine row for the bulk edit table
+ * @param {Object} machine - Machine object
+ * @param {number} index - Row index for tab ordering
+ * @returns {HTMLElement} Table row with input fields
+ */
+function createMachineRow(machine, index) {
+	const row = document.createElement("tr");
+	row.setAttribute("role", "row");
+
+	const nameCell = document.createElement("td");
+	nameCell.setAttribute("role", "gridcell");
+	const nameDiv = document.createElement("div");
+	nameDiv.className = "d-flex align-items-center gap-2";
+
+	const img = document.createElement("img");
+	img.src = machine.image;
+	img.alt = "";
+	img.className = "rounded";
+	img.style.cssText = "width:32px;height:32px;object-fit:cover";
+	img.setAttribute("aria-hidden", "true");
+
+	const nameSpan = document.createElement("span");
+	nameSpan.className = "fw-semibold";
+	nameSpan.textContent = machine.name;
+
+	nameDiv.append(img, nameSpan);
+	nameCell.appendChild(nameDiv);
+	row.appendChild(nameCell);
+
+	const rarityCell = document.createElement("td");
+	rarityCell.setAttribute("role", "gridcell");
+
+	const raritySelect = document.createElement("select");
+	raritySelect.className = "form-select form-select-sm";
+	raritySelect.id = `bulk-machine-${machine.id}-rarity`;
+	raritySelect.setAttribute("aria-label", `${machine.name} rarity`);
+	raritySelect.tabIndex = index * 5 + 1;
+	raritySelect.dataset.machineId = String(machine.id);
+
+	const rarityLabels = AppConfig.RARITY_LABELS;
+	const rarityLen = rarityLabels.length;
+	for (let i = 0; i < rarityLen; i++) {
+		const rarity = rarityLabels[i];
+		const option = document.createElement("option");
+		option.value = rarity;
+		option.textContent = rarity;
+		option.selected = machine.rarity === rarity;
+		raritySelect.appendChild(option);
+	}
+
+	rarityCell.appendChild(raritySelect);
+	row.appendChild(rarityCell);
+
+	const levelCell = document.createElement("td");
+	levelCell.setAttribute("role", "gridcell");
+
+	const levelInput = document.createElement("input");
+	levelInput.type = "number";
+	levelInput.className = "form-control form-control-sm";
+	levelInput.id = `bulk-machine-${machine.id}-level`;
+	levelInput.min = 0;
+	levelInput.step = 1;
+	levelInput.value = machine.level;
+	levelInput.setAttribute("aria-label", `${machine.name} level`);
+	levelInput.tabIndex = index * 5 + 2;
+	levelInput.dataset.machineId = String(machine.id);
+	levelInput.dataset.field = "level";
+
+	levelCell.appendChild(levelInput);
+	row.appendChild(levelCell);
+
+	const blueprintStats = ["damage", "health", "armor"];
+	for (let i = 0; i < 3; i++) {
+		const stat = blueprintStats[i];
+		const cell = document.createElement("td");
+		cell.setAttribute("role", "gridcell");
+
+		const input = document.createElement("input");
+		input.type = "number";
+		input.className = "form-control form-control-sm";
+		input.id = `bulk-machine-${machine.id}-bp-${stat}`;
+		input.min = 0;
+		input.step = 1;
+		input.value = machine.blueprints[stat];
+		input.setAttribute("aria-label", `${machine.name} ${stat} blueprint`);
+		input.tabIndex = index * 5 + 3 + i;
+		input.dataset.machineId = String(machine.id);
+		input.dataset.field = stat;
+
+		cell.appendChild(input);
+		row.appendChild(cell);
+	}
+
+	return row;
+}
+
+/**
  * Renders the bulk edit view for all machines
  * @param {Object[]} machines - Array of machine objects
- * @param {HTMLElement} machinesSection - Section container element
  */
-function renderMachinesBulkView(machines, machinesSection) {
+function renderMachinesBulkView(machines) {
 	const children = machinesSection.children;
 	const childrenLen = children.length;
 	for (let i = 0; i < childrenLen; i++) children[i].style.display = "none";
 
-	let bulkContainer = document.getElementById("machinesBulkContainer");
+	bulkContainer = bulkContainer || document.getElementById("machinesBulkContainer");
 	if (!bulkContainer) {
 		bulkContainer = document.createElement("div");
 		bulkContainer.id = "machinesBulkContainer";
@@ -363,16 +546,12 @@ function renderMachinesBulkView(machines, machinesSection) {
 	const backButton = document.createElement("button");
 	backButton.type = "button";
 	backButton.className = "btn btn-sm btn-outline-secondary";
+	backButton.dataset.action = "back-to-normal";
 
 	const backIcon = document.createElement("i");
 	backIcon.className = "bi bi-arrow-left me-2";
 	backButton.appendChild(backIcon);
 	backButton.appendChild(document.createTextNode("Back to Normal View"));
-
-	backButton.addEventListener("click", () => {
-		currentMachineView = "normal";
-		renderMachines(store.machines);
-	});
 
 	cardHeader.append(title, backButton);
 
@@ -398,7 +577,7 @@ export function switchToBulkEditMachines(machines) {
  * @param {string} machineId - ID of the machine to update
  */
 export function updateMachineInList(machineId) {
-	const btn = listElement.querySelector(`[data-item-id="${machineId}"]`);
+	const btn = listElement?.querySelector(`[data-item-id="${machineId}"]`);
 	if (!btn) return;
 
 	const machine = machinesMap.get(machineId);
