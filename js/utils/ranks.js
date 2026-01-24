@@ -91,7 +91,7 @@ export function createMachineRankDisplay(level, size = "medium") {
 				img.style.display = "none";
 				console.warn(`Missing rank icon: ${img.src}`);
 			},
-			{ once: true }
+			{ once: true },
 		);
 
 		container.appendChild(img);
@@ -168,12 +168,22 @@ export function createGuardianRankSelector(currentEvolution, currentRank, inputI
 	const crownRanks = ["1crown", "2crown", "3crown", "4crown", "5crown"];
 
 	// Build select options
-	AppConfig.GUARDIAN_EVOLUTIONS.forEach((evolution) => {
-		[...starRanks, ...crownRanks].forEach((rank) => {
-			const option = createGuardianRankOption(evolution.key, rank, evolution.key === currentEvolution && rank === currentRank);
+	const evolutionsLen = AppConfig.GUARDIAN_EVOLUTIONS.length;
+	for (let i = 0; i < evolutionsLen; i++) {
+		const evolution = AppConfig.GUARDIAN_EVOLUTIONS[i];
+
+		// Star ranks
+		for (let j = 0; j < 5; j++) {
+			const option = createGuardianRankOption(evolution.key, starRanks[j], evolution.key === currentEvolution && starRanks[j] === currentRank);
 			select.appendChild(option);
-		});
-	});
+		}
+
+		// Crown ranks
+		for (let j = 0; j < 5; j++) {
+			const option = createGuardianRankOption(evolution.key, crownRanks[j], evolution.key === currentEvolution && crownRanks[j] === currentRank);
+			select.appendChild(option);
+		}
+	}
 
 	// Create custom display button
 	const displayBtn = document.createElement("button");
@@ -189,77 +199,106 @@ export function createGuardianRankSelector(currentEvolution, currentRank, inputI
 	dropdownMenu.className = "guardian-rank-dropdown";
 	dropdownMenu.style.display = "none";
 
+	const menuFragment = document.createDocumentFragment();
+
 	// STARS SECTION
 	const starsHeader = document.createElement("div");
 	starsHeader.className = "guardian-rank-type-header";
 	starsHeader.textContent = "Stars";
-	dropdownMenu.appendChild(starsHeader);
+	menuFragment.appendChild(starsHeader);
 
-	AppConfig.GUARDIAN_EVOLUTIONS.forEach((evolution) => {
+	for (let i = 0; i < evolutionsLen; i++) {
+		const evolution = AppConfig.GUARDIAN_EVOLUTIONS[i];
+
 		const subHeader = document.createElement("div");
 		subHeader.className = "guardian-rank-evolution-subheader";
 		subHeader.textContent = evolution.label;
-		dropdownMenu.appendChild(subHeader);
+		menuFragment.appendChild(subHeader);
 
 		const ranksContainer = document.createElement("div");
 		ranksContainer.className = "guardian-rank-options";
 
-		starRanks.forEach((rank) => {
+		for (let j = 0; j < 5; j++) {
+			const rank = starRanks[j];
 			const option = createGuardianRankOptionVisual(evolution.key, rank);
-			option.addEventListener("click", () => {
-				select.value = `${evolution.key}|${rank}`;
-				updateGuardianRankDisplay(displayBtn, evolution.key, rank);
-				dropdownMenu.style.display = "none";
-				select.dispatchEvent(new Event("change", { bubbles: true }));
-			});
+			option.addEventListener("click", createOptionClickHandler(select, displayBtn, dropdownMenu, evolution.key, rank));
 			ranksContainer.appendChild(option);
-		});
+		}
 
-		dropdownMenu.appendChild(ranksContainer);
-	});
+		menuFragment.appendChild(ranksContainer);
+	}
 
 	// CROWNS SECTION
 	const crownsHeader = document.createElement("div");
 	crownsHeader.className = "guardian-rank-type-header";
 	crownsHeader.textContent = "Crowns";
-	dropdownMenu.appendChild(crownsHeader);
+	menuFragment.appendChild(crownsHeader);
 
-	AppConfig.GUARDIAN_EVOLUTIONS.forEach((evolution) => {
+	for (let i = 0; i < evolutionsLen; i++) {
+		const evolution = AppConfig.GUARDIAN_EVOLUTIONS[i];
+
 		const subHeader = document.createElement("div");
 		subHeader.className = "guardian-rank-evolution-subheader";
 		subHeader.textContent = evolution.label;
-		dropdownMenu.appendChild(subHeader);
+		menuFragment.appendChild(subHeader);
 
 		const ranksContainer = document.createElement("div");
 		ranksContainer.className = "guardian-rank-options";
 
-		crownRanks.forEach((rank) => {
+		for (let j = 0; j < 5; j++) {
+			const rank = crownRanks[j];
 			const option = createGuardianRankOptionVisual(evolution.key, rank);
-			option.addEventListener("click", () => {
-				select.value = `${evolution.key}|${rank}`;
-				updateGuardianRankDisplay(displayBtn, evolution.key, rank);
-				dropdownMenu.style.display = "none";
-				select.dispatchEvent(new Event("change", { bubbles: true }));
-			});
+			option.addEventListener("click", createOptionClickHandler(select, displayBtn, dropdownMenu, evolution.key, rank));
 			ranksContainer.appendChild(option);
-		});
+		}
 
-		dropdownMenu.appendChild(ranksContainer);
-	});
+		menuFragment.appendChild(ranksContainer);
+	}
 
-	// Toggle dropdown
-	displayBtn.addEventListener("click", (e) => {
+	dropdownMenu.appendChild(menuFragment);
+
+	// Toggle dropdown - use proper event delegation pattern
+	const toggleHandler = (e) => {
 		e.stopPropagation();
-		dropdownMenu.style.display = dropdownMenu.style.display === "none" ? "block" : "none";
-	});
+		const isVisible = dropdownMenu.style.display !== "none";
+		dropdownMenu.style.display = isVisible ? "none" : "block";
+	};
+	displayBtn.addEventListener("click", toggleHandler);
 
-	// Close dropdown when clicking outside
-	document.addEventListener("click", () => {
-		dropdownMenu.style.display = "none";
-	});
+	// Close dropdown when clicking outside - use capture phase
+	const outsideClickHandler = (e) => {
+		if (!container.contains(e.target)) {
+			dropdownMenu.style.display = "none";
+		}
+	};
+
+	// Store cleanup function on container
+	container._cleanup = () => {
+		document.removeEventListener("click", outsideClickHandler, true);
+	};
+
+	document.addEventListener("click", outsideClickHandler, true);
 
 	container.append(select, displayBtn, dropdownMenu);
 	return container;
+}
+
+/**
+ * Creates click handler for dropdown options
+ * @param {HTMLElement} select - Hidden select element
+ * @param {HTMLElement} displayBtn - Display button
+ * @param {HTMLElement} dropdownMenu - Dropdown menu
+ * @param {string} evolution - Evolution key
+ * @param {string} rank - Rank key
+ * @returns {Function} Click handler
+ */
+function createOptionClickHandler(select, displayBtn, dropdownMenu, evolution, rank) {
+	return () => {
+		select.value = `${evolution}|${rank}`;
+		updateGuardianRankDisplay(displayBtn, evolution, rank);
+		dropdownMenu.style.display = "none";
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+	};
 }
 
 /**
@@ -423,7 +462,7 @@ export function createGuardianRankDisplay(evolution, rank, size = "medium") {
 				img.style.display = "none";
 				console.warn(`Missing rank icon: ${img.src}`);
 			},
-			{ once: true }
+			{ once: true },
 		);
 
 		container.appendChild(img);

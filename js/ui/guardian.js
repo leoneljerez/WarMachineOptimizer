@@ -1,17 +1,32 @@
 // ui/guardian.js
 import { GuardianCalculator } from "../guardianCalculator.js";
-//import { AppConfig } from "../config.js";
 import { showToast } from "./notifications.js";
-import { createGuardianRankSelector, parseGuardianRankValue } from '../utils/ranks.js';
+import { createGuardianRankSelector, parseGuardianRankValue } from "../utils/ranks.js";
+
+// Cache DOM elements on module load
+const guardianContainer = document.getElementById("guardianContainer");
+
+// Event handler reference for cleanup
+let calculateBtnHandler = null;
 
 /**
  * Renders the Guardian calculator interface
  */
 export function renderGuardianCalculator() {
-	const container = document.getElementById("guardianContainer");
-	if (!container) return;
+	if (!guardianContainer) return;
 
-	container.replaceChildren();
+	// Clean up previous event listener if exists
+	if (calculateBtnHandler) {
+		const oldBtn = document.getElementById("calculateGuardianBtn");
+		if (oldBtn) {
+			oldBtn.removeEventListener("click", calculateBtnHandler);
+		}
+		calculateBtnHandler = null;
+	}
+
+	guardianContainer.replaceChildren();
+
+	const fragment = document.createDocumentFragment();
 
 	const card = document.createElement("div");
 	card.className = "card";
@@ -56,8 +71,12 @@ export function renderGuardianCalculator() {
 	const calculateBtn = document.createElement("button");
 	calculateBtn.type = "button";
 	calculateBtn.className = "btn btn-primary w-100 mb-3";
+	calculateBtn.id = "calculateGuardianBtn";
 	calculateBtn.textContent = "Calculate Strange Dust Needed";
-	calculateBtn.addEventListener("click", calculateStrangeDust);
+
+	// Store handler reference for cleanup
+	calculateBtnHandler = calculateStrangeDust;
+	calculateBtn.addEventListener("click", calculateBtnHandler);
 
 	// Results Section
 	const resultsDiv = document.createElement("div");
@@ -66,7 +85,8 @@ export function renderGuardianCalculator() {
 
 	body.append(currentSection, targetSection, calculateBtn, resultsDiv);
 	card.append(header, body);
-	container.appendChild(card);
+	fragment.appendChild(card);
+	guardianContainer.appendChild(fragment);
 }
 
 /**
@@ -76,41 +96,41 @@ export function renderGuardianCalculator() {
  * @returns {HTMLElement} Section element
  */
 function createPositionSection(prefix, title) {
-	const section = document.createElement('div');
-	section.className = 'mb-4';
+	const section = document.createElement("div");
+	section.className = "mb-4";
 
-	const heading = document.createElement('h6');
-	heading.className = 'mb-3';
+	const heading = document.createElement("h6");
+	heading.className = "mb-3";
 	heading.textContent = title;
 
-	const row = document.createElement('div');
-	row.className = 'row g-3';
+	const row = document.createElement("div");
+	row.className = "row g-3";
 
 	// Combined Evolution & Rank selector
-	const rankCol = document.createElement('div');
-	rankCol.className = 'col-md-8';
+	const rankCol = document.createElement("div");
+	rankCol.className = "col-md-8";
 
-	const rankLabel = document.createElement('label');
-	rankLabel.className = 'form-label';
-	rankLabel.textContent = 'Evolution & Rank';
+	const rankLabel = document.createElement("label");
+	rankLabel.className = "form-label";
+	rankLabel.textContent = "Evolution & Rank";
 	rankLabel.htmlFor = `${prefix}Rank`;
 
-	const rankSelect = createGuardianRankSelector('bronze', '1star', `${prefix}Rank`);
+	const rankSelect = createGuardianRankSelector("bronze", "1star", `${prefix}Rank`);
 
 	rankCol.append(rankLabel, rankSelect);
 
 	// Level input
-	const levelCol = document.createElement('div');
-	levelCol.className = 'col-md-4';
+	const levelCol = document.createElement("div");
+	levelCol.className = "col-md-4";
 
-	const levelLabel = document.createElement('label');
-	levelLabel.className = 'form-label';
-	levelLabel.textContent = 'Level';
+	const levelLabel = document.createElement("label");
+	levelLabel.className = "form-label";
+	levelLabel.textContent = "Level";
 	levelLabel.htmlFor = `${prefix}Level`;
 
-	const levelInput = document.createElement('input');
-	levelInput.type = 'number';
-	levelInput.className = 'form-control';
+	const levelInput = document.createElement("input");
+	levelInput.type = "number";
+	levelInput.className = "form-control";
 	levelInput.id = `${prefix}Level`;
 	levelInput.min = 1;
 	levelInput.max = 10;
@@ -130,24 +150,24 @@ function createPositionSection(prefix, title) {
 function calculateStrangeDust() {
 	try {
 		// Get current position
-		const currentRankValue = document.getElementById('currentRank').value;
+		const currentRankValue = document.getElementById("currentRank").value;
 		const currentParsed = parseGuardianRankValue(currentRankValue);
-		
+
 		const current = {
 			category: currentParsed.evolution,
 			rank: currentParsed.rank,
-			level: parseInt(document.getElementById('currentLevel').value),
-			currentExp: parseInt(document.getElementById('currentExp').value) || 0,
+			level: parseInt(document.getElementById("currentLevel").value),
+			currentExp: parseInt(document.getElementById("currentExp").value) || 0,
 		};
 
 		// Get target position
-		const targetRankValue = document.getElementById('targetRank').value;
+		const targetRankValue = document.getElementById("targetRank").value;
 		const targetParsed = parseGuardianRankValue(targetRankValue);
-		
+
 		const target = {
 			category: targetParsed.evolution,
 			rank: targetParsed.rank,
-			level: parseInt(document.getElementById('targetLevel').value),
+			level: parseInt(document.getElementById("targetLevel").value),
 		};
 
 		// Calculate
@@ -157,11 +177,11 @@ function calculateStrangeDust() {
 		displayResults(result);
 
 		if (result.error) {
-			showToast(result.error, 'warning');
+			showToast(result.error, "warning");
 		}
 	} catch (error) {
-		console.error('Guardian calculation error:', error);
-		showToast(`Calculation error: ${error.message}`, 'danger');
+		console.error("Guardian calculation error:", error);
+		showToast(`Calculation error: ${error.message}`, "danger");
 	}
 }
 
@@ -214,8 +234,15 @@ function displayResults(result) {
 	}
 
 	// Calculate total Strange Dust (EXP + Evolutions)
-	const totalEvolutionCost = result.evolutionsNeeded.reduce((sum, e) => sum + e.cost, 0);
+	let totalEvolutionCost = 0;
+	const evolutionsLen = result.evolutionsNeeded.length;
+	for (let i = 0; i < evolutionsLen; i++) {
+		totalEvolutionCost += result.evolutionsNeeded[i].cost;
+	}
+
 	const totalStrangeDust = result.strangeDustNeeded + totalEvolutionCost;
+
+	const fragment = document.createDocumentFragment();
 
 	// Summary Card
 	const summaryCard = document.createElement("div");
@@ -240,12 +267,13 @@ function displayResults(result) {
 	const expBox = createBreakdownBox("For Experience", result.strangeDustNeeded, `${result.expNeeded.toLocaleString()} EXP`);
 
 	// Evolution portion
-	const evolutionLabel = result.evolutionsNeeded.length === 1 ? "evolution" : "evolutions";
-	const evoBox = createBreakdownBox("For Evolutions", totalEvolutionCost, `${result.evolutionsNeeded.length} ${evolutionLabel}`);
+	const evolutionLabel = evolutionsLen === 1 ? "evolution" : "evolutions";
+	const evoBox = createBreakdownBox("For Evolutions", totalEvolutionCost, `${evolutionsLen} ${evolutionLabel}`);
 
 	breakdown.append(expBox, evoBox);
 
 	summaryBody.append(summaryTitle, dustAmount, breakdown);
 	summaryCard.appendChild(summaryBody);
-	container.appendChild(summaryCard);
+	fragment.appendChild(summaryCard);
+	container.appendChild(fragment);
 }
