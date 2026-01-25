@@ -100,15 +100,14 @@ class WMDatabase extends Dexie {
 		if (!profile) throw new Error("No active profile");
 
 		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
-			// Save general
-			await this.general.put({
+			// Prepare all records first
+			const generalRecord = {
 				profileId: profile.id,
 				engineerLevel: state.engineerLevel,
 				scarabLevel: state.scarabLevel,
 				riftRank: state.riftRank,
-			});
+			};
 
-			// Save machines
 			const machineRecords = state.machines.map((m) => ({
 				profileId: profile.id,
 				id: m.id,
@@ -118,23 +117,21 @@ class WMDatabase extends Dexie {
 				inscriptionLevel: m.inscriptionLevel || AppConfig.DEFAULTS.CARD_LEVEL,
 				sacredLevel: m.sacredLevel || AppConfig.DEFAULTS.CARD_LEVEL,
 			}));
-			await this.machines.bulkPut(machineRecords);
 
-			// Save heroes
 			const heroRecords = state.heroes.map((h) => ({
 				profileId: profile.id,
 				id: h.id,
 				percentages: h.percentages,
 			}));
-			await this.heroes.bulkPut(heroRecords);
 
-			// Save artifacts
 			const artifactRecords = Object.keys(state.artifacts).map((stat) => ({
 				profileId: profile.id,
 				stat,
 				values: state.artifacts[stat],
 			}));
-			await this.artifacts.bulkPut(artifactRecords);
+
+			// Execute all operations in parallel
+			await Promise.all([this.general.put(generalRecord), this.machines.bulkPut(machineRecords), this.heroes.bulkPut(heroRecords), this.artifacts.bulkPut(artifactRecords)]);
 		});
 	}
 
@@ -187,7 +184,7 @@ class WMDatabase extends Dexie {
 					artifacts: Object.fromEntries(AppConfig.ARTIFACT_STATS.map((s) => [s, Object.fromEntries(AppConfig.ARTIFACT_PERCENTAGES.map((p) => [p, 0]))])),
 				},
 				null,
-				2
+				2,
 			);
 		}
 
@@ -215,7 +212,7 @@ class WMDatabase extends Dexie {
 				artifacts: state.artifacts,
 			},
 			null,
-			2
+			2,
 		);
 	}
 
@@ -230,51 +227,62 @@ class WMDatabase extends Dexie {
 		if (!profile) throw new Error("No active profile");
 
 		await this.transaction("rw", [this.general, this.machines, this.heroes, this.artifacts], async () => {
-			// Clear existing
-			await this.general.where("profileId").equals(profile.id).delete();
-			await this.machines.where("profileId").equals(profile.id).delete();
-			await this.heroes.where("profileId").equals(profile.id).delete();
-			await this.artifacts.where("profileId").equals(profile.id).delete();
+			// Clear existing data in parallel
+			await Promise.all([
+				this.general.where("profileId").equals(profile.id).delete(),
+				this.machines.where("profileId").equals(profile.id).delete(),
+				this.heroes.where("profileId").equals(profile.id).delete(),
+				this.artifacts.where("profileId").equals(profile.id).delete(),
+			]);
 
-			// Import general
-			await this.general.put({
+			// Prepare new records
+			const generalRecord = {
 				profileId: profile.id,
 				engineerLevel: data.general.engineerLevel,
 				scarabLevel: data.general.scarabLevel,
 				riftRank: data.general.riftRank,
-			});
+			};
 
-			// Import machines
-			if (data.machines.length > 0) {
-				const machineRecords = data.machines.map((m) => ({
-					profileId: profile.id,
-					id: m.id,
-					rarity: m.rarity,
-					level: m.level,
-					blueprints: m.blueprints,
-					inscriptionLevel: m.inscriptionLevel || AppConfig.DEFAULTS.CARD_LEVEL,
-					sacredLevel: m.sacredLevel || AppConfig.DEFAULTS.CARD_LEVEL,
-				}));
-				await this.machines.bulkPut(machineRecords);
-			}
+			const machineRecords =
+				data.machines.length > 0
+					? data.machines.map((m) => ({
+							profileId: profile.id,
+							id: m.id,
+							rarity: m.rarity,
+							level: m.level,
+							blueprints: m.blueprints,
+							inscriptionLevel: m.inscriptionLevel || AppConfig.DEFAULTS.CARD_LEVEL,
+							sacredLevel: m.sacredLevel || AppConfig.DEFAULTS.CARD_LEVEL,
+						}))
+					: [];
 
-			// Import heroes
-			if (data.heroes.length > 0) {
-				const heroRecords = data.heroes.map((h) => ({
-					profileId: profile.id,
-					id: h.id,
-					percentages: h.percentages,
-				}));
-				await this.heroes.bulkPut(heroRecords);
-			}
+			const heroRecords =
+				data.heroes.length > 0
+					? data.heroes.map((h) => ({
+							profileId: profile.id,
+							id: h.id,
+							percentages: h.percentages,
+						}))
+					: [];
 
-			// Import artifacts
 			const artifactRecords = Object.keys(data.artifacts).map((stat) => ({
 				profileId: profile.id,
 				stat,
 				values: data.artifacts[stat],
 			}));
-			await this.artifacts.bulkPut(artifactRecords);
+
+			// Import all data in parallel
+			const operations = [this.general.put(generalRecord), this.artifacts.bulkPut(artifactRecords)];
+
+			if (machineRecords.length > 0) {
+				operations.push(this.machines.bulkPut(machineRecords));
+			}
+
+			if (heroRecords.length > 0) {
+				operations.push(this.heroes.bulkPut(heroRecords));
+			}
+
+			await Promise.all(operations);
 		});
 	}
 
