@@ -94,6 +94,48 @@ function handleInscriptionReset(e) {
 }
 
 /**
+ * Checks if a machine has been configured (non-default values)
+ * @param {Object} machine - Machine object
+ * @returns {boolean} True if machine has non-default configuration
+ */
+function isConfiguredMachine({ rarity, level, blueprints }) {
+	const values = Object.values(blueprints);
+	const valuesLen = values.length;
+	for (let i = 0; i < valuesLen; i++) {
+		if (values[i] > 0) return true;
+	}
+	return level > 0 || rarity.toLowerCase() !== "common";
+}
+
+/**
+ * Sorts machines: configured first (alphabetically), then unconfigured (alphabetically)
+ * @param {Object[]} machines - Array of machine objects
+ * @returns {Object[]} Sorted array of machines
+ */
+function sortMachinesConfiguredFirst(machines) {
+	// Separate machines into configured and unconfigured
+	const configured = [];
+	const unconfigured = [];
+
+	const machinesLen = machines.length;
+	for (let i = 0; i < machinesLen; i++) {
+		const machine = machines[i];
+		if (isConfiguredMachine(machine)) {
+			configured.push(machine);
+		} else {
+			unconfigured.push(machine);
+		}
+	}
+
+	// Sort each group alphabetically by name
+	configured.sort((a, b) => a.name.localeCompare(b.name));
+	unconfigured.sort((a, b) => a.name.localeCompare(b.name));
+
+	// Combine: configured first, then unconfigured
+	return [...configured, ...unconfigured];
+}
+
+/**
  * Renders the tavern cards sections (Sacred and Inscription)
  * Creates grid layouts with card level inputs for each machine
  * @param {Object[]} machines - Array of machine objects
@@ -104,7 +146,7 @@ function handleInscriptionReset(e) {
  * @param {number} machines[].inscriptionLevel - Inscription card level
  */
 export function renderTavernCards(machines) {
-	const sortedMachines = machines.slice().sort((a, b) => a.name.localeCompare(b.name));
+	const sortedMachines = sortMachinesConfiguredFirst(machines);
 
 	// Render Sacred Cards
 	renderCardSection(sacredContainer, sortedMachines, "sacred", "sacredLevel", "Reset All Sacred Cards");
