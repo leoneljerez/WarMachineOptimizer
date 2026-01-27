@@ -384,11 +384,22 @@ function renderMachineDetails(machine) {
 
 		const statsList = document.createElement("div");
 		statsList.className = "small";
-		statsList.innerHTML = `
-			<div class="mb-1"><strong>Damage:</strong> ${baseStats.damage.toLocaleString()}</div>
-			<div class="mb-1"><strong>Health:</strong> ${baseStats.health.toLocaleString()}</div>
-			<div><strong>Armor:</strong> ${baseStats.armor.toLocaleString()}</div>
-		`;
+		const createStatRow = (label, value, addMargin = true) => {
+			const row = document.createElement("div");
+			if (addMargin) row.classList.add("mb-1");
+
+			const strong = document.createElement("strong");
+			strong.textContent = `${label}: `;
+
+			row.appendChild(strong);
+			row.appendChild(document.createTextNode(value.toLocaleString()));
+
+			return row;
+		};
+
+		statsList.appendChild(createStatRow("Damage", baseStats.damage));
+		statsList.appendChild(createStatRow("Health", baseStats.health));
+		statsList.appendChild(createStatRow("Armor", baseStats.armor, false));
 
 		statsBody.append(statsTitle, statsList);
 		statsCard.appendChild(statsBody);
