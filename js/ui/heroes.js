@@ -147,13 +147,6 @@ function handleAllBlurs(e) {
  * Renders the hero list and detail view
  * Handles both normal and bulk edit modes
  * @param {Object[]} heroes - Array of hero objects
- * @param {string} heroes[].id - Unique hero identifier
- * @param {string} heroes[].name - Hero name
- * @param {string} heroes[].image - Hero image URL
- * @param {Object} heroes[].percentages - Hero stat percentages
- * @param {number} heroes[].percentages.damage - Damage percentage bonus
- * @param {number} heroes[].percentages.health - Health percentage bonus
- * @param {number} heroes[].percentages.armor - Armor percentage bonus
  */
 export function renderHeroes(heroes) {
 	heroesMap.clear();
@@ -224,18 +217,18 @@ function updateActiveButton(heroId) {
 
 /**
  * Formats hero stats for display in list
+ * SIMPLIFIED: No role prefix in list
  * @param {Object} hero - Hero object
- * @param {Object} hero.percentages - Hero stat percentages
  * @returns {string} Formatted stats string
  */
 function formatHeroStats(hero) {
-	return `Dmg ${hero.percentages.damage}% • Hp ${hero.percentages.health}% • Arm ${hero.percentages.armor}%`;
+	const p = hero.percentages;
+	return `Dmg ${p.damage}% • Hp ${p.health}% • Arm ${p.armor}%`;
 }
 
 /**
  * Checks if a hero has been configured (any stat > 0)
  * @param {Object} hero - Hero object
- * @param {Object} hero.percentages - Hero stat percentages
  * @returns {boolean} True if any percentage is greater than 0
  */
 function isConfiguredHero(hero) {
@@ -245,15 +238,37 @@ function isConfiguredHero(hero) {
 
 /**
  * Renders the hero details form
+ * NOW: Uses tags array for badges
  * @param {Object} hero - Hero object
  */
 function renderHeroDetails(hero) {
 	const wrapper = document.createElement("div");
 	wrapper.className = "hero-detail-view";
 
+	// Create badges from tags array
+	const badges = [];
+	if (hero.tags && hero.tags.length > 0) {
+		// First tag is the role (tank/dps) - use color coding
+		const roleTag = hero.tags[0].toLowerCase();
+		badges.push({
+			text: hero.tags[0],
+			color: roleTag === "tank" ? "primary" : roleTag === "healer" ? "success" : "danger",
+		});
+
+		// Add remaining tags as secondary badges
+		for (let i = 1; i < hero.tags.length; i++) {
+			badges.push({
+				text: hero.tags[i],
+				color: "secondary",
+			});
+		}
+	}
+
+	// ENHANCED HEADER: Image + Name/Badges on left, Reset on right
 	const header = createDetailHeader({
 		image: hero.image,
 		name: hero.name,
+		badges,
 	});
 
 	const form = document.createElement("form");
@@ -261,7 +276,8 @@ function renderHeroDetails(hero) {
 
 	const heroId = `hero-${hero.id}`;
 
-	const percentSection = createSection("Crew Bonus", [
+	// === CREW BONUS SECTION ===
+	const percentSection = createSection("CREW BONUS PERCENTAGES", [
 		createFormRow("Damage %", createNumberInput(hero.percentages.damage, 0, 20, `${heroId}-damage-pct`, "damage"), "col-md-4"),
 		createFormRow("Health %", createNumberInput(hero.percentages.health, 0, 20, `${heroId}-health-pct`, "health"), "col-md-4"),
 		createFormRow("Armor %", createNumberInput(hero.percentages.armor, 0, 20, `${heroId}-armor-pct`, "armor"), "col-md-4"),

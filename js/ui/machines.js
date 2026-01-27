@@ -199,15 +199,6 @@ function handleAllBlurs(e) {
  * Renders the machine list and detail view
  * Handles both normal and bulk edit modes
  * @param {Object[]} machines - Array of machine objects
- * @param {string} machines[].id - Unique machine identifier
- * @param {string} machines[].name - Machine name
- * @param {string} machines[].image - Machine image URL
- * @param {string} machines[].rarity - Machine rarity level
- * @param {number} machines[].level - Machine level
- * @param {Object} machines[].blueprints - Blueprint levels
- * @param {number} machines[].blueprints.damage - Damage blueprint level
- * @param {number} machines[].blueprints.health - Health blueprint level
- * @param {number} machines[].blueprints.armor - Armor blueprint level
  */
 export function renderMachines(machines) {
 	machinesMap.clear();
@@ -278,21 +269,19 @@ function updateActiveButton(machineId) {
 
 /**
  * Formats machine stats for display in list
+ * NOW: Multi-line with level/rarity and blueprints (full labels)
  * @param {Object} machine - Machine object
- * @param {number} machine.level - Machine level
- * @param {string} machine.rarity - Machine rarity
  * @returns {string} Formatted stats string
  */
-function formatMachineStats({ level, rarity }) {
-	return `Lv. ${level} • ${rarity}`;
+function formatMachineStats(machine) {
+	const { level, rarity, blueprints } = machine;
+	const bp = blueprints;
+	return `Lv.${level} • ${rarity}\nDmg ${bp.damage} • Hp ${bp.health} • Arm ${bp.armor}`;
 }
 
 /**
  * Checks if a machine has been configured (non-default values)
  * @param {Object} machine - Machine object
- * @param {string} machine.rarity - Machine rarity
- * @param {number} machine.level - Machine level
- * @param {Object} machine.blueprints - Blueprint levels
  * @returns {boolean} True if machine has non-default configuration
  */
 function isConfiguredMachine({ rarity, level, blueprints }) {
@@ -306,38 +295,129 @@ function isConfiguredMachine({ rarity, level, blueprints }) {
 
 /**
  * Renders the machine details form
+ * NOW: Uses tags array for badges, ability and base stats integrated
  * @param {Object} machine - Machine object
  */
 function renderMachineDetails(machine) {
-	const { id, name, image } = machine;
+	const { id, name, image, level, rarity, blueprints, tags, ability, baseStats } = machine;
 	const wrapper = document.createElement("div");
 	wrapper.className = "machine-detail-view";
 
+	// Create badges from tags array
+	const badges = [];
+	if (tags && tags.length > 0) {
+		// First tag is the role (tank/dps) - use color coding
+		const roleTag = tags[0].toLowerCase();
+		badges.push({
+			text: tags[0],
+			color: roleTag === "tank" ? "primary" : roleTag === "healer" ? "success" : "danger",
+		});
+
+		// Add remaining tags as secondary badges
+		for (let i = 1; i < tags.length; i++) {
+			badges.push({
+				text: tags[i],
+				color: "secondary",
+			});
+		}
+	}
+
+	// ENHANCED HEADER: Image + Name/Badges on left, Reset on right
 	const header = createDetailHeader({
 		image,
 		name,
+		badges,
 	});
+
+	// === ABILITY & BASE STATS (directly below header, before form) ===
+	const infoSection = document.createElement("div");
+	infoSection.className = "row g-3 mb-4";
+
+	// Ability column (if exists)
+	if (ability && ability.description) {
+		const abilityCol = document.createElement("div");
+		abilityCol.className = baseStats ? "col-md-7" : "col-12";
+
+		const abilityCard = document.createElement("div");
+		abilityCard.className = "card bg-info bg-opacity-10 border-info border-opacity-25 h-100";
+
+		const abilityBody = document.createElement("div");
+		abilityBody.className = "card-body p-3";
+
+		const abilityHeader = document.createElement("div");
+		abilityHeader.className = "d-flex align-items-center gap-2 mb-2";
+
+		const icon = document.createElement("i");
+		icon.className = "bi bi-lightning-charge-fill text-info";
+
+		const abilityTitle = document.createElement("h6");
+		abilityTitle.className = "mb-0 text-info";
+		abilityTitle.textContent = "Ability";
+
+		abilityHeader.append(icon, abilityTitle);
+
+		const abilityDesc = document.createElement("div");
+		abilityDesc.className = "small";
+		abilityDesc.textContent = ability.description;
+
+		abilityBody.append(abilityHeader, abilityDesc);
+		abilityCard.appendChild(abilityBody);
+		abilityCol.appendChild(abilityCard);
+		infoSection.appendChild(abilityCol);
+	}
+
+	// Base stats column (if exists)
+	if (baseStats) {
+		const statsCol = document.createElement("div");
+		statsCol.className = ability && ability.description ? "col-md-5" : "col-12";
+
+		const statsCard = document.createElement("div");
+		statsCard.className = "card bg-secondary bg-opacity-10 border-secondary border-opacity-25 h-100";
+
+		const statsBody = document.createElement("div");
+		statsBody.className = "card-body p-3";
+
+		const statsTitle = document.createElement("h6");
+		statsTitle.className = "mb-2 text-secondary";
+		statsTitle.textContent = "Base Stats";
+
+		const statsList = document.createElement("div");
+		statsList.className = "small";
+		statsList.innerHTML = `
+			<div class="mb-1"><strong>Damage:</strong> ${baseStats.damage.toLocaleString()}</div>
+			<div class="mb-1"><strong>Health:</strong> ${baseStats.health.toLocaleString()}</div>
+			<div><strong>Armor:</strong> ${baseStats.armor.toLocaleString()}</div>
+		`;
+
+		statsBody.append(statsTitle, statsList);
+		statsCard.appendChild(statsBody);
+		statsCol.appendChild(statsCard);
+		infoSection.appendChild(statsCol);
+	}
 
 	const form = document.createElement("form");
 	form.className = "machine-form";
 
 	const machineId = `machine-${id}`;
 
-	const generalSection = createSection("General", [
-		createFormRow("Rarity", createSelect(AppConfig.RARITY_LABELS, machine.rarity, `${machineId}-rarity`, "rarity"), "col-md-6"),
-		createFormRow("Level", createNumberInput(machine.level, 0, 1, `${machineId}-level`, "level"), "col-md-6"),
+	// === BASIC INFORMATION SECTION ===
+	const generalSection = createSection("BASIC INFORMATION", [
+		createFormRow("Rarity", createSelect(AppConfig.RARITY_LABELS, rarity, `${machineId}-rarity`, "rarity"), "col-md-6"),
+		createFormRow("Level", createNumberInput(level, 0, 1, `${machineId}-level`, "level"), "col-md-6"),
 	]);
 
+	// === BLUEPRINT LEVELS SECTION ===
 	const blueprintFields = ["damage", "health", "armor"];
 	const blueprintRows = [];
 	for (let i = 0; i < 3; i++) {
 		const field = blueprintFields[i];
-		blueprintRows.push(createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(machine.blueprints[field], 0, 1, `${machineId}-bp-${field}`, field), "col-md-4"));
+		blueprintRows.push(createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(blueprints[field], 0, 1, `${machineId}-bp-${field}`, field), "col-md-4"));
 	}
-	const blueprintSection = createSection("Blueprint Levels", blueprintRows);
+	const blueprintSection = createSection("BLUEPRINT LEVELS", blueprintRows);
 
 	form.append(generalSection, blueprintSection);
-	wrapper.append(header, form);
+
+	wrapper.append(header, infoSection, form);
 
 	detailsElement.replaceChildren(wrapper);
 }

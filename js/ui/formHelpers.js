@@ -13,6 +13,9 @@
  * @typedef {Object} DetailHeaderConfig
  * @property {string} image - Image source URL
  * @property {string} name - Display name
+ * @property {string} [subtitle] - Optional subtitle (e.g., "Epic • Lv.25")
+ * @property {string} [badgeText] - Optional badge text (e.g., "Tank")
+ * @property {string} [badgeColor] - Optional badge color (primary, danger, success, etc)
  */
 
 /**
@@ -28,8 +31,8 @@ export function createSection(title, rows) {
 	const sectionId = `section-${title.replace(/\s+/g, "-").toLowerCase()}`;
 	section.setAttribute("aria-labelledby", sectionId);
 
-	const heading = document.createElement("h5");
-	heading.className = "mb-3";
+	const heading = document.createElement("h6");
+	heading.className = "detail-section-header mb-3";
 	heading.id = sectionId;
 	heading.textContent = title;
 
@@ -125,45 +128,56 @@ export function createSelect(options, currentValue, id = "", dataKey = "") {
 
 /**
  * Creates a list item button (no click handler - use delegation)
+ * NOW: Uses status icon instead of badge, supports multi-line stats
  * @param {ListItemConfig} config - List item configuration
  * @returns {HTMLButtonElement} Button element
  */
 export function createListItem({ image, name, statsText, isConfigured, id }) {
 	const btn = document.createElement("button");
 	btn.type = "button";
-	btn.className = "list-group-item list-group-item-action";
+	btn.className = "list-group-item list-group-item-action p-3";
 	btn.setAttribute("aria-label", `Select ${name}`);
 	btn.dataset.itemId = id;
 
 	const container = document.createElement("div");
-	container.className = "d-flex align-items-center gap-2";
+	container.className = "d-flex align-items-start gap-3";
 
+	// Image (slightly larger)
 	const thumb = document.createElement("img");
 	thumb.src = image;
 	thumb.alt = "";
 	thumb.className = "rounded";
-	thumb.style.cssText = "width: 40px; height: 40px; object-fit: cover;";
+	thumb.style.cssText = "width: 48px; height: 48px; object-fit: cover;";
 	thumb.setAttribute("aria-hidden", "true");
 
+	// Content wrapper
 	const textWrap = document.createElement("div");
-	textWrap.className = "flex-grow-1";
+	textWrap.className = "flex-grow-1 min-width-0";
+
+	// Name row with status icon (CHANGED: badge → icon)
+	const nameRow = document.createElement("div");
+	nameRow.className = "d-flex justify-content-between align-items-start mb-1";
 
 	const nameDiv = document.createElement("div");
-	nameDiv.className = "fw-bold";
+	nameDiv.className = "fw-semibold fs-6 text-truncate";
 	nameDiv.textContent = name;
 
+	// Status icon (CHANGED)
+	const statusIcon = document.createElement("i");
+	statusIcon.className = `bi ${isConfigured ? "bi-check-circle-fill text-success" : "bi-circle text-secondary"}`;
+	statusIcon.setAttribute("aria-label", isConfigured ? "Configured" : "Default");
+	statusIcon.style.fontSize = "1.1rem";
+
+	nameRow.append(nameDiv, statusIcon);
+
+	// Stats text (secondary line, preserve line breaks)
 	const statsDiv = document.createElement("div");
 	statsDiv.className = "text-secondary small";
+	statsDiv.style.whiteSpace = "pre-line"; // Preserve \n line breaks
 	statsDiv.textContent = statsText;
 	statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
 
-	const badge = document.createElement("span");
-	badge.className = `badge ms-2 ${isConfigured ? "bg-success" : "bg-secondary"}`;
-	badge.textContent = isConfigured ? "Configured" : "Default";
-	badge.setAttribute("aria-label", isConfigured ? "Configured" : "Using default values");
-
-	nameDiv.appendChild(badge);
-	textWrap.append(nameDiv, statsDiv);
+	textWrap.append(nameRow, statsDiv);
 	container.append(thumb, textWrap);
 	btn.appendChild(container);
 
@@ -178,54 +192,98 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
  */
 export function updateListItem(btn, statsText, isConfigured) {
 	const statsDiv = btn.querySelector(".text-secondary.small");
-	const badge = btn.querySelector(".badge");
+	const statusIcon = btn.querySelector("i.bi");
 
 	if (statsDiv && statsDiv.textContent !== statsText) {
 		statsDiv.textContent = statsText;
 		statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
 	}
 
-	if (badge) {
-		const newClass = `badge ms-2 ${isConfigured ? "bg-success" : "bg-secondary"}`;
-		const newText = isConfigured ? "Configured" : "Default";
+	if (statusIcon) {
+		const newClass = `bi ${isConfigured ? "bi-check-circle-fill text-success" : "bi-circle text-secondary"}`;
+		const newLabel = isConfigured ? "Configured" : "Default";
 
-		if (badge.className !== newClass) {
-			badge.className = newClass;
+		if (statusIcon.className !== newClass) {
+			statusIcon.className = newClass;
 		}
-		if (badge.textContent !== newText) {
-			badge.textContent = newText;
-			badge.setAttribute("aria-label", newText === "Configured" ? "Configured" : "Using default values");
+		if (statusIcon.getAttribute("aria-label") !== newLabel) {
+			statusIcon.setAttribute("aria-label", newLabel);
 		}
 	}
 }
 
 /**
- * Creates a detail header with image and reset button (no event listener - use delegation)
+ * Creates a detail header - PROFESSIONAL: Left-aligned with reset on far right
  * @param {DetailHeaderConfig} config - Header configuration
  * @returns {HTMLElement} Header element
  */
-export function createDetailHeader({ image, name }) {
+export function createDetailHeader({ image, name, subtitle = null, badgeText = null, badgeColor = "primary", badges = [] }) {
 	const header = document.createElement("div");
-	header.className = "text-center mb-4";
+	header.className = "d-flex align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom";
 
+	// Left side: Image + Name/Badges
+	const leftSide = document.createElement("div");
+	leftSide.className = "d-flex align-items-center gap-3";
+
+	// Image
 	const img = document.createElement("img");
 	img.src = image;
 	img.alt = name;
-	img.className = "img-fluid rounded shadow-sm";
-	img.style.maxWidth = "200px";
+	img.className = "rounded shadow-sm flex-shrink-0";
+	img.style.cssText = "width: 80px; height: 80px; object-fit: cover;";
 
-	const title = document.createElement("h4");
-	title.className = "mt-3 mb-0";
-	title.textContent = name;
+	// Content area (name + badges)
+	const content = document.createElement("div");
 
+	// Name
+	const nameEl = document.createElement("h4");
+	nameEl.className = "mb-2";
+	nameEl.textContent = name;
+
+	content.appendChild(nameEl);
+
+	// Badges container
+	const badgesContainer = document.createElement("div");
+	badgesContainer.className = "d-flex flex-wrap gap-2 align-items-center";
+
+	// Add badges from array (supports multiple badges)
+	if (badges && badges.length > 0) {
+		badges.forEach((badge) => {
+			const badgeEl = document.createElement("span");
+			badgeEl.className = `badge bg-${badge.color || "secondary"}`;
+			badgeEl.textContent = badge.text;
+			badgesContainer.appendChild(badgeEl);
+		});
+	}
+	// Fallback to single badge for backwards compatibility
+	else if (badgeText) {
+		const badge = document.createElement("span");
+		badge.className = `badge bg-${badgeColor}`;
+		badge.textContent = badgeText;
+		badgesContainer.appendChild(badge);
+	}
+
+	// Optional subtitle
+	if (subtitle) {
+		const subtitleEl = document.createElement("span");
+		subtitleEl.className = "text-secondary small";
+		subtitleEl.textContent = subtitle;
+		badgesContainer.appendChild(subtitleEl);
+	}
+
+	content.appendChild(badgesContainer);
+
+	leftSide.append(img, content);
+
+	// Right side: Reset button
 	const resetBtn = document.createElement("button");
 	resetBtn.type = "button";
-	resetBtn.className = "btn btn-sm btn-outline-danger mt-3";
+	resetBtn.className = "btn btn-sm btn-outline-danger flex-shrink-0";
 	resetBtn.textContent = "Reset to Default";
 	resetBtn.setAttribute("aria-label", `Reset ${name} to default values`);
 	resetBtn.dataset.action = "reset";
 
-	header.append(img, title, resetBtn);
+	header.append(leftSide, resetBtn);
 
 	return header;
 }
