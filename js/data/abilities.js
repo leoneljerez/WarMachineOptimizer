@@ -1,6 +1,6 @@
 export const abilitiesData = {
 	dmg_1x_150: {
-		description: "Deals 150% of its damage to 1 enemy.",
+		description: "Throws a fireball that deals 150% of its damage.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "random",
@@ -10,7 +10,7 @@ export const abilitiesData = {
 	},
 
 	dmg_1x_160: {
-		description: "Deals 160% of its damage to 1 enemy.",
+		description: "Activates an energy beam that deals 160% of its damage.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "random",
@@ -20,7 +20,7 @@ export const abilitiesData = {
 	},
 
 	dmg_1x_200: {
-		description: "Deals 200% of its damage to 1 enemy.",
+		description: "Launches a rocket that deals 200% of its damage.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "random",
@@ -30,7 +30,7 @@ export const abilitiesData = {
 	},
 
 	dmg_2x_60: {
-		description: "Deals 60% of its damage to 2 random enemies.",
+		description: "Fires cannonballs at 2 random war machines that deal 60% of its damage.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "random",
@@ -40,7 +40,7 @@ export const abilitiesData = {
 	},
 
 	dmg_2x_130: {
-		description: "Deals 130% of its damage to the last 2 enemies.",
+		description: "Attack the last 2 war machines in the enemy formation with an energy beam that deals 130% of its damage.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "last",
@@ -50,7 +50,7 @@ export const abilitiesData = {
 	},
 
 	dmg_3x_120: {
-		description: "Deals 120% of its damage to 3 random enemies.",
+		description: "Electrifies 3 random war machines for 120% of its damage.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "random",
@@ -60,7 +60,7 @@ export const abilitiesData = {
 	},
 
 	dmg_all_60: {
-		description: "Deals 60% of its damage to all enemies.",
+		description: "Launches rockets that deal 60% of its damage to all enemy war machines.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "all",
@@ -70,7 +70,7 @@ export const abilitiesData = {
 	},
 
 	dmg_all_80: {
-		description: "Deals 80% of its damage to all enemies.",
+		description: "Slams the ground and causes an earthquake that deals 80% of its damage to all enemy war machines.",
 		effect: "damage",
 		targets: "enemy",
 		targeting: "all",
@@ -80,7 +80,7 @@ export const abilitiesData = {
 	},
 
 	heal_lowest_1x_300: {
-		description: "Heals the lowest-health ally for 300% of its damage.",
+		description: "Heals the ally war machine with the lowest percentage of health for 300% of its damage.",
 		effect: "heal",
 		targets: "ally",
 		targeting: "lowest",
@@ -90,7 +90,7 @@ export const abilitiesData = {
 	},
 
 	heal_random_2x_350: {
-		description: "Heals 2 random allies for 350% of its damage.",
+		description: "Heals 2 random ally war machines for 350% of its damage.",
 		effect: "heal",
 		targets: "ally",
 		targeting: "random",
@@ -100,7 +100,7 @@ export const abilitiesData = {
 	},
 
 	heal_all_150: {
-		description: "Heals all allies for 150% of its damage.",
+		description: "Heals all your war machines for 150% of its damage.",
 		effect: "heal",
 		targets: "ally",
 		targeting: "all",
@@ -110,7 +110,7 @@ export const abilitiesData = {
 	},
 
 	heal_self_hp_10: {
-		description: "Heals itself for 10% of its maximum health.",
+		description: "Restores 10% of your maximum health.",
 		effect: "heal",
 		targets: "self",
 		targeting: "self",
