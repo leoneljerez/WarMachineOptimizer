@@ -21,7 +21,7 @@ const machineTemplate = document.getElementById("machineTemplate");
 function formatPower(decimal) {
 	const value = Calculator.toDecimal(decimal);
 	if (value.lessThan(999000000)) {
-		return Math.trunc(value.toNumber()).toLocaleString("en-US");
+		return Math.trunc(value.toNumber()).toLocaleString();
 	}
 	return value.toExponential(2);
 }
