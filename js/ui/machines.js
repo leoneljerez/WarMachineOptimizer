@@ -276,7 +276,8 @@ function updateActiveButton(machineId) {
 function formatMachineStats(machine) {
 	const { level, rarity, blueprints } = machine;
 	const bp = blueprints;
-	return `Lv.${level} • ${rarity}\nDmg ${bp.damage} • Hp ${bp.health} • Arm ${bp.armor}`;
+	const displayRarity = rarity.charAt(0).toUpperCase() + rarity.slice(1).toLowerCase();
+	return `Lv.${level} • ${displayRarity}\nDmg ${bp.damage} • Hp ${bp.health} • Arm ${bp.armor}`;
 }
 
 /**
