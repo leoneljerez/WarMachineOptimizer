@@ -219,7 +219,7 @@ function createCardLevelCard(machine, cardType, property) {
 	const { name, image } = machine;
 
 	const card = document.createElement("div");
-	card.className = "card h-100 card-hover";
+	card.className = "card h-100 card-shadow";
 
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body d-flex flex-column align-items-center";

@@ -73,7 +73,7 @@ export function renderArtifacts(artifacts) {
  */
 function createArtifactCard(stat, percentages, artifacts) {
 	const card = document.createElement("div");
-	card.className = "card h-100 card-hover bg-body-tertiary bg-opacity-25";
+	card.className = "card h-100 card-shadow bg-body-tertiary bg-opacity-25";
 
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body";
