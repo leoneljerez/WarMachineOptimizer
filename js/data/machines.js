@@ -95,7 +95,7 @@ export const machinesData = [
 		role: "tank",
 		tags: ["Tank", "AOE"],
 		image: "img/machines/earthshatterer.webp",
-		ability: { key: "dmg_all_60" },
+		ability: { key: "dmg_all_80" },
 		baseStats: { damage: 510, health: 10500, armor: 270 },
 	},
 	{
