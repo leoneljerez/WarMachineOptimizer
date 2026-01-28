@@ -24,9 +24,9 @@
  * @param {HTMLElement[]} rows - Array of row elements
  * @returns {HTMLElement} Section element
  */
-export function createSection(title, rows) {
+export function createSection(title, rows, spacing = null ) {
 	const section = document.createElement("section");
-	section.className = "mb-4";
+	section.className = spacing || "mb-4";
 
 	const sectionId = `section-${title.replace(/\s+/g, "-").toLowerCase()}`;
 	section.setAttribute("aria-labelledby", sectionId);

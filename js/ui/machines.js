@@ -520,7 +520,7 @@ function renderMachineDetails(machine) {
 		blueprintRows.push(createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(currentValue, 0, 1, `${machineId}-bp-${field}`, field, maxBP, isAtMax), "col-md-4"));
 	}
 
-	const blueprintSection = createSection("BLUEPRINT LEVELS", blueprintRows);
+	const blueprintSection = createSection("BLUEPRINT LEVELS", blueprintRows, "mb-2");
 
 	// Small note about max bp level
 	const bpHint = document.createElement("div");
