@@ -80,9 +80,11 @@ export function createFormRow(labelText, input, colClass = "col-12", inputId = n
  * @param {number} step - Step value
  * @param {string} id - Input ID
  * @param {string} dataKey - Data attribute key for identification
+ * @param {number} [max] - Optional maximum value
+ * @param {boolean} [isAtMax=false] - Whether the value is at maximum (for visual feedback)
  * @returns {HTMLInputElement} Input element
  */
-export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "") {
+export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "", max = null, isAtMax = false) {
 	const input = document.createElement("input");
 	input.type = "number";
 	input.className = "form-control";
@@ -93,8 +95,39 @@ export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "
 
 	if (id) input.id = id;
 	if (dataKey) input.dataset.key = dataKey;
+	if (max !== null) {
+		input.max = max;
+		input.dataset.dynamicMax = max; // Store for later updates
+	}
+
+	// Apply visual feedback if at max
+	if (isAtMax && max !== null && value >= max) {
+		input.classList.add("border-success", "border-2");
+	}
 
 	return input;
+}
+
+/**
+ * Updates the visual state of a blueprint input based on its value and max
+ * @param {HTMLInputElement} input - The input element to update
+ * @param {number} value - Current value
+ * @param {number} max - Maximum allowed value
+ */
+export function updateBlueprintInputState(input, value, max) {
+	if (!input) return;
+
+	// Update max attribute
+	input.max = max;
+	input.dataset.dynamicMax = max;
+
+	// Update visual feedback
+	const isAtMax = value >= max;
+	if (isAtMax) {
+		input.classList.add("border-success", "border-2");
+	} else {
+		input.classList.remove("border-success", "border-2");
+	}
 }
 
 /**

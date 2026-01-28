@@ -388,4 +388,14 @@ export class Calculator {
 	static maxCrewSlots(engineerLevel) {
 		return AppConfig.getMaxCrewSlots(engineerLevel);
 	}
+
+	/**
+	 * Calculates the maximum blueprint level allowed for a machine at its current level
+	 * Formula: 5 + floor(level / 5) * 5
+	 * @param {number} machineLevel - Current machine level
+	 * @returns {number} Maximum allowed blueprint level
+	 */
+	static getMaxBlueprintLevel(machineLevel) {
+		return 5 + Math.floor(machineLevel / 5) * 5;
+	}
 }

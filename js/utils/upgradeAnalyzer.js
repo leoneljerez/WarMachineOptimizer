@@ -48,16 +48,6 @@ export class UpgradeAnalyzer {
 	}
 
 	/**
-	 * Calculates the maximum blueprint level allowed for a machine at its current level
-	 * Formula: 5 + floor(level / 5) * 5
-	 * @param {number} machineLevel - Current machine level
-	 * @returns {number} Maximum allowed blueprint level
-	 */
-	static getMaxBlueprintLevel(machineLevel) {
-		return 5 + Math.floor(machineLevel / 5) * 5;
-	}
-
-	/**
 	 * Finds the next star to earn and determines upgrade paths needed
 	 * @param {Array} formation - Current optimized formation
 	 * @param {Object} lastCleared - Last cleared missions by difficulty
@@ -480,7 +470,7 @@ export class UpgradeAnalyzer {
 
 						// Check blueprint cap (use new level if being upgraded)
 						const checkLevel = upgradeObj.upgrade.level || machine.level;
-						const blueprintCap = UpgradeAnalyzer.getMaxBlueprintLevel(checkLevel);
+						const blueprintCap = Calculator.getMaxBlueprintLevel(checkLevel);
 
 						if (newValue > blueprintCap) {
 							exceedsCap = true;
@@ -604,7 +594,7 @@ export class UpgradeAnalyzer {
 				upgrade = { level: testValue };
 			} else {
 				// Check blueprint cap for this level
-				const blueprintCap = UpgradeAnalyzer.getMaxBlueprintLevel(machine.level);
+				const blueprintCap = Calculator.getMaxBlueprintLevel(machine.level);
 
 				if (testValue > blueprintCap) {
 					// Blueprint would exceed cap - skip this upgrade type
@@ -664,7 +654,7 @@ export class UpgradeAnalyzer {
 
 					// Check if this would exceed the cap at the NEW level (if level is being upgraded)
 					const checkLevel = upgrade.level || machine.level;
-					const blueprintCap = UpgradeAnalyzer.getMaxBlueprintLevel(checkLevel);
+					const blueprintCap = Calculator.getMaxBlueprintLevel(checkLevel);
 
 					if (newValue > blueprintCap) {
 						exceedsCap = true;

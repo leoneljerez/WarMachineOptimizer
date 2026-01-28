@@ -1,6 +1,7 @@
 // ui/machines.js
-import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
+import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader, updateBlueprintInputState } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
+import { Calculator } from "../calculator.js";
 import { triggerAutoSave, store } from "../app.js";
 
 /** @type {"normal"|"bulk"} Current view mode for machines */
@@ -95,9 +96,16 @@ function handleAllInputs(e) {
 		const val = parseInt(input.value, 10);
 
 		if (key in machine.blueprints) {
-			machine.blueprints[key] = isNaN(val) ? 0 : Math.max(0, val);
+			const maxBP = Calculator.getMaxBlueprintLevel(machine.level);
+			machine.blueprints[key] = isNaN(val) ? 0 : Math.max(0, Math.min(val, maxBP));
+
+			// Update visual state
+			updateBlueprintInputState(input, machine.blueprints[key], maxBP);
 		} else if (key === "level") {
 			machine[key] = isNaN(val) ? 0 : Math.max(0, val);
+
+			// When level changes, update all blueprint inputs' max values
+			updateAllBlueprintMaxValues(machine);
 		}
 
 		updateMachineInList(currentMachineId);
@@ -115,8 +123,15 @@ function handleAllInputs(e) {
 
 		if (field === "level") {
 			machine.level = validVal;
+
+			// Update all blueprint max values for this machine in bulk view
+			updateBulkBlueprintMaxValues(machineId, machine.level);
 		} else if (field in machine.blueprints) {
-			machine.blueprints[field] = validVal;
+			const maxBP = Calculator.getMaxBlueprintLevel(machine.level);
+			machine.blueprints[field] = Math.min(validVal, maxBP);
+
+			// Update visual state in bulk view
+			updateBlueprintInputState(input, machine.blueprints[field], maxBP);
 		}
 
 		triggerAutoSave(store);
@@ -164,18 +179,28 @@ function handleAllBlurs(e) {
 
 	const val = parseInt(input.value, 10);
 	const min = parseInt(input.min, 10) || 0;
+	const max = input.dataset.dynamicMax ? parseInt(input.dataset.dynamicMax, 10) : null;
+
+	let correctedValue = val;
 
 	if (isNaN(val) || val < min) {
-		input.value = min;
+		correctedValue = min;
+	} else if (max !== null && val > max) {
+		correctedValue = max;
+	}
+
+	if (correctedValue !== val) {
+		input.value = correctedValue;
 
 		if (currentMachineView === "normal") {
 			const machine = machinesMap.get(currentMachineId);
 			const key = input.dataset.key;
 			if (machine && key) {
 				if (key in machine.blueprints) {
-					machine.blueprints[key] = min;
+					machine.blueprints[key] = correctedValue;
+					updateBlueprintInputState(input, correctedValue, max || Infinity);
 				} else if (key === "level") {
-					machine[key] = min;
+					machine[key] = correctedValue;
 				}
 				triggerAutoSave(store);
 			}
@@ -185,14 +210,78 @@ function handleAllBlurs(e) {
 			const machine = machinesMap.get(machineId);
 			if (machine && field) {
 				if (field === "level") {
-					machine.level = min;
+					machine.level = correctedValue;
 				} else if (field in machine.blueprints) {
-					machine.blueprints[field] = min;
+					machine.blueprints[field] = correctedValue;
+					updateBlueprintInputState(input, correctedValue, max || Infinity);
 				}
 				triggerAutoSave(store);
 			}
 		}
 	}
+}
+
+/**
+ * Updates all blueprint input max values for the current machine in normal view
+ * @param {Object} machine - Machine object
+ */
+function updateAllBlueprintMaxValues(machine) {
+	const maxBP = Calculator.getMaxBlueprintLevel(machine.level);
+	const machineId = `machine-${machine.id}`;
+
+	// Update the hint text
+	const hint = document.getElementById(`${machineId}-bp-hint`);
+	if (hint) {
+		const textSpan = hint.querySelector("span.small");
+		if (textSpan) {
+			textSpan.innerHTML = `Current max: <strong class="text-white">${maxBP}</strong> <span class="text-muted">•</span> Upgrades every 5 machine levels`;
+		}
+	}
+
+	const blueprintFields = ["damage", "health", "armor"];
+	blueprintFields.forEach((field) => {
+		const input = document.getElementById(`${machineId}-bp-${field}`);
+		if (input) {
+			// Clamp current value to new max
+			const currentValue = parseInt(input.value, 10) || 0;
+			const newValue = Math.min(currentValue, maxBP);
+
+			if (newValue !== currentValue) {
+				input.value = newValue;
+				machine.blueprints[field] = newValue;
+			}
+
+			updateBlueprintInputState(input, newValue, maxBP);
+		}
+	});
+}
+
+/**
+ * Updates all blueprint input max values for a machine in bulk view
+ * @param {string} machineId - Machine ID
+ * @param {number} level - New machine level
+ */
+function updateBulkBlueprintMaxValues(machineId, level) {
+	const maxBP = Calculator.getMaxBlueprintLevel(level);
+	const machine = machinesMap.get(machineId);
+	if (!machine) return;
+
+	const blueprintFields = ["damage", "health", "armor"];
+	blueprintFields.forEach((field) => {
+		const input = document.getElementById(`bulk-machine-${machine.id}-bp-${field}`);
+		if (input) {
+			// Clamp current value to new max
+			const currentValue = parseInt(input.value, 10) || 0;
+			const newValue = Math.min(currentValue, maxBP);
+
+			if (newValue !== currentValue) {
+				input.value = newValue;
+				machine.blueprints[field] = newValue;
+			}
+
+			updateBlueprintInputState(input, newValue, maxBP);
+		}
+	});
 }
 
 /**
@@ -419,13 +508,37 @@ function renderMachineDetails(machine) {
 	]);
 
 	// === BLUEPRINT LEVELS SECTION ===
+	const maxBP = Calculator.getMaxBlueprintLevel(level);
 	const blueprintFields = ["damage", "health", "armor"];
 	const blueprintRows = [];
+
 	for (let i = 0; i < 3; i++) {
 		const field = blueprintFields[i];
-		blueprintRows.push(createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(blueprints[field], 0, 1, `${machineId}-bp-${field}`, field), "col-md-4"));
+		const currentValue = blueprints[field];
+		const isAtMax = currentValue >= maxBP;
+
+		blueprintRows.push(createFormRow(field[0].toUpperCase() + field.slice(1), createNumberInput(currentValue, 0, 1, `${machineId}-bp-${field}`, field, maxBP, isAtMax), "col-md-4"));
 	}
+
 	const blueprintSection = createSection("BLUEPRINT LEVELS", blueprintRows);
+
+	// Small note about max bp level
+	const bpHint = document.createElement("div");
+	bpHint.id = `${machineId}-bp-hint`;
+	bpHint.className = "d-flex align-items-center gap-2 px-3 py-2 mt-3 rounded-2";
+	bpHint.style.backgroundColor = "rgba(255, 255, 255, 0.03)";
+	bpHint.style.border = "1px solid rgba(255, 255, 255, 0.08)";
+
+	const icon = document.createElement("i");
+	icon.className = "bi bi-info-circle text-secondary";
+	icon.style.fontSize = "0.9rem";
+
+	const text = document.createElement("span");
+	text.className = "small text-secondary";
+	text.innerHTML = `Current max blueprint level: <strong class="text-white">${maxBP}</strong> <span class="text-muted">•</span> Upgrades every 5 machine levels`;
+
+	bpHint.append(icon, text);
+	blueprintSection.appendChild(bpHint);
 
 	form.append(generalSection, blueprintSection);
 
@@ -569,11 +682,16 @@ function createMachineRow(machine, index) {
 	levelCell.appendChild(levelInput);
 	row.appendChild(levelCell);
 
+	const maxBP = Calculator.getMaxBlueprintLevel(machine.level);
 	const blueprintStats = ["damage", "health", "armor"];
+
 	for (let i = 0; i < 3; i++) {
 		const stat = blueprintStats[i];
 		const cell = document.createElement("td");
 		cell.setAttribute("role", "gridcell");
+
+		const currentValue = machine.blueprints[stat];
+		const isAtMax = currentValue >= maxBP;
 
 		const input = document.createElement("input");
 		input.type = "number";
@@ -581,11 +699,18 @@ function createMachineRow(machine, index) {
 		input.id = `bulk-machine-${machine.id}-bp-${stat}`;
 		input.min = 0;
 		input.step = 1;
-		input.value = machine.blueprints[stat];
+		input.max = maxBP;
+		input.value = currentValue;
 		input.setAttribute("aria-label", `${machine.name} ${stat} blueprint`);
 		input.tabIndex = index * 5 + 3 + i;
 		input.dataset.machineId = String(machine.id);
 		input.dataset.field = stat;
+		input.dataset.dynamicMax = maxBP;
+
+		// Apply visual feedback if at max
+		if (isAtMax) {
+			input.classList.add("border-success", "border-2");
+		}
 
 		cell.appendChild(input);
 		row.appendChild(cell);
@@ -632,7 +757,22 @@ function renderMachinesBulkView(machines) {
 	cardBody.className = "card-body p-0";
 	cardBody.appendChild(createMachinesBulkTable(machines));
 
-	card.append(cardHeader, cardBody);
+	// Add polished hint below table
+	const hint = document.createElement("div");
+	hint.className = "d-flex align-items-center gap-2 px-3 py-2 mx-3 mt-1 mb-3 rounded-2";
+	hint.style.backgroundColor = "rgba(255, 255, 255, 0.03)";
+	hint.style.border = "1px solid rgba(255, 255, 255, 0.08)";
+
+	const icon = document.createElement("i");
+	icon.className = "bi bi-info-circle text-secondary";
+	icon.style.fontSize = "0.9rem";
+
+	const text = document.createElement("span");
+	text.className = "small text-secondary";
+	text.textContent = "Blueprint max levels update automatically based on machine level (increases every 5 levels)";
+
+	hint.append(icon, text);
+	card.append(cardHeader, cardBody, hint);
 	bulkContainer.replaceChildren(card);
 }
 
