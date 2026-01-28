@@ -15,7 +15,7 @@ export const AppConfig = {
 	 * Application version for save compatibility tracking
 	 * @type {string}
 	 */
-	APP_VERSION: "1.0.0",
+	APP_VERSION: "1.1.0",
 
 	/**
 	 * Maximum number of profiles allowed
