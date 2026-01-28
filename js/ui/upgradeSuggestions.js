@@ -83,7 +83,8 @@ function createPathsHeader(analysis) {
 
 	const powerInfo = document.createElement("p");
 	powerInfo.className = "text-muted small mb-0";
-	powerInfo.innerHTML = `<i class="bi bi-info-circle me-1"></i>Target mission selected by looking at the required power and the team power of the missions and comparing it to your team power. Upgrade suggestions shown below may be higher than what is actually needed since a low amount of battle simulations are used.`;
+	powerInfo.innerHTML = `<i class="bi bi-info-circle me-1"></i>Target mission selected by looking at the required power and the team power of the missions and comparing it to your team power. Upgrade suggestions shown below may be higher than what is actually needed since a low amount of battle simulations are used.
+	<div><i class="bi bi-info-circle me-1"></i>It is recommended to upgrade your top 2 machines (one tank and one dps) for the cheapest upgrade path for the campaign. Focus on both of their levels, the tank's health/armor blueprint and the dps' damage/health blueprint.</div>`;
 
 	titleSection.append(title, subtitle, powerInfo);
 
