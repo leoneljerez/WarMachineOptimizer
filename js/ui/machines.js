@@ -10,6 +10,12 @@ let currentMachineView = "normal";
 let currentMachineId = null;
 /** @type {Map<string, Object>} Map of machine IDs to machine objects for O(1) lookup */
 let machinesMap = new Map();
+/** @type {Set<string>} Active filter tags */
+let activeFilters = new Set();
+/** @type {string} Current sort option */
+let currentSort = "default";
+/** @type {string} Current search query */
+let searchQuery = "";
 
 // Cache DOM elements on module load
 const machinesSection = document.querySelector("#machinesTab > div:last-child");
@@ -39,6 +45,22 @@ if (machinesSection) {
  * @param {Event} e - Click event
  */
 function handleAllClicks(e) {
+	// Handle filter badge clicks - prevent dropdown from closing
+	const filterBadge = e.target.closest(".filter-badge-item");
+	if (filterBadge) {
+		e.preventDefault();
+		e.stopPropagation();
+		const tag = filterBadge.dataset.tag;
+		if (activeFilters.has(tag)) {
+			activeFilters.delete(tag);
+		} else {
+			activeFilters.add(tag);
+		}
+		applyFiltersAndSort(true); // Auto-select first
+		updateFilterButton();
+		return;
+	}
+
 	// Handle list item clicks (normal view)
 	if (currentMachineView === "normal") {
 		const btn = e.target.closest(".list-group-item");
@@ -83,6 +105,14 @@ function handleAllClicks(e) {
  */
 function handleAllInputs(e) {
 	const input = e.target;
+
+	// Handle search input (both normal and bulk views)
+	if (input.id === "machineSearch" || input.id === "machineSearchBulk") {
+		searchQuery = input.value.toLowerCase().trim();
+		applyFiltersAndSort(false); // Don't auto-select on search
+		return;
+	}
+
 	if (input.type !== "number") return;
 
 	// Normal view - detail inputs
@@ -144,6 +174,14 @@ function handleAllInputs(e) {
  */
 function handleAllChanges(e) {
 	const select = e.target;
+
+	// Handle sort select (both normal and bulk views)
+	if (select.id === "machineSort" || select.id === "machineSortBulk") {
+		currentSort = select.value;
+		applyFiltersAndSort(true); // Auto-select first on sort change
+		return;
+	}
+
 	if (select.tagName !== "SELECT") return;
 
 	// Normal view - rarity select
@@ -234,7 +272,18 @@ function updateAllBlueprintMaxValues(machine) {
 	if (hint) {
 		const textSpan = hint.querySelector("span.small");
 		if (textSpan) {
-			textSpan.innerHTML = `Current max: <strong class="text-white">${maxBP}</strong> <span class="text-muted">•</span> Upgrades every 5 machine levels`;
+			const strong = document.createElement("strong");
+			strong.className = "text-white";
+			strong.textContent = maxBP;
+
+			const muted = document.createElement("span");
+			muted.className = "text-muted";
+			muted.textContent = " • ";
+
+			textSpan.textContent = "Current max: ";
+			textSpan.appendChild(strong);
+			textSpan.appendChild(muted);
+			textSpan.appendChild(document.createTextNode("Upgrades every 5 machine levels"));
 		}
 	}
 
@@ -285,6 +334,352 @@ function updateBulkBlueprintMaxValues(machineId, level) {
 }
 
 /**
+ * Filters machines based on search and active filters
+ * @param {Object[]} machines - Array of machine objects
+ * @returns {Object[]} Filtered machines
+ */
+function filterMachines(machines) {
+	return machines.filter((machine) => {
+		// Search filter
+		if (searchQuery && !machine.name.toLowerCase().includes(searchQuery)) {
+			return false;
+		}
+
+		// Tag filters
+		if (activeFilters.size > 0) {
+			const hasAllTags = Array.from(activeFilters).every((tag) => machine.tags && machine.tags.includes(tag));
+			if (!hasAllTags) return false;
+		}
+
+		return true;
+	});
+}
+
+/**
+ * Sorts machines based on current sort option
+ * @param {Object[]} machines - Array of machine objects
+ * @returns {Object[]} Sorted machines
+ */
+function sortMachines(machines) {
+	const sorted = [...machines];
+
+	switch (currentSort) {
+		case "name-asc":
+			sorted.sort((a, b) => a.name.localeCompare(b.name));
+			break;
+		case "name-desc":
+			sorted.sort((a, b) => b.name.localeCompare(a.name));
+			break;
+		case "level-asc":
+			sorted.sort((a, b) => a.level - b.level);
+			break;
+		case "level-desc":
+			sorted.sort((a, b) => b.level - a.level);
+			break;
+		case "damage-asc":
+			sorted.sort((a, b) => a.blueprints.damage - b.blueprints.damage);
+			break;
+		case "damage-desc":
+			sorted.sort((a, b) => b.blueprints.damage - a.blueprints.damage);
+			break;
+		case "health-asc":
+			sorted.sort((a, b) => a.blueprints.health - b.blueprints.health);
+			break;
+		case "health-desc":
+			sorted.sort((a, b) => b.blueprints.health - a.blueprints.health);
+			break;
+		case "armor-asc":
+			sorted.sort((a, b) => a.blueprints.armor - b.blueprints.armor);
+			break;
+		case "armor-desc":
+			sorted.sort((a, b) => b.blueprints.armor - a.blueprints.armor);
+			break;
+		case "rarity-asc":
+			sorted.sort((a, b) => AppConfig.getRarityLevel(a.rarity) - AppConfig.getRarityLevel(b.rarity));
+			break;
+		case "rarity-desc":
+			sorted.sort((a, b) => AppConfig.getRarityLevel(b.rarity) - AppConfig.getRarityLevel(a.rarity));
+			break;
+		case "configured-desc":
+			sorted.sort((a, b) => {
+				const aConfigured = isConfiguredMachine(a) ? 1 : 0;
+				const bConfigured = isConfiguredMachine(b) ? 1 : 0;
+				return bConfigured - aConfigured;
+			});
+			break;
+		case "configured-asc":
+			sorted.sort((a, b) => {
+				const aConfigured = isConfiguredMachine(a) ? 1 : 0;
+				const bConfigured = isConfiguredMachine(b) ? 1 : 0;
+				return aConfigured - bConfigured;
+			});
+			break;
+	}
+
+	return sorted;
+}
+
+/**
+ * Applies filters and sorting, then re-renders the list without losing focus
+ * @param {boolean} autoSelectFirst - Whether to auto-select first item when list changes
+ */
+function applyFiltersAndSort(autoSelectFirst = false) {
+	const allMachines = Array.from(machinesMap.values());
+	const filtered = filterMachines(allMachines);
+	const sorted = sortMachines(filtered);
+
+	if (currentMachineView === "normal") {
+		// Check if current selection is still valid
+		const currentStillValid = currentMachineId && sorted.find((m) => String(m.id) === currentMachineId);
+
+		// Update list without re-creating search controls
+		updateMachineListOnly(sorted);
+
+		// Handle selection
+		if (!currentStillValid || autoSelectFirst) {
+			if (sorted.length > 0) {
+				currentMachineId = String(sorted[0].id);
+				updateActiveButton(currentMachineId);
+				renderMachineDetails(sorted[0]);
+			} else {
+				currentMachineId = null;
+				detailsElement.replaceChildren();
+				const noResults = document.createElement("p");
+				noResults.className = "text-secondary text-center mt-4";
+				noResults.textContent = "No machines match your filters";
+				detailsElement.appendChild(noResults);
+			}
+		}
+	} else {
+		// Bulk view - update only the table
+		updateBulkTableOnly(sorted);
+	}
+}
+
+/**
+ * Updates only the machine list without touching search controls
+ * @param {Object[]} machines - Filtered and sorted machines
+ */
+function updateMachineListOnly(machines) {
+	const fragment = document.createDocumentFragment();
+	const machinesLen = machines.length;
+
+	for (let i = 0; i < machinesLen; i++) {
+		const machine = machines[i];
+		const btn = createListItem({
+			id: String(machine.id),
+			image: machine.image,
+			name: machine.name,
+			statsText: formatMachineStats(machine),
+			isConfigured: isConfiguredMachine(machine),
+		});
+
+		fragment.appendChild(btn);
+	}
+
+	listElement.replaceChildren(fragment);
+
+	// Restore selection if exists
+	if (currentMachineId && machinesMap.has(currentMachineId)) {
+		updateActiveButton(currentMachineId);
+	}
+
+	// Update filter badges
+	updateFilterBadges();
+}
+
+/**
+ * Updates only the bulk table without touching search controls
+ * @param {Object[]} machines - Filtered and sorted machines
+ */
+function updateBulkTableOnly(machines) {
+	// Find the existing table container
+	const existingTable = bulkContainer.querySelector(".table-responsive");
+	if (!existingTable) return;
+
+	// Create new table
+	const newTable = createMachinesBulkTable(machines);
+
+	// Replace only the table
+	existingTable.replaceWith(newTable);
+
+	// Update filter badges
+	updateFilterBadges();
+}
+
+/**
+ * Updates the filter button text to show active filter count
+ */
+function updateFilterButton() {
+	// Normal view button
+	const filterBtn = document.getElementById("machineFilterBtn");
+	if (filterBtn) {
+		const textNode = Array.from(filterBtn.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+		if (activeFilters.size > 0) {
+			if (textNode) textNode.textContent = ` Filters (${activeFilters.size})`;
+			filterBtn.classList.add("active");
+		} else {
+			if (textNode) textNode.textContent = " Filters";
+			filterBtn.classList.remove("active");
+		}
+	}
+
+	// Bulk view button
+	const filterBtnBulk = document.getElementById("machineFilterBtnBulk");
+	if (filterBtnBulk) {
+		const textNode = Array.from(filterBtnBulk.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+		if (activeFilters.size > 0) {
+			if (textNode) textNode.textContent = ` Filters (${activeFilters.size})`;
+			filterBtnBulk.classList.add("active");
+		} else {
+			if (textNode) textNode.textContent = " Filters";
+			filterBtnBulk.classList.remove("active");
+		}
+	}
+}
+
+/**
+ * Updates filter badge active states in dropdown
+ */
+function updateFilterBadges() {
+	const badges = document.querySelectorAll(".filter-badge-item");
+	badges.forEach((badge) => {
+		const tag = badge.dataset.tag;
+		const checkIcon = badge.querySelector(".bi-check-lg");
+		if (activeFilters.has(tag)) {
+			badge.classList.add("active");
+			if (checkIcon) checkIcon.style.visibility = "visible";
+		} else {
+			badge.classList.remove("active");
+			if (checkIcon) checkIcon.style.visibility = "hidden";
+		}
+	});
+}
+
+/**
+ * Creates the search and filter controls
+ * @param {boolean} isBulkView - Whether this is for bulk view
+ * @returns {HTMLElement} Controls container
+ */
+function createSearchControls(isBulkView = false) {
+	const container = document.createElement("div");
+	container.className = "mb-3";
+
+	// Row with search and buttons
+	const row = document.createElement("div");
+	row.className = "d-flex gap-2 mb-2";
+
+	// Search input
+	const searchGroup = document.createElement("div");
+	searchGroup.className = "input-group flex-grow-1";
+
+	const searchIcon = document.createElement("span");
+	searchIcon.className = "input-group-text";
+	const icon = document.createElement("i");
+	icon.className = "bi bi-search";
+	searchIcon.appendChild(icon);
+
+	const searchInput = document.createElement("input");
+	searchInput.type = "text";
+	searchInput.id = isBulkView ? "machineSearchBulk" : "machineSearch";
+	searchInput.className = "form-control";
+	searchInput.placeholder = "Search machines...";
+	searchInput.value = searchQuery;
+
+	searchGroup.appendChild(searchIcon);
+	searchGroup.appendChild(searchInput);
+
+	// Filter dropdown button
+	const filterDropdown = document.createElement("div");
+	filterDropdown.className = "dropdown";
+	filterDropdown.style.zIndex = "1050"; // Ensure dropdown is above table headers
+
+	const filterBtn = document.createElement("button");
+	filterBtn.type = "button";
+	filterBtn.id = isBulkView ? "machineFilterBtnBulk" : "machineFilterBtn";
+	filterBtn.className = "btn btn-outline-secondary dropdown-toggle";
+	filterBtn.setAttribute("data-bs-toggle", "dropdown");
+	filterBtn.setAttribute("data-bs-auto-close", "outside");
+	filterBtn.setAttribute("aria-expanded", "false");
+
+	const filterIcon = document.createElement("i");
+	filterIcon.className = "bi bi-funnel";
+	filterBtn.appendChild(filterIcon);
+	filterBtn.appendChild(document.createTextNode(activeFilters.size > 0 ? ` Filters (${activeFilters.size})` : " Filters"));
+
+	if (activeFilters.size > 0) filterBtn.classList.add("active");
+
+	const dropdownMenu = document.createElement("ul");
+	dropdownMenu.className = "dropdown-menu dropdown-menu-end";
+	dropdownMenu.style.zIndex = "1051"; // Ensure menu is above everything
+
+	const allTags = ["Tank", "Damage", "Healer", "Single", "AOE"];
+	allTags.forEach((tag) => {
+		const li = document.createElement("li");
+
+		const item = document.createElement("a");
+		item.className = "dropdown-item filter-badge-item d-flex align-items-center justify-content-between";
+		item.href = "#";
+		item.dataset.tag = tag;
+		if (activeFilters.has(tag)) item.classList.add("active");
+
+		const text = document.createElement("span");
+		text.textContent = tag;
+
+		const checkIcon = document.createElement("i");
+		checkIcon.className = "bi bi-check-lg text-primary";
+		checkIcon.style.visibility = activeFilters.has(tag) ? "visible" : "hidden";
+
+		item.appendChild(text);
+		item.appendChild(checkIcon);
+		li.appendChild(item);
+		dropdownMenu.appendChild(li);
+	});
+
+	filterDropdown.appendChild(filterBtn);
+	filterDropdown.appendChild(dropdownMenu);
+
+	row.appendChild(searchGroup);
+	row.appendChild(filterDropdown);
+
+	// Sort select
+	const sortSelect = document.createElement("select");
+	sortSelect.id = isBulkView ? "machineSortBulk" : "machineSort";
+	sortSelect.className = "form-select";
+
+	const sortOptions = [
+		{ value: "default", label: "Default Order" },
+		{ value: "name-asc", label: "Name (A-Z)" },
+		{ value: "name-desc", label: "Name (Z-A)" },
+		{ value: "configured-desc", label: "Configured First" },
+		{ value: "configured-asc", label: "Unconfigured First" },
+		{ value: "level-asc", label: "Level (Low to High)" },
+		{ value: "level-desc", label: "Level (High to Low)" },
+		{ value: "damage-asc", label: "Damage BP (Low to High)" },
+		{ value: "damage-desc", label: "Damage BP (High to Low)" },
+		{ value: "health-asc", label: "Health BP (Low to High)" },
+		{ value: "health-desc", label: "Health BP (High to Low)" },
+		{ value: "armor-asc", label: "Armor BP (Low to High)" },
+		{ value: "armor-desc", label: "Armor BP (High to Low)" },
+		{ value: "rarity-asc", label: "Rarity (Low to High)" },
+		{ value: "rarity-desc", label: "Rarity (High to Low)" },
+	];
+
+	sortOptions.forEach((opt) => {
+		const option = document.createElement("option");
+		option.value = opt.value;
+		option.textContent = opt.label;
+		option.selected = currentSort === opt.value;
+		sortSelect.appendChild(option);
+	});
+
+	container.appendChild(row);
+	container.appendChild(sortSelect);
+
+	return container;
+}
+
+/**
  * Renders the machine list and detail view
  * Handles both normal and bulk edit modes
  * @param {Object[]} machines - Array of machine objects
@@ -309,22 +704,44 @@ export function renderMachines(machines) {
 		children[i].style.display = children[i].id === "machinesBulkContainer" ? "none" : "";
 	}
 
-	renderMachineList(machines);
+	const filtered = filterMachines(machines);
+	const sorted = sortMachines(filtered);
 
-	const machineToSelect = currentMachineId ? machinesMap.get(currentMachineId) || machines[0] : machines[0];
+	// Render everything including search controls
+	renderMachineList(sorted);
 
-	if (machineToSelect) {
-		currentMachineId = String(machineToSelect.id);
-		updateActiveButton(currentMachineId);
-		renderMachineDetails(machineToSelect);
+	// Select first machine if none selected or current not in list
+	if (!currentMachineId || !sorted.find((m) => String(m.id) === currentMachineId)) {
+		if (sorted.length > 0) {
+			currentMachineId = String(sorted[0].id);
+			updateActiveButton(currentMachineId);
+			renderMachineDetails(sorted[0]);
+		}
+	} else {
+		// Re-render current machine details
+		const currentMachine = machinesMap.get(currentMachineId);
+		if (currentMachine) {
+			updateActiveButton(currentMachineId);
+			renderMachineDetails(currentMachine);
+		}
 	}
 }
 
 /**
- * Renders the machine list
+ * Renders the machine list with search controls
  * @param {Object[]} machines - Array of machine objects
  */
 function renderMachineList(machines) {
+	// Get or create search controls container
+	let searchContainer = listElement.parentElement.querySelector(".search-controls");
+	if (!searchContainer) {
+		searchContainer = document.createElement("div");
+		searchContainer.className = "search-controls p-3 border-bottom";
+		listElement.parentElement.insertBefore(searchContainer, listElement);
+	}
+
+	searchContainer.replaceChildren(createSearchControls(false));
+
 	const fragment = document.createDocumentFragment();
 	const machinesLen = machines.length;
 
@@ -342,6 +759,9 @@ function renderMachineList(machines) {
 	}
 
 	listElement.replaceChildren(fragment);
+
+	// Update filter badges after render
+	updateFilterBadges();
 }
 
 /**
@@ -529,15 +949,27 @@ function renderMachineDetails(machine) {
 	bpHint.style.backgroundColor = "rgba(255, 255, 255, 0.03)";
 	bpHint.style.border = "1px solid rgba(255, 255, 255, 0.08)";
 
-	const icon = document.createElement("i");
-	icon.className = "bi bi-info-circle text-secondary";
-	icon.style.fontSize = "0.9rem";
+	const hintIcon = document.createElement("i");
+	hintIcon.className = "bi bi-info-circle text-secondary";
+	hintIcon.style.fontSize = "0.9rem";
 
 	const text = document.createElement("span");
 	text.className = "small text-secondary";
-	text.innerHTML = `Current max blueprint level: <strong class="text-white">${maxBP}</strong> <span class="text-muted">•</span> Upgrades every 5 machine levels`;
 
-	bpHint.append(icon, text);
+	const strong = document.createElement("strong");
+	strong.className = "text-white";
+	strong.textContent = maxBP;
+
+	const muted = document.createElement("span");
+	muted.className = "text-muted";
+	muted.textContent = " • ";
+
+	text.textContent = "Current max blueprint level: ";
+	text.appendChild(strong);
+	text.appendChild(muted);
+	text.appendChild(document.createTextNode("Upgrades every 5 machine levels"));
+
+	bpHint.append(hintIcon, text);
 	blueprintSection.appendChild(bpHint);
 
 	form.append(generalSection, blueprintSection);
@@ -577,6 +1009,7 @@ function createMachinesBulkTable(machines) {
 
 	const thead = document.createElement("thead");
 	thead.className = "table-dark sticky-top";
+	thead.style.zIndex = "1"; // Table headers below dropdown
 	const headerRow = document.createElement("tr");
 	headerRow.setAttribute("role", "row");
 
@@ -724,6 +1157,10 @@ function createMachineRow(machine, index) {
  * @param {Object[]} machines - Array of machine objects
  */
 function renderMachinesBulkView(machines) {
+	// Apply filters and sort
+	const filtered = filterMachines(machines);
+	const sorted = sortMachines(filtered);
+
 	// Hide normal view, show bulk view
 	const children = machinesSection.children;
 	const childrenLen = children.length;
@@ -755,7 +1192,14 @@ function renderMachinesBulkView(machines) {
 
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body p-0";
-	cardBody.appendChild(createMachinesBulkTable(machines));
+
+	// Add search controls
+	const searchWrapper = document.createElement("div");
+	searchWrapper.className = "p-3 border-bottom";
+	searchWrapper.appendChild(createSearchControls(true)); // true for bulk view
+	cardBody.appendChild(searchWrapper);
+
+	cardBody.appendChild(createMachinesBulkTable(sorted));
 
 	// Add polished hint below table
 	const hint = document.createElement("div");
@@ -774,6 +1218,9 @@ function renderMachinesBulkView(machines) {
 	hint.append(icon, text);
 	card.append(cardHeader, cardBody, hint);
 	bulkContainer.replaceChildren(card);
+
+	// Update filter badges after render
+	updateFilterBadges();
 }
 
 /**

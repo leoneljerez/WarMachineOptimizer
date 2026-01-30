@@ -9,6 +9,12 @@ let currentHeroView = "normal";
 let currentHeroId = null;
 /** @type {Map<string, Object>} Map of hero IDs to hero objects for O(1) lookup */
 let heroesMap = new Map();
+/** @type {Set<string>} Active filter tags */
+let activeFilters = new Set();
+/** @type {string} Current sort option */
+let currentSort = "default";
+/** @type {string} Current search query */
+let searchQuery = "";
 
 // Cache DOM elements on module load
 const heroesSection = document.querySelector("#heroesTab .row.g-3");
@@ -29,6 +35,7 @@ if (!bulkContainer && heroesSection) {
 if (heroesSection) {
 	heroesSection.addEventListener("click", handleAllClicks);
 	heroesSection.addEventListener("input", handleAllInputs);
+	heroesSection.addEventListener("change", handleAllChanges);
 	heroesSection.addEventListener("blur", handleAllBlurs, true);
 }
 
@@ -37,6 +44,22 @@ if (heroesSection) {
  * @param {Event} e - Click event
  */
 function handleAllClicks(e) {
+	// Handle filter badge clicks - prevent dropdown from closing
+	const filterBadge = e.target.closest(".filter-badge-item");
+	if (filterBadge) {
+		e.preventDefault();
+		e.stopPropagation();
+		const tag = filterBadge.dataset.tag;
+		if (activeFilters.has(tag)) {
+			activeFilters.delete(tag);
+		} else {
+			activeFilters.add(tag);
+		}
+		applyFiltersAndSort(true); // Auto-select first
+		updateFilterButton();
+		return;
+	}
+
 	// Handle list item clicks (normal view)
 	if (currentHeroView === "normal") {
 		const btn = e.target.closest(".list-group-item");
@@ -81,6 +104,14 @@ function handleAllClicks(e) {
  */
 function handleAllInputs(e) {
 	const input = e.target;
+
+	// Handle search input (both normal and bulk views)
+	if (input.id === "heroSearch" || input.id === "heroSearchBulk") {
+		searchQuery = input.value.toLowerCase().trim();
+		applyFiltersAndSort(false); // Don't auto-select on search
+		return;
+	}
+
 	if (input.type !== "number") return;
 
 	// Normal view - detail inputs
@@ -107,6 +138,21 @@ function handleAllInputs(e) {
 		const val = parseInt(input.value, 10);
 		hero.percentages[stat] = isNaN(val) ? 0 : Math.max(0, val);
 		triggerAutoSave(store);
+	}
+}
+
+/**
+ * Handles all change events via delegation
+ * @param {Event} e - Change event
+ */
+function handleAllChanges(e) {
+	const select = e.target;
+
+	// Handle sort select (both normal and bulk views)
+	if (select.id === "heroSort" || select.id === "heroSortBulk") {
+		currentSort = select.value;
+		applyFiltersAndSort(true); // Auto-select first on sort change
+		return;
 	}
 }
 
@@ -144,6 +190,336 @@ function handleAllBlurs(e) {
 }
 
 /**
+ * Filters heroes based on search and active filters
+ * @param {Object[]} heroes - Array of hero objects
+ * @returns {Object[]} Filtered heroes
+ */
+function filterHeroes(heroes) {
+	return heroes.filter((hero) => {
+		// Search filter
+		if (searchQuery && !hero.name.toLowerCase().includes(searchQuery)) {
+			return false;
+		}
+
+		// Tag filters
+		if (activeFilters.size > 0) {
+			const hasAllTags = Array.from(activeFilters).every((tag) => hero.tags && hero.tags.includes(tag));
+			if (!hasAllTags) return false;
+		}
+
+		return true;
+	});
+}
+
+/**
+ * Sorts heroes based on current sort option
+ * @param {Object[]} heroes - Array of hero objects
+ * @returns {Object[]} Sorted heroes
+ */
+function sortHeroes(heroes) {
+	const sorted = [...heroes];
+
+	switch (currentSort) {
+		case "name-asc":
+			sorted.sort((a, b) => a.name.localeCompare(b.name));
+			break;
+		case "name-desc":
+			sorted.sort((a, b) => b.name.localeCompare(a.name));
+			break;
+		case "damage-asc":
+			sorted.sort((a, b) => a.percentages.damage - b.percentages.damage);
+			break;
+		case "damage-desc":
+			sorted.sort((a, b) => b.percentages.damage - a.percentages.damage);
+			break;
+		case "health-asc":
+			sorted.sort((a, b) => a.percentages.health - b.percentages.health);
+			break;
+		case "health-desc":
+			sorted.sort((a, b) => b.percentages.health - a.percentages.health);
+			break;
+		case "armor-asc":
+			sorted.sort((a, b) => a.percentages.armor - b.percentages.armor);
+			break;
+		case "armor-desc":
+			sorted.sort((a, b) => b.percentages.armor - a.percentages.armor);
+			break;
+		case "configured-desc":
+			sorted.sort((a, b) => {
+				const aConfigured = isConfiguredHero(a) ? 1 : 0;
+				const bConfigured = isConfiguredHero(b) ? 1 : 0;
+				return bConfigured - aConfigured;
+			});
+			break;
+		case "configured-asc":
+			sorted.sort((a, b) => {
+				const aConfigured = isConfiguredHero(a) ? 1 : 0;
+				const bConfigured = isConfiguredHero(b) ? 1 : 0;
+				return aConfigured - bConfigured;
+			});
+			break;
+	}
+
+	return sorted;
+}
+
+/**
+ * Applies filters and sorting, then re-renders the list without losing focus
+ * @param {boolean} autoSelectFirst - Whether to auto-select first item when list changes
+ */
+function applyFiltersAndSort(autoSelectFirst = false) {
+	const allHeroes = Array.from(heroesMap.values());
+	const filtered = filterHeroes(allHeroes);
+	const sorted = sortHeroes(filtered);
+
+	if (currentHeroView === "normal") {
+		// Check if current selection is still valid
+		const currentStillValid = currentHeroId && sorted.find((h) => String(h.id) === currentHeroId);
+
+		// Update list without re-creating search controls
+		updateHeroListOnly(sorted);
+
+		// Handle selection
+		if (!currentStillValid || autoSelectFirst) {
+			if (sorted.length > 0) {
+				currentHeroId = String(sorted[0].id);
+				updateActiveButton(currentHeroId);
+				renderHeroDetails(sorted[0]);
+			} else {
+				currentHeroId = null;
+				detailsElement.replaceChildren();
+				const noResults = document.createElement("p");
+				noResults.className = "text-secondary text-center mt-4";
+				noResults.textContent = "No heroes match your filters";
+				detailsElement.appendChild(noResults);
+			}
+		}
+	} else {
+		// Bulk view - update only the table
+		updateBulkTableOnly(sorted);
+	}
+}
+
+/**
+ * Updates only the hero list without touching search controls
+ * @param {Object[]} heroes - Filtered and sorted heroes
+ */
+function updateHeroListOnly(heroes) {
+	const fragment = document.createDocumentFragment();
+	const heroesLen = heroes.length;
+
+	for (let i = 0; i < heroesLen; i++) {
+		const hero = heroes[i];
+		const btn = createListItem({
+			id: String(hero.id),
+			image: hero.image,
+			name: hero.name,
+			statsText: formatHeroStats(hero),
+			isConfigured: isConfiguredHero(hero),
+		});
+
+		fragment.appendChild(btn);
+	}
+
+	listElement.replaceChildren(fragment);
+
+	// Restore selection if exists
+	if (currentHeroId && heroesMap.has(currentHeroId)) {
+		updateActiveButton(currentHeroId);
+	}
+
+	// Update filter badges
+	updateFilterBadges();
+}
+
+/**
+ * Updates only the bulk table without touching search controls
+ * @param {Object[]} heroes - Filtered and sorted heroes
+ */
+function updateBulkTableOnly(heroes) {
+	// Find the existing table container
+	const existingTable = bulkContainer.querySelector(".table-responsive");
+	if (!existingTable) return;
+
+	// Create new table
+	const newTable = createHeroesBulkTable(heroes);
+
+	// Replace only the table
+	existingTable.replaceWith(newTable);
+
+	// Update filter badges
+	updateFilterBadges();
+}
+
+/**
+ * Updates the filter button text to show active filter count
+ */
+function updateFilterButton() {
+	// Normal view button
+	const filterBtn = document.getElementById("heroFilterBtn");
+	if (filterBtn) {
+		const textNode = Array.from(filterBtn.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+		if (activeFilters.size > 0) {
+			if (textNode) textNode.textContent = ` Filters (${activeFilters.size})`;
+			filterBtn.classList.add("active");
+		} else {
+			if (textNode) textNode.textContent = " Filters";
+			filterBtn.classList.remove("active");
+		}
+	}
+
+	// Bulk view button
+	const filterBtnBulk = document.getElementById("heroFilterBtnBulk");
+	if (filterBtnBulk) {
+		const textNode = Array.from(filterBtnBulk.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+		if (activeFilters.size > 0) {
+			if (textNode) textNode.textContent = ` Filters (${activeFilters.size})`;
+			filterBtnBulk.classList.add("active");
+		} else {
+			if (textNode) textNode.textContent = " Filters";
+			filterBtnBulk.classList.remove("active");
+		}
+	}
+}
+
+/**
+ * Updates filter badge active states in dropdown
+ */
+function updateFilterBadges() {
+	const badges = document.querySelectorAll(".filter-badge-item");
+	badges.forEach((badge) => {
+		const tag = badge.dataset.tag;
+		const checkIcon = badge.querySelector(".bi-check-lg");
+		if (activeFilters.has(tag)) {
+			badge.classList.add("active");
+			if (checkIcon) checkIcon.style.visibility = "visible";
+		} else {
+			badge.classList.remove("active");
+			if (checkIcon) checkIcon.style.visibility = "hidden";
+		}
+	});
+}
+
+/**
+ * Creates the search and filter controls
+ * @param {boolean} isBulkView - Whether this is for bulk view
+ * @returns {HTMLElement} Controls container
+ */
+function createSearchControls(isBulkView = false) {
+	const container = document.createElement("div");
+	container.className = "mb-3";
+
+	// Row with search and buttons
+	const row = document.createElement("div");
+	row.className = "d-flex gap-2 mb-2";
+
+	// Search input
+	const searchGroup = document.createElement("div");
+	searchGroup.className = "input-group flex-grow-1";
+
+	const searchIcon = document.createElement("span");
+	searchIcon.className = "input-group-text";
+	const icon = document.createElement("i");
+	icon.className = "bi bi-search";
+	searchIcon.appendChild(icon);
+
+	const searchInput = document.createElement("input");
+	searchInput.type = "text";
+	searchInput.id = isBulkView ? "heroSearchBulk" : "heroSearch";
+	searchInput.className = "form-control";
+	searchInput.placeholder = "Search heroes...";
+	searchInput.value = searchQuery;
+
+	searchGroup.appendChild(searchIcon);
+	searchGroup.appendChild(searchInput);
+
+	// Filter dropdown button
+	const filterDropdown = document.createElement("div");
+	filterDropdown.className = "dropdown";
+	filterDropdown.style.zIndex = "1050"; // Ensure dropdown is above table headers
+
+	const filterBtn = document.createElement("button");
+	filterBtn.type = "button";
+	filterBtn.id = isBulkView ? "heroFilterBtnBulk" : "heroFilterBtn";
+	filterBtn.className = "btn btn-outline-secondary dropdown-toggle";
+	filterBtn.setAttribute("data-bs-toggle", "dropdown");
+	filterBtn.setAttribute("data-bs-auto-close", "outside");
+	filterBtn.setAttribute("aria-expanded", "false");
+
+	const filterIcon = document.createElement("i");
+	filterIcon.className = "bi bi-funnel";
+	filterBtn.appendChild(filterIcon);
+	filterBtn.appendChild(document.createTextNode(activeFilters.size > 0 ? ` Filters (${activeFilters.size})` : " Filters"));
+
+	if (activeFilters.size > 0) filterBtn.classList.add("active");
+
+	const dropdownMenu = document.createElement("ul");
+	dropdownMenu.className = "dropdown-menu dropdown-menu-end";
+	dropdownMenu.style.zIndex = "1051"; // Ensure menu is above everything
+
+	const allTags = ["Tank", "Damage", "Healer", "Rage", "Energy", "Mana", "Melee", "Ranged", "Spellcaster"];
+	allTags.forEach((tag) => {
+		const li = document.createElement("li");
+
+		const item = document.createElement("a");
+		item.className = "dropdown-item filter-badge-item d-flex align-items-center justify-content-between";
+		item.href = "#";
+		item.dataset.tag = tag;
+		if (activeFilters.has(tag)) item.classList.add("active");
+
+		const text = document.createElement("span");
+		text.textContent = tag;
+
+		const checkIcon = document.createElement("i");
+		checkIcon.className = "bi bi-check-lg text-primary";
+		checkIcon.style.visibility = activeFilters.has(tag) ? "visible" : "hidden";
+
+		item.appendChild(text);
+		item.appendChild(checkIcon);
+		li.appendChild(item);
+		dropdownMenu.appendChild(li);
+	});
+
+	filterDropdown.appendChild(filterBtn);
+	filterDropdown.appendChild(dropdownMenu);
+
+	row.appendChild(searchGroup);
+	row.appendChild(filterDropdown);
+
+	// Sort select
+	const sortSelect = document.createElement("select");
+	sortSelect.id = isBulkView ? "heroSortBulk" : "heroSort";
+	sortSelect.className = "form-select";
+
+	const sortOptions = [
+		{ value: "default", label: "Default Order" },
+		{ value: "name-asc", label: "Name (A-Z)" },
+		{ value: "name-desc", label: "Name (Z-A)" },
+		{ value: "configured-desc", label: "Configured First" },
+		{ value: "configured-asc", label: "Unconfigured First" },
+		{ value: "damage-asc", label: "Damage % (Low to High)" },
+		{ value: "damage-desc", label: "Damage % (High to Low)" },
+		{ value: "health-asc", label: "Health % (Low to High)" },
+		{ value: "health-desc", label: "Health % (High to Low)" },
+		{ value: "armor-asc", label: "Armor % (Low to High)" },
+		{ value: "armor-desc", label: "Armor % (High to Low)" },
+	];
+
+	sortOptions.forEach((opt) => {
+		const option = document.createElement("option");
+		option.value = opt.value;
+		option.textContent = opt.label;
+		option.selected = currentSort === opt.value;
+		sortSelect.appendChild(option);
+	});
+
+	container.appendChild(row);
+	container.appendChild(sortSelect);
+
+	return container;
+}
+
+/**
  * Renders the hero list and detail view
  * Handles both normal and bulk edit modes
  * @param {Object[]} heroes - Array of hero objects
@@ -168,22 +544,44 @@ export function renderHeroes(heroes) {
 		if (children[i].id !== "heroesBulkContainer") children[i].style.display = "";
 	}
 
-	renderHeroList(heroes);
+	const filtered = filterHeroes(heroes);
+	const sorted = sortHeroes(filtered);
 
-	const heroToSelect = currentHeroId ? heroesMap.get(currentHeroId) || heroes[0] : heroes[0];
+	// Render everything including search controls
+	renderHeroList(sorted);
 
-	if (heroToSelect) {
-		currentHeroId = String(heroToSelect.id);
-		updateActiveButton(currentHeroId);
-		renderHeroDetails(heroToSelect);
+	// Select first hero if none selected or current not in list
+	if (!currentHeroId || !sorted.find((h) => String(h.id) === currentHeroId)) {
+		if (sorted.length > 0) {
+			currentHeroId = String(sorted[0].id);
+			updateActiveButton(currentHeroId);
+			renderHeroDetails(sorted[0]);
+		}
+	} else {
+		// Re-render current hero details
+		const currentHero = heroesMap.get(currentHeroId);
+		if (currentHero) {
+			updateActiveButton(currentHeroId);
+			renderHeroDetails(currentHero);
+		}
 	}
 }
 
 /**
- * Renders the hero list
+ * Renders the hero list with search controls
  * @param {Object[]} heroes - Array of hero objects
  */
 function renderHeroList(heroes) {
+	// Get or create search controls container
+	let searchContainer = listElement.parentElement.querySelector(".search-controls");
+	if (!searchContainer) {
+		searchContainer = document.createElement("div");
+		searchContainer.className = "search-controls p-3 border-bottom";
+		listElement.parentElement.insertBefore(searchContainer, listElement);
+	}
+
+	searchContainer.replaceChildren(createSearchControls(false));
+
 	const fragment = document.createDocumentFragment();
 	const heroesLen = heroes.length;
 
@@ -201,6 +599,9 @@ function renderHeroList(heroes) {
 	}
 
 	listElement.replaceChildren(fragment);
+
+	// Update filter badges after render
+	updateFilterBadges();
 }
 
 /**
@@ -316,6 +717,7 @@ function createHeroesBulkTable(heroes) {
 
 	const thead = document.createElement("thead");
 	thead.className = "table-dark sticky-top";
+	thead.style.zIndex = "1"; // Table headers below dropdown
 	const headerRow = document.createElement("tr");
 	headerRow.setAttribute("role", "row");
 
@@ -410,6 +812,10 @@ function createHeroRow(hero, index) {
  * @param {Object[]} heroes - Array of hero objects
  */
 function renderHeroesBulkView(heroes) {
+	// Apply filters and sort
+	const filtered = filterHeroes(heroes);
+	const sorted = sortHeroes(filtered);
+
 	// Hide normal view, show bulk view
 	const children = heroesSection.children;
 	const childrenLen = children.length;
@@ -443,10 +849,20 @@ function renderHeroesBulkView(heroes) {
 
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body p-0";
-	cardBody.appendChild(createHeroesBulkTable(heroes));
+
+	// Add search controls
+	const searchWrapper = document.createElement("div");
+	searchWrapper.className = "p-3 border-bottom";
+	searchWrapper.appendChild(createSearchControls(true)); // true for bulk view
+	cardBody.appendChild(searchWrapper);
+
+	cardBody.appendChild(createHeroesBulkTable(sorted));
 
 	card.append(cardHeader, cardBody);
 	bulkContainer.replaceChildren(card);
+
+	// Update filter badges after render
+	updateFilterBadges();
 }
 
 /**

@@ -137,7 +137,7 @@ function createMachineCard(machine) {
 
 	// Machine name section
 	const nameElement = clone.querySelector(".machine-name");
-	nameElement.innerHTML = ""; // Clear template content
+	nameElement.textContent = ""; // Clear template content
 
 	// Title
 	const title = document.createElement("div");
@@ -179,7 +179,7 @@ function createMachineCard(machine) {
 	// Stats section
 	const statsContainer = clone.querySelector(".machine-stats");
 	statsContainer.className = "stats-grid";
-	statsContainer.innerHTML = ""; // Clear template
+	statsContainer.textContent = ""; // Clear template
 
 	// Create stat items with icons
 	const statTypes = [
@@ -488,7 +488,11 @@ function createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig) {
 	const generateBtn = document.createElement("button");
 	generateBtn.type = "button";
 	generateBtn.className = "btn btn-primary btn-lg";
-	generateBtn.innerHTML = '<i class="me-2"></i>Generate Upgrade Suggestions';
+
+	const btnIcon = document.createElement("i");
+	btnIcon.className = "me-2";
+	generateBtn.appendChild(btnIcon);
+	generateBtn.appendChild(document.createTextNode("Generate Upgrade Suggestions"));
 
 	// Loading spinner (hidden by default)
 	const spinner = document.createElement("span");
@@ -505,7 +509,11 @@ function createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig) {
 		// Disable button and show spinner
 		generateBtn.disabled = true;
 		spinner.classList.remove("d-none");
-		generateBtn.innerHTML = '<i class="me-2"></i>Generating...';
+		generateBtn.textContent = "";
+		const icon = document.createElement("i");
+		icon.className = "me-2";
+		generateBtn.appendChild(icon);
+		generateBtn.appendChild(document.createTextNode("Generating..."));
 		generateBtn.appendChild(spinner);
 
 		try {
@@ -529,7 +537,11 @@ function createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig) {
 			} else {
 				const noResult = document.createElement("div");
 				noResult.className = "alert alert-info";
-				noResult.innerHTML = '<i class="bi bi-info-circle me-2"></i>No upgrade suggestions available.';
+
+				const infoIcon = document.createElement("i");
+				infoIcon.className = "bi bi-info-circle me-2";
+				noResult.appendChild(infoIcon);
+				noResult.appendChild(document.createTextNode("No upgrade suggestions available."));
 				resultsContainer.appendChild(noResult);
 			}
 		} catch (error) {
@@ -539,13 +551,21 @@ function createUpgradeSuggestionsSection(optimizeMode, result, upgradeConfig) {
 			resultsContainer.replaceChildren();
 			const errorMsg = document.createElement("div");
 			errorMsg.className = "alert alert-danger";
-			errorMsg.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Failed to generate suggestions: ${error.message}`;
+
+			const errorIcon = document.createElement("i");
+			errorIcon.className = "bi bi-exclamation-triangle me-2";
+			errorMsg.appendChild(errorIcon);
+			errorMsg.appendChild(document.createTextNode(`Failed to generate suggestions: ${error.message}`));
 			resultsContainer.appendChild(errorMsg);
 
 			// Re-enable button
 			generateBtn.disabled = false;
 			spinner.classList.add("d-none");
-			generateBtn.innerHTML = '<i class="bi bi-lightbulb me-2"></i>Try Again';
+			generateBtn.textContent = "";
+			const retryIcon = document.createElement("i");
+			retryIcon.className = "bi bi-lightbulb me-2";
+			generateBtn.appendChild(retryIcon);
+			generateBtn.appendChild(document.createTextNode("Try Again"));
 		}
 	});
 
