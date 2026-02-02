@@ -258,7 +258,7 @@ export const heroesData = [
 		tags: ["Tank", "Rage", "Melee", "Mercenary"],
 		image: "img/heroes/anzo.webp",
 		baseStats: { attack: 44, health: 3300, armor: 25 },
-		advancedStats: { attack_speed: 2.3, critical_chance: 0.03, critical_damage: 0.5, dodge: 0.10 },
+		advancedStats: { attack_speed: 2.3, critical_chance: 0.03, critical_damage: 0.5, dodge: 0.1 },
 	},
 	{
 		id: 30,
