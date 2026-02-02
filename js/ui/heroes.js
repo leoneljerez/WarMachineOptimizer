@@ -401,6 +401,24 @@ function updateFilterBadges() {
 }
 
 /**
+ * Collects all unique hero tags from heroesMap
+ * @returns {string[]} Sorted array of unique tags
+ */
+function getAllHeroTags() {
+	const tagSet = new Set();
+
+	for (const hero of heroesMap.values()) {
+		if (Array.isArray(hero.tags)) {
+			for (const tag of hero.tags) {
+				tagSet.add(tag);
+			}
+		}
+	}
+
+	return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Creates the search and filter controls
  * @param {boolean} isBulkView - Whether this is for bulk view
  * @returns {HTMLElement} Controls container
@@ -457,7 +475,7 @@ function createSearchControls(isBulkView = false) {
 	dropdownMenu.className = "dropdown-menu dropdown-menu-end";
 	dropdownMenu.style.zIndex = "1051"; // Ensure menu is above everything
 
-	const allTags = ["Tank", "Damage", "Healer", "Rage", "Energy", "Mana", "Melee", "Ranged", "Spellcaster"];
+	const allTags = getAllHeroTags();
 	allTags.forEach((tag) => {
 		const li = document.createElement("li");
 

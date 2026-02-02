@@ -557,6 +557,24 @@ function updateFilterBadges() {
 }
 
 /**
+ * Collects all unique machine tags from machinesMap
+ * @returns {string[]} Sorted array of unique tags
+ */
+function getAllMachineTags() {
+	const tagSet = new Set();
+
+	for (const machine of machinesMap.values()) {
+		if (Array.isArray(machine.tags)) {
+			for (const tag of machine.tags) {
+				tagSet.add(tag);
+			}
+		}
+	}
+
+	return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Creates the search and filter controls
  * @param {boolean} isBulkView - Whether this is for bulk view
  * @returns {HTMLElement} Controls container
@@ -613,7 +631,7 @@ function createSearchControls(isBulkView = false) {
 	dropdownMenu.className = "dropdown-menu dropdown-menu-end";
 	dropdownMenu.style.zIndex = "1051"; // Ensure menu is above everything
 
-	const allTags = ["Tank", "Damage", "Healer", "Single", "AOE"];
+	const allTags = getAllMachineTags();
 	allTags.forEach((tag) => {
 		const li = document.createElement("li");
 
