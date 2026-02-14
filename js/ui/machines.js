@@ -280,7 +280,7 @@ function updateAllBlueprintMaxValues(machine) {
 			muted.className = "text-muted";
 			muted.textContent = " • ";
 
-			textSpan.textContent = "Current max: ";
+			textSpan.textContent = "Current max blueprint level: ";
 			textSpan.appendChild(strong);
 			textSpan.appendChild(muted);
 			textSpan.appendChild(document.createTextNode("Upgrades every 5 machine levels"));
