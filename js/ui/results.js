@@ -183,9 +183,9 @@ function createMachineCard(machine) {
 
 	// Create stat items with icons
 	const statTypes = [
-		{ key: "damage", icon: "img/ui/damage.webp", label: "Damage" },
-		{ key: "health", icon: "img/ui/health.webp", label: "Health" },
-		{ key: "armor", icon: "img/ui/armor.webp", label: "Armor" },
+		{ key: "damage", icon: "img/ui/damage.avif", label: "Damage" },
+		{ key: "health", icon: "img/ui/health.avif", label: "Health" },
+		{ key: "armor", icon: "img/ui/armor.avif", label: "Armor" },
 	];
 
 	for (let i = 0; i < 3; i++) {

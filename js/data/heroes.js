@@ -310,7 +310,7 @@ export const heroesData = [
 		name: "Yamanoth",
 		role: "tank",
 		tags: ["Tank", "Rage", "Melee", "God"],
-		image: "img/heroes/yamanoth.webp",
+		image: "img/heroes/yamanoth.avif",
 		baseStats: { attack: 53, health: 4200, armor: 30 },
 		advancedStats: { attack_speed: 2.0, critical_chance: 0.05, critical_damage: 0.8, dodge: 0.15 },
 	},
