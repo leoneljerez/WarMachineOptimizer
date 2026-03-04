@@ -323,4 +323,13 @@ export const heroesData = [
 		baseStats: { attack: 111, health: 2200, armor: 16 },
 		advancedStats: { attack_speed: 1.5, critical_chance: 0.18, critical_damage: 1.7, dodge: 0.06 },
 	},
+	{
+		id: 37,
+		name: "Arvie",
+		role: "damage",
+		tags: ["Damage", "Energy", "Ranged", "Rogue"],
+		image: "img/heroes/arvie.webp",
+		baseStats: { attack: 83, health: 1650, armor: 12 },
+		advancedStats: { attack_speed: 1.5, critical_chance: 0.15, critical_damage: 1.6, dodge: 0.04 },
+	},
 ];
