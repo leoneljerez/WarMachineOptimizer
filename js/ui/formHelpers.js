@@ -180,7 +180,7 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 	thumb.src = image;
 	thumb.alt = "";
 	thumb.className = "rounded";
-	thumb.style.cssText = "width: 48px; height: 48px; object-fit: cover;";
+	thumb.style.cssText = "width: 48px; height: 48px; object-fit: scale-down;";
 	thumb.setAttribute("aria-hidden", "true");
 
 	// Content wrapper
@@ -263,7 +263,7 @@ export function createDetailHeader({ image, name, subtitle = null, badgeText = n
 	img.src = image;
 	img.alt = name;
 	img.className = "rounded shadow-sm flex-shrink-0";
-	img.style.cssText = "width: 80px; height: 80px; object-fit: cover;";
+	img.style.cssText = "width: 80px; height: 80px; object-fit: scale-down;";
 
 	// Content area (name + badges)
 	const content = document.createElement("div");
