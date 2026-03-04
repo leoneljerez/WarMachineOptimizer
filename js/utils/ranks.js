@@ -78,7 +78,7 @@ export function createMachineRankDisplay(level, size = "medium") {
 	// Create icons for each star/crown/wing
 	for (let i = 0; i < rank.count; i++) {
 		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${rank.type}Icon${rank.tier}.webp`;
+		img.src = `img/ui/ranks/${rank.type}Icon${rank.tier}.avif`;
 		img.alt = rank.type;
 		img.className = "rank-icon";
 		img.style.cssText = `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`;
@@ -337,7 +337,7 @@ function createGuardianRankOptionVisual(evolution, rank) {
 
 	for (let i = 0; i < count; i++) {
 		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${type}Icon${tier}.webp`;
+		img.src = `img/ui/ranks/${type}Icon${tier}.avif`;
 		img.alt = type;
 		img.style.cssText = "width: 20px; height: 20px; object-fit: contain;";
 		iconContainer.appendChild(img);
@@ -385,7 +385,7 @@ function updateGuardianRankDisplay(button, evolution, rank) {
 
 	for (let i = 0; i < count; i++) {
 		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${type}Icon${tier}.webp`;
+		img.src = `img/ui/ranks/${type}Icon${tier}.avif`;
 		img.alt = type;
 		img.style.cssText = "width: 24px; height: 24px; object-fit: contain;";
 		iconContainer.appendChild(img);
@@ -450,7 +450,7 @@ export function createGuardianRankDisplay(evolution, rank, size = "medium") {
 	// Create icons
 	for (let i = 0; i < count; i++) {
 		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${type}Icon${tier}.webp`;
+		img.src = `img/ui/ranks/${type}Icon${tier}.avif`;
 		img.alt = type;
 		img.className = "rank-icon";
 		img.style.cssText = `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`;
