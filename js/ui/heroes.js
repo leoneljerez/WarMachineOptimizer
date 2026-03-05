@@ -789,7 +789,8 @@ function createHeroRow(hero, index) {
 	img.src = hero.image;
 	img.alt = "";
 	img.className = "rounded";
-	//img.style.cssText = "width:32px;height:32px;object-fit:cover";
+	//For Bulk Edit
+	img.style.cssText = "width:32px;height:32px;object-fit:cover";
 	img.setAttribute("aria-hidden", "true");
 
 	const nameText = document.createElement("span");
