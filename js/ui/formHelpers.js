@@ -262,7 +262,7 @@ export function createDetailHeader({ image, name, subtitle = null, badgeText = n
 	const img = document.createElement("img");
 	img.src = image;
 	img.alt = name;
-	img.className = "rounded shadow-sm flex-shrink-0";
+	img.className = "rounded flex-shrink-0";
 	img.style.cssText = "width: 80px; height: 80px; object-fit: scale-down;";
 
 	// Content area (name + badges)
