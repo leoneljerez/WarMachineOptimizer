@@ -30,9 +30,9 @@ export function createPicture(baseSrc, alt, cssText = "", className = "") {
 	const picture = document.createElement("picture");
 
 	const sources = [
+		{ type: "image/jxl", ext: ".jxl" },
 		{ type: "image/avif", ext: ".avif" },
 		{ type: "image/webp", ext: ".webp" },
-		{ type: "image/jxl", ext: ".jxl" },
 	];
 
 	sources.forEach(({ type, ext }) => {
