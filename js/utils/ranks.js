@@ -1,5 +1,6 @@
 // js/utils/ranks.js
 import { AppConfig } from "../config.js";
+import { createPicture } from "../ui/formHelpers.js";
 
 /**
  * Rarity color configuration for subtle borders
@@ -15,6 +16,67 @@ export const RarityColors = {
 	angel: "#B91C1C",
 	celestial: "#60A5FA",
 };
+
+const RANK_FILE_MAP = {
+	Star: {
+		Bronze: "star1Bronze",
+		Silver: "star2Silver",
+		Gold: "star3Gold",
+		Platinum: "star4Platinum",
+		Ruby: "star5Ruby",
+		Sapphire: "star6Sepphire",
+		Pearl: "star7Pearl",
+		Diamond: "star8Diamond",
+		Starlight: "star9Starlight",
+		StarlightPlus: "star10StarlightPlus",
+	},
+	Crown: {
+		Bronze: "crown11Bronze",
+		Silver: "crown12Silver",
+		Gold: "crown13Gold",
+		Platinum: "crown14Platinum",
+		Ruby: "crown15Ruby",
+		Sapphire: "crown16Sepphire",
+		Pearl: "crown17Pearl",
+		Diamond: "crown18Diamond",
+		Starlight: "crown19Starlight",
+		StarlightPlus: "crown20StarlightPlus",
+	},
+	Wings: {
+		Bronze: "wings21Bronze",
+		Silver: "wings22Silver",
+		Gold: "wings23Gold",
+		Platinum: "wings24Platinum",
+		Ruby: "wings25Ruby",
+		Sapphire: "wings26Sepphire",
+		Pearl: "wings27Pearl",
+		Diamond: "wings28Diamond",
+		Starlight: "wings29Starlight",
+		StarlightPlus: "wings30StarlightPlus",
+	},
+};
+
+const EVOLUTION_TO_TIER = {
+	bronze: "Bronze",
+	silver: "Silver",
+	gold: "Gold",
+	platinum: "Platinum",
+	ruby: "Ruby",
+	sapphire: "Sapphire",
+	pearl: "Pearl",
+	diamond: "Diamond",
+	starlight: "Starlight",
+	starlight_plus: "StarlightPlus",
+};
+
+function getRankBasePath(type, tier) {
+	const fileName = RANK_FILE_MAP[type]?.[tier];
+	if (!fileName) {
+		console.warn(`Missing rank file mapping for type="${type}" tier="${tier}"`);
+		return null;
+	}
+	return `img/ui/ranks/${fileName}`;
+}
 
 /**
  * Calculates machine rank info from level
@@ -77,24 +139,20 @@ export function createMachineRankDisplay(level, size = "medium") {
 
 	// Create icons for each star/crown/wing
 	for (let i = 0; i < rank.count; i++) {
-		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${rank.type}Icon${rank.tier}.avif`;
-		img.alt = rank.type;
-		img.className = "rank-icon";
-		img.style.cssText = `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`;
-		img.setAttribute("aria-hidden", "true");
+		const basePath = getRankBasePath(rank.type, rank.tier);
+		if (!basePath) continue; // skip if mapping missing
 
-		// Error handling for missing images
-		img.addEventListener(
+		const picture = createPicture(basePath, rank.type, `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`, "rank-icon");
+		picture.setAttribute("aria-hidden", "true");
+		picture.querySelector("img").addEventListener(
 			"error",
 			() => {
-				img.style.display = "none";
-				console.warn(`Missing rank icon: ${img.src}`);
+				picture.style.display = "none";
+				console.warn(`Missing rank icon: ${basePath}`);
 			},
 			{ once: true },
 		);
-
-		container.appendChild(img);
+		container.appendChild(picture);
 	}
 
 	return container;
@@ -116,21 +174,7 @@ function createGuardianRankOption(evolution, rank, selected) {
 	const type = isCrown ? "Crown" : "Star";
 	const count = parseInt(rank.charAt(0));
 
-	// Map evolution key to tier key for image path
-	const evolutionToTier = {
-		bronze: "Bronze",
-		silver: "Silver",
-		gold: "Gold",
-		platinum: "Platinum",
-		ruby: "Ruby",
-		sapphire: "Sapphire",
-		pearl: "Pearl",
-		diamond: "Diamond",
-		starlight: "Starlight",
-		starlight_plus: "StarlightPlus",
-	};
-
-	const tier = evolutionToTier[evolution];
+	const tier = EVOLUTION_TO_TIER[evolution];
 	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);
 	const evolutionLabel = evolutionConfig ? evolutionConfig.label : evolution.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
@@ -316,31 +360,16 @@ function createGuardianRankOptionVisual(evolution, rank) {
 	const type = isCrown ? "Crown" : "Star";
 	const count = parseInt(rank.charAt(0));
 
-	const evolutionToTier = {
-		bronze: "Bronze",
-		silver: "Silver",
-		gold: "Gold",
-		platinum: "Platinum",
-		ruby: "Ruby",
-		sapphire: "Sapphire",
-		pearl: "Pearl",
-		diamond: "Diamond",
-		starlight: "Starlight",
-		starlight_plus: "StarlightPlus",
-	};
-
-	const tier = evolutionToTier[evolution];
+	const tier = EVOLUTION_TO_TIER[evolution];
+	const basePath = getRankBasePath(type, tier);
 
 	// Create icon container
 	const iconContainer = document.createElement("div");
 	iconContainer.className = "d-flex align-items-center gap-1";
 
 	for (let i = 0; i < count; i++) {
-		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${type}Icon${tier}.avif`;
-		img.alt = type;
-		img.style.cssText = "width: 20px; height: 20px; object-fit: contain;";
-		iconContainer.appendChild(img);
+		const picture = createPicture(basePath, type, "width: 20px; height: 20px; object-fit: contain;");
+		iconContainer.appendChild(picture);
 	}
 
 	option.appendChild(iconContainer);
@@ -360,20 +389,8 @@ function updateGuardianRankDisplay(button, evolution, rank) {
 	const type = isCrown ? "Crown" : "Star";
 	const count = parseInt(rank.charAt(0));
 
-	const evolutionToTier = {
-		bronze: "Bronze",
-		silver: "Silver",
-		gold: "Gold",
-		platinum: "Platinum",
-		ruby: "Ruby",
-		sapphire: "Sapphire",
-		pearl: "Pearl",
-		diamond: "Diamond",
-		starlight: "Starlight",
-		starlight_plus: "StarlightPlus",
-	};
-
-	const tier = evolutionToTier[evolution];
+	const tier = EVOLUTION_TO_TIER[evolution];
+	const basePath = getRankBasePath(type, tier);
 	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);
 	const evolutionLabel = evolutionConfig ? evolutionConfig.label : evolution.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
@@ -384,11 +401,8 @@ function updateGuardianRankDisplay(button, evolution, rank) {
 	iconContainer.className = "d-flex align-items-center gap-1";
 
 	for (let i = 0; i < count; i++) {
-		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${type}Icon${tier}.avif`;
-		img.alt = type;
-		img.style.cssText = "width: 24px; height: 24px; object-fit: contain;";
-		iconContainer.appendChild(img);
+		const picture = createPicture(basePath, type, "width: 24px; height: 24px; object-fit: contain;");
+		iconContainer.appendChild(picture);
 	}
 
 	const label = document.createElement("span");
@@ -431,41 +445,22 @@ export function createGuardianRankDisplay(evolution, rank, size = "medium") {
 	const type = isCrown ? "Crown" : "Star";
 	const count = parseInt(rank.charAt(0));
 
-	// Map evolution to icon tier
-	const evolutionToTier = {
-		bronze: "Bronze",
-		silver: "Silver",
-		gold: "Gold",
-		platinum: "Platinum",
-		ruby: "Ruby",
-		sapphire: "Sapphire",
-		pearl: "Pearl",
-		diamond: "Diamond",
-		starlight: "Starlight",
-		starlight_plus: "StarlightPlus",
-	};
-
-	const tier = evolutionToTier[evolution] || "Bronze";
+	const tier = EVOLUTION_TO_TIER[evolution] || "Bronze";
+	const basePath = getRankBasePath(type, tier);
 
 	// Create icons
 	for (let i = 0; i < count; i++) {
-		const img = document.createElement("img");
-		img.src = `img/ui/ranks/${type}Icon${tier}.avif`;
-		img.alt = type;
-		img.className = "rank-icon";
-		img.style.cssText = `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`;
-		img.setAttribute("aria-hidden", "true");
-
-		img.addEventListener(
+		const picture = createPicture(basePath, type, `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`, "rank-icon");
+		picture.setAttribute("aria-hidden", "true");
+		picture.querySelector("img").addEventListener(
 			"error",
 			() => {
-				img.style.display = "none";
-				console.warn(`Missing rank icon: ${img.src}`);
+				picture.style.display = "none";
+				console.warn(`Missing rank icon: ${basePath}`);
 			},
 			{ once: true },
 		);
-
-		container.appendChild(img);
+		container.appendChild(picture);
 	}
 
 	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);

@@ -19,12 +19,46 @@
  */
 
 /**
+ * Creates a <picture> element with AVIF, WEBP, JXL, PNG fallbacks
+ * @param {string} baseSrc - Image path without extension
+ * @param {string} alt - Alt text
+ * @param {string} cssText - Inline styles to apply to the <img>
+ * @param {string} [className] - CSS class(es) for the <img>
+ * @returns {HTMLPictureElement}
+ */
+export function createPicture(baseSrc, alt, cssText = "", className = "") {
+	const picture = document.createElement("picture");
+
+	const sources = [
+		{ type: "image/avif", ext: ".avif" },
+		{ type: "image/webp", ext: ".webp" },
+		{ type: "image/jxl", ext: ".jxl" },
+	];
+
+	sources.forEach(({ type, ext }) => {
+		const source = document.createElement("source");
+		source.type = type;
+		source.srcset = baseSrc + ext;
+		picture.appendChild(source);
+	});
+
+	const img = document.createElement("img");
+	img.src = baseSrc + ".png"; // PNG fallback on the <img>
+	img.alt = alt;
+	if (cssText) img.style.cssText = cssText;
+	if (className) img.className = className;
+
+	picture.appendChild(img);
+	return picture;
+}
+
+/**
  * Creates a section with title and rows
  * @param {string} title - Section title
  * @param {HTMLElement[]} rows - Array of row elements
  * @returns {HTMLElement} Section element
  */
-export function createSection(title, rows, spacing = null ) {
+export function createSection(title, rows, spacing = null) {
 	const section = document.createElement("section");
 	section.className = spacing || "mb-4";
 
@@ -176,11 +210,7 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 	container.className = "d-flex align-items-start gap-3";
 
 	// Image (slightly larger)
-	const thumb = document.createElement("img");
-	thumb.src = image;
-	thumb.alt = "";
-	thumb.className = "rounded";
-	thumb.style.cssText = "width: 48px; height: 48px; object-fit: scale-down; object-position: left center;";
+	const thumb = createPicture(image, "", "width: 48px; height: 48px; object-fit: scale-down; object-position: left center;", "rounded");
 	thumb.setAttribute("aria-hidden", "true");
 
 	// Content wrapper
@@ -259,11 +289,7 @@ export function createDetailHeader({ image, name, subtitle = null, badgeText = n
 	leftSide.className = "d-flex align-items-center gap-3";
 
 	// Image
-	const img = document.createElement("img");
-	img.src = image;
-	img.alt = name;
-	img.className = "rounded flex-shrink-0";
-	img.style.cssText = "width: 80px; height: 80px; object-fit: scale-down; object-position: left center;";
+	const img = createPicture(image, name, "width: 80px; height: 80px; object-fit: scale-down; object-position: left center;", "rounded flex-shrink-0");
 
 	// Content area (name + badges)
 	const content = document.createElement("div");

@@ -2,6 +2,7 @@
 import { Calculator } from "../calculator.js";
 import { AppConfig } from "../config.js";
 import { createMachineRankDisplay, RarityColors } from "../utils/ranks.js";
+import { createPicture } from "./formHelpers.js";
 
 // Use WeakMap to avoid memory leaks from direct property assignment
 const machineCardRegistry = new WeakMap();
@@ -51,12 +52,9 @@ function updateMachineStats(card, mode) {
  * @returns {HTMLImageElement} Image element
  */
 function createCrewImage(hero) {
-	const img = document.createElement("img");
-	img.src = hero.image || "img/heroes/placeholder.png";
-	img.alt = hero.name;
+	const picture = createPicture(hero.image || "img/heroes/placeholder", hero.name);
+	const img = picture.querySelector("img");
 	img.title = hero.name;
-
-	// Add error handler for missing images
 	img.addEventListener(
 		"error",
 		() => {
@@ -64,8 +62,7 @@ function createCrewImage(hero) {
 		},
 		{ once: true },
 	);
-
-	return img;
+	return picture;
 }
 
 /**
@@ -119,21 +116,18 @@ function createMachineCard(machine) {
 		card.appendChild(particleContainer);
 	}
 
-	const img = clone.querySelector(".machine-image");
-	img.src = machine.image || "img/machines/placeholder.png";
-	img.alt = machine.name;
-
-	// Subtle glow effect on image
-	img.style.boxShadow = `0 4px 12px ${rarityColor}25, 0 0 20px ${rarityColor}15`;
-
-	// Add error handler
-	img.addEventListener(
+	const imgPlaceholder = clone.querySelector(".machine-image");
+	const machinePicture = createPicture(machine.image || "img/machines/placeholder", machine.name, "", "machine-image mx-auto d-block mb-3");
+	const machineImg = machinePicture.querySelector("img");
+	machineImg.style.boxShadow = `0 4px 12px ${rarityColor}25, 0 0 20px ${rarityColor}15`;
+	machineImg.addEventListener(
 		"error",
 		() => {
-			img.src = "img/machines/placeholder.png";
+			machineImg.src = "img/machines/placeholder.png";
 		},
 		{ once: true },
 	);
+	imgPlaceholder.replaceWith(machinePicture);
 
 	// Machine name section
 	const nameElement = clone.querySelector(".machine-name");
@@ -183,9 +177,9 @@ function createMachineCard(machine) {
 
 	// Create stat items with icons
 	const statTypes = [
-		{ key: "damage", icon: "img/ui/damage.avif", label: "Damage" },
-		{ key: "health", icon: "img/ui/health.avif", label: "Health" },
-		{ key: "armor", icon: "img/ui/armor.avif", label: "Armor" },
+		{ key: "damage", icon: "img/ui/wmDamagex128", label: "Damage" },
+		{ key: "health", icon: "img/ui/wmHealthx128", label: "Health" },
+		{ key: "armor", icon: "img/ui/wmArmorx128", label: "Armor" },
 	];
 
 	for (let i = 0; i < 3; i++) {
@@ -193,11 +187,8 @@ function createMachineCard(machine) {
 		const statItem = document.createElement("div");
 		statItem.className = `stat ${key} stat-item`;
 
-		const iconEl = document.createElement("img");
-		iconEl.src = icon;
-		iconEl.alt = label;
-		iconEl.title = label;
-		iconEl.className = "stat-icon";
+		const iconEl = createPicture(icon, label, "", "stat-icon");
+		iconEl.querySelector("img").title = label;
 
 		const valueEl = document.createElement("span");
 		valueEl.className = "value stat-value";

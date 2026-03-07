@@ -1,5 +1,5 @@
 // ui/heroes.js
-import { createSection, createFormRow, createNumberInput, createListItem, updateListItem, createDetailHeader } from "./formHelpers.js";
+import { createSection, createFormRow, createNumberInput, createListItem, updateListItem, createDetailHeader, createPicture } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
 
@@ -785,12 +785,7 @@ function createHeroRow(hero, index) {
 	const nameContainer = document.createElement("div");
 	nameContainer.className = "d-flex align-items-center gap-2";
 
-	const img = document.createElement("img");
-	img.src = hero.image;
-	img.alt = "";
-	img.className = "rounded";
-	//For Bulk Edit
-	img.style.cssText = "width:32px;height:32px;object-fit:cover";
+	const img = createPicture(hero.image, "", "width:32px;height:32px;object-fit:cover", "rounded");
 	img.setAttribute("aria-hidden", "true");
 
 	const nameText = document.createElement("span");

@@ -1,6 +1,7 @@
 // ui/tavern.js
 import { AppConfig } from "../config.js";
 import { triggerAutoSave, store } from "../app.js";
+import { createPicture } from "./formHelpers.js";
 
 // Cache DOM elements on module load
 const sacredContainer = document.getElementById("tavernCardsContainer");
@@ -224,11 +225,7 @@ function createCardLevelCard(machine, cardType, property) {
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body d-flex flex-column align-items-center";
 
-	const img = document.createElement("img");
-	img.src = image;
-	img.alt = name;
-	img.className = "rounded mb-2";
-	img.style.cssText = "width:80px; height:80px; object-fit:scale-down; object-position: left center; ";
+	const img = createPicture(image, name, "width:80px; height:80px; object-fit:scale-down; object-position: left center;", "rounded mb-2");
 
 	const title = document.createElement("h6");
 	title.className = "card-title text-center mb-3";

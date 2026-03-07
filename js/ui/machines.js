@@ -1,5 +1,5 @@
 // ui/machines.js
-import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader, updateBlueprintInputState } from "./formHelpers.js";
+import { createSection, createFormRow, createNumberInput, createSelect, createListItem, updateListItem, createDetailHeader, updateBlueprintInputState, createPicture } from "./formHelpers.js";
 import { AppConfig } from "../config.js";
 import { Calculator } from "../calculator.js";
 import { triggerAutoSave, store } from "../app.js";
@@ -1076,12 +1076,7 @@ function createMachineRow(machine, index) {
 	const nameDiv = document.createElement("div");
 	nameDiv.className = "d-flex align-items-center gap-2";
 
-	const img = document.createElement("img");
-	img.src = machine.image;
-	img.alt = "";
-	img.className = "rounded";
-	//For Bulk Edit
-	img.style.cssText = "width:32px;height:32px;object-fit:cover";
+	const img = createPicture(machine.image, "", "width:32px;height:32px;object-fit:cover", "rounded");
 	img.setAttribute("aria-hidden", "true");
 
 	const nameSpan = document.createElement("span");
