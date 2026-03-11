@@ -13,11 +13,56 @@ import { autoSave, autoLoad, resetAll } from "./storage.js";
 import { showToast } from "./ui/notifications.js";
 import { AppConfig } from "./config.js";
 import { db } from "./db.js";
+import Decimal from "./vendor/break_eternity.esm.js";
 import { initializeProfiles, renderProfileManagement } from "./profiles.js";
 import { initializeSettings, renderSettingsModal, saveSettingsFromModal, resetSettingsToDefaults } from "./ui/settings.js";
 
 // Store auto-save debounce timer
 let autoSaveTimer = null;
+
+function resolveAbilities(machines) {
+    return machines.map(m => ({
+        ...m,
+        resolvedAbility: abilitiesData[m.ability?.key] ?? null,
+    }));
+}
+
+function dtoToDecimal(d) {
+    if (!d || typeof d !== "object") return new Decimal(0);
+    if (d instanceof Decimal) return d;
+    return Decimal.fromComponents(d.sign, d.layer, d.mag);
+}
+
+function isDto(val) {
+    return val && typeof val === "object" && "mag" in val && !(val instanceof Decimal);
+}
+
+function reconstructStatBlock(stats) {
+    if (!stats) return stats;
+    return {
+        damage:    dtoToDecimal(stats.damage),
+        health:    dtoToDecimal(stats.health),
+        armor:     dtoToDecimal(stats.armor),
+        maxHealth: dtoToDecimal(stats.maxHealth ?? stats.health),
+    };
+}
+
+function reconstructDecimals(result) {
+    // Re-hydrate top-level power values
+    if (isDto(result.battlePower)) result.battlePower = dtoToDecimal(result.battlePower);
+    if (isDto(result.arenaPower))  result.arenaPower  = dtoToDecimal(result.arenaPower);
+
+    // Re-hydrate stats on each machine in formation
+    if (Array.isArray(result.formation)) {
+        result.formation = result.formation.map(machine => ({
+            ...machine,
+            battleStats: reconstructStatBlock(machine.battleStats),
+            arenaStats:  reconstructStatBlock(machine.arenaStats),
+        }));
+    }
+
+    return result;
+}
 
 /**
  * Debounced auto-save function (async)
@@ -246,7 +291,7 @@ function runOptimization() {
 
 	worker.postMessage({
 		mode: store.optimizeMode,
-		ownedMachines,
+		ownedMachines: resolveAbilities(store.machines),
 		ownedHeroes,
 		maxMission: 90,
 		globalRarityLevels,
@@ -271,7 +316,7 @@ function runOptimization() {
 		const workerRef = currentWorker; // Capture reference
 		currentWorker = null;
 
-		const result = e.data;
+		let result = e.data;
 
 		if (result.error) {
 			const error = new Error("Optimization failed", { cause: result.error });
@@ -296,6 +341,8 @@ function runOptimization() {
 			globalRarityLevels: Calculator.getGlobalRarityLevels(getOwnedMachines()),
 			riftRank: store.riftRank,
 		};
+
+		result = reconstructDecimals(e.data);
 
 		renderResults(result, store.optimizeMode, upgradeConfig);
 		switchToResultsTab();

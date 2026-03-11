@@ -52,7 +52,7 @@ const RANK_FILE_MAP = {
 		Pearl: "wings27Pearl",
 		Diamond: "wings28Diamond",
 		Starlight: "wings29Starlight",
-		StarlightPlus: "wings30StarlightPlus",
+		StarlightPlus: "wings30StarligtPlus",
 	},
 };
 
