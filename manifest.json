@@ -3,7 +3,7 @@
 	"name": "War Machine Optimizer",
 	"short_name": "WM Optimizer",
 	"description": "Optimize your War Machine formation for campaign and arena in Firestone Idle RPG.",
-	"start_url": "/",
+	"start_url": "/WarMachineOptimizer/index.html",
 	"scope": "/",
 	"background_color": "#1a1a2e",
 	"theme_color": "#1a1a2e",
