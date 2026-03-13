@@ -1,17 +1,59 @@
-// js/settings.js
+// ui/settings.js
 import { AppConfig } from "../config.js";
 import { showToast } from "./notifications.js";
 
 /**
- * Settings manager for app-level preferences
- * Stores in localStorage (separate from profile data)
+ * Settings manager for app-level preferences.
+ *
+ * Stored in localStorage (not IndexedDB) because settings are global to the
+ * app, not scoped to a profile. This is intentional and differs from all
+ * other persistence which uses Dexie.
  */
 export class SettingsManager {
 	static STORAGE_KEY = "wmo_app_settings";
 
 	/**
-	 * Loads settings from localStorage
-	 * @returns {Object} Settings object
+	 * @type {Object|null} Cached deep copy of factory defaults to avoid
+	 * repeated JSON round-trips.
+	 */
+	static _factoryDefaults = null;
+
+	// ─────────────────────────────────────────────
+	// Default settings
+	// ─────────────────────────────────────────────
+
+	/**
+	 * Returns the default settings derived from AppConfig.HERO_SCORING.
+	 * Result is cached after the first call.
+	 * @returns {Object}
+	 */
+	static getDefaultSettings() {
+		if (!this._factoryDefaults) {
+			// structuredClone produces a clean deep copy without JSON round-trip
+			this._factoryDefaults = structuredClone(AppConfig.HERO_SCORING);
+		}
+		const d = this._factoryDefaults;
+		return {
+			heroScoring: {
+				campaign: {
+					tank: { ...d.CAMPAIGN.TANK },
+					dps:  { ...d.CAMPAIGN.DPS  },
+				},
+				arena: {
+					tank: { ...d.ARENA.TANK },
+					dps:  { ...d.ARENA.DPS  },
+				},
+			},
+		};
+	}
+
+	// ─────────────────────────────────────────────
+	// Load / save
+	// ─────────────────────────────────────────────
+
+	/**
+	 * Loads settings from localStorage, merging with defaults for any missing keys.
+	 * @returns {Object}
 	 */
 	static loadSettings() {
 		try {
@@ -19,13 +61,13 @@ export class SettingsManager {
 			if (!stored) return this.getDefaultSettings();
 
 			const settings = JSON.parse(stored);
+			const defaults = this.getDefaultSettings();
 
-			// Merge with defaults to handle new settings
 			return {
-				...this.getDefaultSettings(),
+				...defaults,
 				...settings,
 				heroScoring: {
-					...this.getDefaultSettings().heroScoring,
+					...defaults.heroScoring,
 					...settings.heroScoring,
 				},
 			};
@@ -36,83 +78,47 @@ export class SettingsManager {
 	}
 
 	/**
-	 * Saves settings to localStorage
-	 * @param {Object} settings - Settings to save
+	 * Persists settings to localStorage.
+	 * @param {Object} settings
 	 */
 	static saveSettings(settings) {
 		try {
 			localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
-			console.log("Settings saved to localStorage:", settings);
 		} catch (error) {
 			console.error("Failed to save settings:", error);
 			showToast("Failed to save settings", "danger");
 		}
 	}
 
-	static factoryDefaults = null;
-	/**
-	 * Gets default settings from AppConfig
-	 * @returns {Object} Default settings
-	 */
-	static getDefaultSettings() {
-		if (!this.factoryDefaults) {
-			this.factoryDefaults = JSON.parse(JSON.stringify(AppConfig.HERO_SCORING));
-		}
-
-		const d = this.factoryDefaults;
-		return {
-			heroScoring: {
-				campaign: {
-					tank: { ...d.CAMPAIGN.TANK },
-					dps: { ...d.CAMPAIGN.DPS },
-				},
-				arena: {
-					tank: { ...d.ARENA.TANK },
-					dps: { ...d.ARENA.DPS },
-				},
-			},
-		};
-	}
+	// ─────────────────────────────────────────────
+	// Apply to AppConfig
+	// ─────────────────────────────────────────────
 
 	/**
-	 * Applies settings to AppConfig (modifies in place)
-	 * This ensures optimizer always reads the latest values
-	 * @param {Object} settings - Settings to apply
+	 * Writes hero scoring weights from `settings` into AppConfig.HERO_SCORING.
+	 * Mutates in place so the Optimizer always reads the latest user-defined values
+	 * without requiring a page reload or re-import.
+	 * @param {Object} settings
 	 */
 	static applySettings(settings) {
-		if (settings.heroScoring) {
-			// Update each property individually to maintain references
-			const campaignTank = settings.heroScoring.campaign.tank;
-			const campaignDps = settings.heroScoring.campaign.dps;
-			const arenaTank = settings.heroScoring.arena.tank;
-			const arenaDps = settings.heroScoring.arena.dps;
+		if (!settings.heroScoring) return;
 
-			// Campaign Tank
-			AppConfig.HERO_SCORING.CAMPAIGN.TANK.damage = campaignTank.damage;
-			AppConfig.HERO_SCORING.CAMPAIGN.TANK.health = campaignTank.health;
-			AppConfig.HERO_SCORING.CAMPAIGN.TANK.armor = campaignTank.armor;
+		const { campaign, arena } = settings.heroScoring;
+		const hs = AppConfig.HERO_SCORING;
 
-			// Campaign DPS
-			AppConfig.HERO_SCORING.CAMPAIGN.DPS.damage = campaignDps.damage;
-			AppConfig.HERO_SCORING.CAMPAIGN.DPS.health = campaignDps.health;
-			AppConfig.HERO_SCORING.CAMPAIGN.DPS.armor = campaignDps.armor;
-
-			// Arena Tank
-			AppConfig.HERO_SCORING.ARENA.TANK.damage = arenaTank.damage;
-			AppConfig.HERO_SCORING.ARENA.TANK.health = arenaTank.health;
-			AppConfig.HERO_SCORING.ARENA.TANK.armor = arenaTank.armor;
-
-			// Arena DPS
-			AppConfig.HERO_SCORING.ARENA.DPS.damage = arenaDps.damage;
-			AppConfig.HERO_SCORING.ARENA.DPS.health = arenaDps.health;
-			AppConfig.HERO_SCORING.ARENA.DPS.armor = arenaDps.armor;
-
-			console.log("Settings applied to AppConfig.HERO_SCORING:", AppConfig.HERO_SCORING);
-		}
+		Object.assign(hs.CAMPAIGN.TANK, campaign.tank);
+		Object.assign(hs.CAMPAIGN.DPS,  campaign.dps);
+		Object.assign(hs.ARENA.TANK,    arena.tank);
+		Object.assign(hs.ARENA.DPS,     arena.dps);
 	}
 
+	// ─────────────────────────────────────────────
+	// Reset
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Resets settings to defaults
+	 * Resets settings to factory defaults, persists them, and applies to AppConfig.
+	 * @returns {Object} The new default settings
 	 */
 	static resetToDefaults() {
 		const defaults = this.getDefaultSettings();
@@ -120,237 +126,212 @@ export class SettingsManager {
 		this.applySettings(defaults);
 		return defaults;
 	}
+
+	// ─────────────────────────────────────────────
+	// Modal rendering
+	// ─────────────────────────────────────────────
+
+	/**
+	 * Renders the settings modal body with Campaign and Arena tabs.
+	 * Static because it has no per-instance state.
+	 */
+	static renderModal() {
+		const body = document.getElementById("settingsModalBody");
+		if (!body) return;
+
+		const settings = this.loadSettings();
+		const fragment = document.createDocumentFragment();
+
+		const alert  = document.createElement("div");
+		alert.className = "alert alert-info";
+		const icon   = document.createElement("i");
+		icon.className = "bi bi-info-circle me-2";
+		icon.setAttribute("aria-hidden", "true");
+		const strong = document.createElement("strong");
+		strong.textContent = "Hero Scoring Weights: ";
+		const text   = document.createTextNode(
+			"These values control how heroes are prioritised for each role and mode. Changes apply to the next optimization.",
+		);
+		alert.append(icon, strong, text);
+		fragment.appendChild(alert);
+
+		const tabsNav = document.createElement("ul");
+		tabsNav.className = "nav nav-tabs mb-3";
+		tabsNav.id = "settingsTabs";
+		tabsNav.setAttribute("role", "tablist");
+		tabsNav.append(_createTab("Campaign", "campaignSettings", true), _createTab("Arena", "arenaSettings", false));
+
+		const tabContent = document.createElement("div");
+		tabContent.className = "tab-content";
+		tabContent.append(
+			_createSettingsPane("campaign", settings.heroScoring.campaign, true),
+			_createSettingsPane("arena",    settings.heroScoring.arena,    false),
+		);
+
+		fragment.append(tabsNav, tabContent);
+		body.replaceChildren(fragment);
+	}
+
+	/**
+	 * Reads input values from the modal and saves + applies them.
+	 * Static because it operates only on DOM state and localStorage.
+	 */
+	static saveFromModal() {
+		const body     = document.getElementById("settingsModalBody");
+		const settings = this.loadSettings();
+
+		for (const input of body.querySelectorAll("input[type='number']")) {
+			const mode  = input.dataset.mode;
+			const role  = input.dataset.role;
+			const stat  = input.dataset.stat;
+			const value = parseFloat(input.value) || 0;
+			settings.heroScoring[mode][role][stat] = value;
+		}
+
+		this.saveSettings(settings);
+		this.applySettings(settings);
+		showToast("Settings saved! They will be used in the next optimization.", "success");
+	}
+
+	/**
+	 * Resets all settings to defaults and updates the modal inputs.
+	 * Static because it operates only on DOM state and localStorage.
+	 */
+	static resetModalToDefaults() {
+		if (!confirm("Reset all settings to default values?")) return;
+
+		const defaults = this.resetToDefaults();
+		const body     = document.getElementById("settingsModalBody");
+
+		for (const input of body.querySelectorAll("input[type='number']")) {
+			input.value = defaults.heroScoring[input.dataset.mode][input.dataset.role][input.dataset.stat];
+		}
+
+		showToast("Settings reset to defaults", "success");
+	}
+
+	// ─────────────────────────────────────────────
+	// Initialization
+	// ─────────────────────────────────────────────
+
+	/**
+	 * Loads and applies persisted settings on app startup.
+	 */
+	static initialize() {
+		this.applySettings(this.loadSettings());
+	}
 }
 
-// Cache DOM element on module load
-const settingsModalBody = document.getElementById("settingsModalBody");
+// ─────────────────────────────────────────────
+// Private DOM builders
+// ─────────────────────────────────────────────
 
 /**
- * Renders the settings modal
+ * Creates a Bootstrap nav-item tab button.
+ * @param {string}  label
+ * @param {string}  target - Pane ID
+ * @param {boolean} active
+ * @returns {HTMLElement}
+ * @private
  */
-export function renderSettingsModal() {
-	const settings = SettingsManager.loadSettings();
-
-	if (!settingsModalBody) return;
-
-	settingsModalBody.replaceChildren();
-
-	// Use fragment for batch DOM operations
-	const fragment = document.createDocumentFragment();
-
-	// Info alert
-	const alert = document.createElement("div");
-	alert.className = "alert alert-info";
-
-	const icon = document.createElement("i");
-	icon.className = "bi bi-info-circle me-2";
-	icon.setAttribute("aria-hidden", "true");
-
-	const strong = document.createElement("strong");
-	strong.textContent = "Hero Scoring Weights: ";
-
-	const text = document.createTextNode(
-		"These values control how heroes are prioritized when assigning crew for each mode. Higher values mean that stat is more important for that role. Changes apply to future optimizations.",
-	);
-
-	alert.append(icon, strong, text);
-	fragment.appendChild(alert);
-
-	// Create tabs for Campaign and Arena
-	const tabsNav = document.createElement("ul");
-	tabsNav.className = "nav nav-tabs mb-3";
-	tabsNav.id = "settingsTabs";
-	tabsNav.setAttribute("role", "tablist");
-
-	const campaignTab = createTab("Campaign", "campaignSettings", true);
-	const arenaTab = createTab("Arena", "arenaSettings", false);
-
-	tabsNav.append(campaignTab, arenaTab);
-
-	// Create tab content
-	const tabContent = document.createElement("div");
-	tabContent.className = "tab-content";
-
-	const campaignPane = createSettingsPane("campaign", settings.heroScoring.campaign, true);
-	const arenaPane = createSettingsPane("arena", settings.heroScoring.arena, false);
-
-	tabContent.append(campaignPane, arenaPane);
-
-	fragment.append(tabsNav, tabContent);
-	settingsModalBody.appendChild(fragment);
-}
-
-/**
- * Creates a tab button
- * @param {string} label - Tab label
- * @param {string} target - Target pane ID
- * @param {boolean} active - Whether tab is active
- * @returns {HTMLElement} Tab element
- */
-function createTab(label, target, active) {
-	const li = document.createElement("li");
+function _createTab(label, target, active) {
+	const li  = document.createElement("li");
 	li.className = "nav-item";
 	li.setAttribute("role", "presentation");
 
-	const button = document.createElement("button");
-	button.className = `nav-link ${active ? "active" : ""}`;
-	button.id = `${target}-tab`;
-	button.setAttribute("data-bs-toggle", "tab");
-	button.setAttribute("data-bs-target", `#${target}`);
-	button.setAttribute("type", "button");
-	button.setAttribute("role", "tab");
-	button.setAttribute("aria-controls", target);
-	button.setAttribute("aria-selected", active ? "true" : "false");
-	button.textContent = label;
+	const btn = document.createElement("button");
+	btn.className = `nav-link ${active ? "active" : ""}`;
+	btn.id = `${target}-tab`;
+	btn.setAttribute("data-bs-toggle",  "tab");
+	btn.setAttribute("data-bs-target",  `#${target}`);
+	btn.setAttribute("type",            "button");
+	btn.setAttribute("role",            "tab");
+	btn.setAttribute("aria-controls",   target);
+	btn.setAttribute("aria-selected",   active ? "true" : "false");
+	btn.textContent = label;
 
-	li.appendChild(button);
+	li.appendChild(btn);
 	return li;
 }
 
 /**
- * Creates a settings pane for a mode
- * @param {string} mode - "campaign" or "arena"
- * @param {Object} weights - Weight values
- * @param {boolean} active - Whether pane is active
- * @returns {HTMLElement} Pane element
+ * Creates a tab pane with Tank and DPS weight cards for a given mode.
+ * @param {"campaign"|"arena"} mode
+ * @param {Object}  weights - { tank: {...}, dps: {...} }
+ * @param {boolean} active
+ * @returns {HTMLElement}
+ * @private
  */
-function createSettingsPane(mode, weights, active) {
+function _createSettingsPane(mode, weights, active) {
 	const pane = document.createElement("div");
 	pane.className = `tab-pane fade ${active ? "show active" : ""}`;
 	pane.id = `${mode}Settings`;
 	pane.setAttribute("role", "tabpanel");
 	pane.setAttribute("aria-labelledby", `${mode}Settings-tab`);
-
-	// Tank section
-	const tankCard = createWeightCard("Tank", mode, "tank", weights.tank);
-
-	// DPS section
-	const dpsCard = createWeightCard("DPS/Healer", mode, "dps", weights.dps);
-
-	pane.append(tankCard, dpsCard);
+	pane.append(
+		_createWeightCard("Tank",        mode, "tank", weights.tank),
+		_createWeightCard("DPS/Healer",  mode, "dps",  weights.dps),
+	);
 	return pane;
 }
 
 /**
- * Creates a weight configuration card
- * @param {string} label - Card label
- * @param {string} mode - Mode (campaign/arena)
- * @param {string} role - Role (tank/dps)
- * @param {Object} weights - Weight values
- * @returns {HTMLElement} Card element
+ * Creates a card with three stat weight inputs for a role.
+ * Each input carries data-mode, data-role, and data-stat for the save handler.
+ * @param {string} label
+ * @param {string} mode
+ * @param {string} role
+ * @param {Object} weights - { damage, health, armor }
+ * @returns {HTMLElement}
+ * @private
  */
-function createWeightCard(label, mode, role, weights) {
+function _createWeightCard(label, mode, role, weights) {
 	const card = document.createElement("div");
 	card.className = "card mb-3";
 
 	const cardHeader = document.createElement("div");
 	cardHeader.className = "card-header";
-
-	const headerTitle = document.createElement("h6");
-	headerTitle.className = "mb-0";
-	headerTitle.textContent = `${label} Weights`;
-	cardHeader.appendChild(headerTitle);
+	const title = document.createElement("h6");
+	title.className = "mb-0";
+	title.textContent = `${label} Weights`;
+	cardHeader.appendChild(title);
 
 	const cardBody = document.createElement("div");
 	cardBody.className = "card-body";
 
-	// Create inputs for each stat using fragment
-	const stats = ["damage", "health", "armor"];
-	const row = document.createElement("div");
-	row.className = "row g-3";
+	const row      = document.createElement("div");
+	row.className  = "row g-3";
+	const fragment = document.createDocumentFragment();
 
-	const rowFragment = document.createDocumentFragment();
+	for (const stat of ["damage", "health", "armor"]) {
+		const inputId = `${mode}-${role}-${stat}`;
 
-	for (let i = 0; i < 3; i++) {
-		const stat = stats[i];
 		const col = document.createElement("div");
 		col.className = "col-md-4";
 
-		const inputId = `${mode}-${role}-${stat}`;
-
-		const label = document.createElement("label");
-		label.className = "form-label text-capitalize";
-		label.textContent = stat;
-		label.htmlFor = inputId;
+		const labelEl = document.createElement("label");
+		labelEl.className = "form-label text-capitalize";
+		labelEl.textContent = stat;
+		labelEl.htmlFor = inputId;
 
 		const input = document.createElement("input");
-		input.type = "number";
+		input.type  = "number";
 		input.className = "form-control";
-		input.id = inputId;
-		input.min = "0";
-		input.step = "0.1";
+		input.id    = inputId;
+		input.min   = "0";
+		input.step  = "0.1";
 		input.value = weights[stat];
 		input.setAttribute("data-mode", mode);
 		input.setAttribute("data-role", role);
 		input.setAttribute("data-stat", stat);
 		input.setAttribute("aria-label", `${label} ${stat} weight`);
 
-		col.append(label, input);
-		rowFragment.appendChild(col);
+		col.append(labelEl, input);
+		fragment.appendChild(col);
 	}
 
-	row.appendChild(rowFragment);
+	row.appendChild(fragment);
 	cardBody.appendChild(row);
 	card.append(cardHeader, cardBody);
-
 	return card;
-}
-
-/**
- * Saves settings from the modal
- */
-export function saveSettingsFromModal() {
-	const settings = SettingsManager.loadSettings();
-
-	// Collect all input values
-	const inputs = settingsModalBody.querySelectorAll("input[type='number']");
-	const inputsLen = inputs.length;
-
-	for (let i = 0; i < inputsLen; i++) {
-		const input = inputs[i];
-		const mode = input.getAttribute("data-mode");
-		const role = input.getAttribute("data-role");
-		const stat = input.getAttribute("data-stat");
-		const value = parseFloat(input.value) || 0;
-
-		settings.heroScoring[mode][role][stat] = value;
-	}
-
-	// Save and apply
-	SettingsManager.saveSettings(settings);
-	SettingsManager.applySettings(settings);
-
-	showToast("Settings saved! They will be used in the next optimization.", "success");
-}
-
-/**
- * Resets settings to defaults
- */
-export function resetSettingsToDefaults() {
-	if (!confirm("Reset all settings to default values?")) return;
-
-	const defaults = SettingsManager.resetToDefaults();
-
-	// Update modal inputs
-	const inputs = settingsModalBody.querySelectorAll("input[type='number']");
-	const inputsLen = inputs.length;
-
-	for (let i = 0; i < inputsLen; i++) {
-		const input = inputs[i];
-		const mode = input.getAttribute("data-mode");
-		const role = input.getAttribute("data-role");
-		const stat = input.getAttribute("data-stat");
-		input.value = defaults.heroScoring[mode][role][stat];
-	}
-
-	showToast("Settings reset to defaults", "success");
-}
-
-/**
- * Initializes settings on app startup
- */
-export function initializeSettings() {
-	const settings = SettingsManager.loadSettings();
-	SettingsManager.applySettings(settings);
-	console.log("Settings initialized and applied to AppConfig");
 }

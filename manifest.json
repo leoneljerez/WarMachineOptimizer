@@ -1,0 +1,38 @@
+{
+	"id": "/",
+	"name": "War Machine Optimizer",
+	"short_name": "WM Optimizer",
+	"description": "Optimize your War Machine formation for campaign and arena in Firestone Idle RPG.",
+	"start_url": "/",
+	"scope": "/",
+	"background_color": "#1a1a2e",
+	"theme_color": "#1a1a2e",
+	"orientation": "any",
+	"display": "standalone",
+	"categories": [
+		"games",
+		"utilities"
+	],
+	"icons": [
+		{
+			"src": "./img/ui/cog-192x192.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		}
+	],
+	"shortcuts": [
+    {
+      "name": "Guardian Tools",
+      "short_name": "Guardian",
+      "description": "Open the Guardian optimization tools",
+      "url": "/guardian.html",
+      "icons": [
+        {
+          "src": "./img/ui/cog-192x192.png",
+          "sizes": "192x192",
+		  "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

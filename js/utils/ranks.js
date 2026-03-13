@@ -1,9 +1,10 @@
-// js/utils/ranks.js
-import { AppConfig } from "../config.js";
+// utils/ranks.js
+import { AppConfig, RANK_FILE_MAP } from "../config.js";
 import { createPicture } from "../ui/formHelpers.js";
 
 /**
- * Rarity color configuration for subtle borders
+ * Rarity border-color map for subtle UI highlights.
+ * @type {Record<string, string>}
  */
 export const RarityColors = {
 	common: "#6B4423",
@@ -17,59 +18,32 @@ export const RarityColors = {
 	celestial: "#60A5FA",
 };
 
-const RANK_FILE_MAP = {
-	Star: {
-		Bronze: "star1Bronze",
-		Silver: "star2Silver",
-		Gold: "star3Gold",
-		Platinum: "star4Platinum",
-		Ruby: "star5Ruby",
-		Sapphire: "star6Sepphire",
-		Pearl: "star7Pearl",
-		Diamond: "star8Diamond",
-		Starlight: "star9Starlight",
-		StarlightPlus: "star10StarlightPlus",
-	},
-	Crown: {
-		Bronze: "crown11Bronze",
-		Silver: "crown12Silver",
-		Gold: "crown13Gold",
-		Platinum: "crown14Platinum",
-		Ruby: "crown15Ruby",
-		Sapphire: "crown16Sepphire",
-		Pearl: "crown17Pearl",
-		Diamond: "crown18Diamond",
-		Starlight: "crown19Starlight",
-		StarlightPlus: "crown20StarlightPlus",
-	},
-	Wings: {
-		Bronze: "wings21Bronze",
-		Silver: "wings22Silver",
-		Gold: "wings23Gold",
-		Platinum: "wings24Platinum",
-		Ruby: "wings25Ruby",
-		Sapphire: "wings26Sepphire",
-		Pearl: "wings27Pearl",
-		Diamond: "wings28Diamond",
-		Starlight: "wings29Starlight",
-		StarlightPlus: "wings30StarligtPlus",
-	},
-};
+// ─────────────────────────────────────────────
+// Private helpers
+// ─────────────────────────────────────────────
 
-const EVOLUTION_TO_TIER = {
-	bronze: "Bronze",
-	silver: "Silver",
-	gold: "Gold",
-	platinum: "Platinum",
-	ruby: "Ruby",
-	sapphire: "Sapphire",
-	pearl: "Pearl",
-	diamond: "Diamond",
-	starlight: "Starlight",
-	starlight_plus: "StarlightPlus",
-};
+/**
+ * Converts a GUARDIAN_EVOLUTIONS key to the capitalised tier label used in RANK_FILE_MAP.
+ * Reads directly from AppConfig.GUARDIAN_EVOLUTIONS so there is only one source of truth.
+ * @param {string} evolutionKey - e.g. "starlight_plus"
+ * @returns {string} e.g. "StarlightPlus"
+ * @private
+ */
+function _evolutionKeyToTier(evolutionKey) {
+	const entry = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolutionKey);
+	if (!entry) return "Bronze";
+	// Convert label to PascalCase tier key used by RANK_FILE_MAP ("Starlight Plus" → "StarlightPlus")
+	return entry.label.replace(/\s+/g, "");
+}
 
-function getRankBasePath(type, tier) {
+/**
+ * Returns the base image path (without extension) for a rank type + tier combination.
+ * @param {"Star"|"Crown"|"Wings"} type
+ * @param {string} tier - PascalCase tier key (e.g. "Sapphire", "StarlightPlus")
+ * @returns {string|null}
+ * @private
+ */
+function _getRankBasePath(type, tier) {
 	const fileName = RANK_FILE_MAP[type]?.[tier];
 	if (!fileName) {
 		console.warn(`Missing rank file mapping for type="${type}" tier="${tier}"`);
@@ -79,376 +53,18 @@ function getRankBasePath(type, tier) {
 }
 
 /**
- * Calculates machine rank info from level
- * @param {number} level - Machine level (1-150+)
- * @returns {{type: string, tier: string, count: number, displayText: string}} Rank information
+ * Creates a row of rank icon <picture> elements.
+ * @param {string} basePath - Image base path
+ * @param {"Star"|"Crown"|"Wings"} type - Used as alt text
+ * @param {number} count - Number of icons to render
+ * @param {number} iconSize - CSS pixel size per icon
+ * @returns {HTMLElement} flex container
+ * @private
  */
-export function getMachineRank(level) {
-	if (level < 1) {
-		return { type: "Star", tier: "Bronze", count: 0, displayText: "No Rank" };
-	}
+function _createIconRow(basePath, type, count, iconSize) {
+	const row = document.createElement("div");
+	row.className = "d-flex align-items-center gap-1";
 
-	let rankConfig;
-	let adjustedLevel = level;
-
-	if (level <= 50) {
-		rankConfig = AppConfig.MACHINE_RANKS.STARS;
-		adjustedLevel = level;
-	} else if (level <= 100) {
-		rankConfig = AppConfig.MACHINE_RANKS.CROWNS;
-		adjustedLevel = level - 50;
-	} else if (level <= 150) {
-		rankConfig = AppConfig.MACHINE_RANKS.WINGS;
-		adjustedLevel = level - 100;
-	} else {
-		// Beyond 150, show max wings
-		return {
-			type: "Wings",
-			tier: "StarlightPlus",
-			count: 5,
-			displayText: "5 Starlight Plus Wings (Max)",
-		};
-	}
-
-	// Calculate count (1-5) and tier based on level
-	const count = ((adjustedLevel - 1) % 5) + 1;
-	const tierIndex = Math.floor((adjustedLevel - 1) / 5);
-	const tierConfig = rankConfig.tiers[tierIndex] || rankConfig.tiers[rankConfig.tiers.length - 1];
-	const tier = tierConfig.key.charAt(0).toUpperCase() + tierConfig.key.slice(1);
-	const tierLabel = tierConfig.label;
-
-	const displayText = `${count} ${tierLabel} ${rankConfig.type}${count > 1 ? "s" : ""}`;
-
-	return { type: rankConfig.type, tier, count, displayText };
-}
-
-/**
- * Creates rank icon display element for machines
- * @param {number} level - Machine level
- * @param {string} size - Icon size: 'small' (20px), 'medium' (30px), 'large' (40px)
- * @returns {HTMLElement} Container with rank icons
- */
-export function createMachineRankDisplay(level, size = "medium") {
-	const rank = getMachineRank(level);
-	const container = document.createElement("div");
-	container.className = "d-flex align-items-center gap-1";
-	container.setAttribute("title", rank.displayText);
-
-	const sizeMap = { small: 20, medium: 30, large: 40 };
-	const iconSize = sizeMap[size] || 30;
-
-	// Create icons for each star/crown/wing
-	for (let i = 0; i < rank.count; i++) {
-		const basePath = getRankBasePath(rank.type, rank.tier);
-		if (!basePath) continue; // skip if mapping missing
-
-		const picture = createPicture(basePath, rank.type, `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`, "rank-icon");
-		picture.setAttribute("aria-hidden", "true");
-		picture.querySelector("img").addEventListener(
-			"error",
-			() => {
-				picture.style.display = "none";
-				console.warn(`Missing rank icon: ${basePath}`);
-			},
-			{ once: true },
-		);
-		container.appendChild(picture);
-	}
-
-	return container;
-}
-
-/**
- * Creates guardian rank option with images
- * @param {string} evolution - Evolution category
- * @param {string} rank - Rank (1star-5crown)
- * @param {boolean} selected - Whether this option is selected
- * @returns {HTMLElement} Option element with images
- */
-function createGuardianRankOption(evolution, rank, selected) {
-	const option = document.createElement("option");
-	option.value = `${evolution}|${rank}`;
-	option.selected = selected;
-
-	const isCrown = rank.includes("crown");
-	const type = isCrown ? "Crown" : "Star";
-	const count = parseInt(rank.charAt(0));
-
-	const tier = EVOLUTION_TO_TIER[evolution];
-	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);
-	const evolutionLabel = evolutionConfig ? evolutionConfig.label : evolution.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
-
-	// Store metadata for custom rendering
-	option.setAttribute("data-type", type);
-	option.setAttribute("data-tier", tier);
-	option.setAttribute("data-count", count);
-	option.setAttribute("data-evolution", evolutionLabel);
-
-	// Set text content as fallback
-	option.textContent = `${evolutionLabel} - ${count} ${type}${count > 1 ? "s" : ""}`;
-
-	return option;
-}
-
-/**
- * Creates a combined guardian rank selector with image rendering
- * Organized by Stars first, then Crowns
- * @param {string} currentEvolution - Current evolution category
- * @param {string} currentRank - Current rank (1star-5crown)
- * @param {string} inputId - Input ID
- * @returns {HTMLElement} Container with select and custom display
- */
-export function createGuardianRankSelector(currentEvolution, currentRank, inputId) {
-	const container = document.createElement("div");
-	container.className = "guardian-rank-selector-container";
-
-	// Create hidden select for form data
-	const select = document.createElement("select");
-	select.className = "guardian-rank-select";
-	select.id = inputId;
-	select.style.display = "none";
-
-	const starRanks = ["1star", "2star", "3star", "4star", "5star"];
-	const crownRanks = ["1crown", "2crown", "3crown", "4crown", "5crown"];
-
-	// Build select options
-	const evolutionsLen = AppConfig.GUARDIAN_EVOLUTIONS.length;
-	for (let i = 0; i < evolutionsLen; i++) {
-		const evolution = AppConfig.GUARDIAN_EVOLUTIONS[i];
-
-		// Star ranks
-		for (let j = 0; j < 5; j++) {
-			const option = createGuardianRankOption(evolution.key, starRanks[j], evolution.key === currentEvolution && starRanks[j] === currentRank);
-			select.appendChild(option);
-		}
-
-		// Crown ranks
-		for (let j = 0; j < 5; j++) {
-			const option = createGuardianRankOption(evolution.key, crownRanks[j], evolution.key === currentEvolution && crownRanks[j] === currentRank);
-			select.appendChild(option);
-		}
-	}
-
-	// Create custom display button
-	const displayBtn = document.createElement("button");
-	displayBtn.type = "button";
-	displayBtn.className = "btn btn-outline-secondary w-100 text-start guardian-rank-display";
-	displayBtn.id = `${inputId}-display`;
-
-	// Render initial display
-	updateGuardianRankDisplay(displayBtn, currentEvolution, currentRank);
-
-	// Create dropdown menu - organized by rank type (Stars, then Crowns)
-	const dropdownMenu = document.createElement("div");
-	dropdownMenu.className = "guardian-rank-dropdown";
-	dropdownMenu.style.display = "none";
-
-	const menuFragment = document.createDocumentFragment();
-
-	// STARS SECTION
-	const starsHeader = document.createElement("div");
-	starsHeader.className = "guardian-rank-type-header";
-	starsHeader.textContent = "Stars";
-	menuFragment.appendChild(starsHeader);
-
-	for (let i = 0; i < evolutionsLen; i++) {
-		const evolution = AppConfig.GUARDIAN_EVOLUTIONS[i];
-
-		const subHeader = document.createElement("div");
-		subHeader.className = "guardian-rank-evolution-subheader";
-		subHeader.textContent = evolution.label;
-		menuFragment.appendChild(subHeader);
-
-		const ranksContainer = document.createElement("div");
-		ranksContainer.className = "guardian-rank-options";
-
-		for (let j = 0; j < 5; j++) {
-			const rank = starRanks[j];
-			const option = createGuardianRankOptionVisual(evolution.key, rank);
-			option.addEventListener("click", createOptionClickHandler(select, displayBtn, dropdownMenu, evolution.key, rank));
-			ranksContainer.appendChild(option);
-		}
-
-		menuFragment.appendChild(ranksContainer);
-	}
-
-	// CROWNS SECTION
-	const crownsHeader = document.createElement("div");
-	crownsHeader.className = "guardian-rank-type-header";
-	crownsHeader.textContent = "Crowns";
-	menuFragment.appendChild(crownsHeader);
-
-	for (let i = 0; i < evolutionsLen; i++) {
-		const evolution = AppConfig.GUARDIAN_EVOLUTIONS[i];
-
-		const subHeader = document.createElement("div");
-		subHeader.className = "guardian-rank-evolution-subheader";
-		subHeader.textContent = evolution.label;
-		menuFragment.appendChild(subHeader);
-
-		const ranksContainer = document.createElement("div");
-		ranksContainer.className = "guardian-rank-options";
-
-		for (let j = 0; j < 5; j++) {
-			const rank = crownRanks[j];
-			const option = createGuardianRankOptionVisual(evolution.key, rank);
-			option.addEventListener("click", createOptionClickHandler(select, displayBtn, dropdownMenu, evolution.key, rank));
-			ranksContainer.appendChild(option);
-		}
-
-		menuFragment.appendChild(ranksContainer);
-	}
-
-	dropdownMenu.appendChild(menuFragment);
-
-	// Toggle dropdown - use proper event delegation pattern
-	const toggleHandler = (e) => {
-		e.stopPropagation();
-		const isVisible = dropdownMenu.style.display !== "none";
-		dropdownMenu.style.display = isVisible ? "none" : "block";
-	};
-	displayBtn.addEventListener("click", toggleHandler);
-
-	// Close dropdown when clicking outside - use capture phase
-	const outsideClickHandler = (e) => {
-		if (!container.contains(e.target)) {
-			dropdownMenu.style.display = "none";
-		}
-	};
-
-	// Store cleanup function on container
-	container._cleanup = () => {
-		document.removeEventListener("click", outsideClickHandler, true);
-	};
-
-	document.addEventListener("click", outsideClickHandler, true);
-
-	container.append(select, displayBtn, dropdownMenu);
-	return container;
-}
-
-/**
- * Creates click handler for dropdown options
- * @param {HTMLElement} select - Hidden select element
- * @param {HTMLElement} displayBtn - Display button
- * @param {HTMLElement} dropdownMenu - Dropdown menu
- * @param {string} evolution - Evolution key
- * @param {string} rank - Rank key
- * @returns {Function} Click handler
- */
-function createOptionClickHandler(select, displayBtn, dropdownMenu, evolution, rank) {
-	return () => {
-		select.value = `${evolution}|${rank}`;
-		updateGuardianRankDisplay(displayBtn, evolution, rank);
-		dropdownMenu.style.display = "none";
-		select.dispatchEvent(new Event("change", { bubbles: true }));
-	};
-}
-
-/**
- * Creates visual option for guardian rank dropdown
- * @param {string} evolution - Evolution category
- * @param {string} rank - Rank
- * @returns {HTMLElement} Option element
- */
-function createGuardianRankOptionVisual(evolution, rank) {
-	const option = document.createElement("button");
-	option.type = "button";
-	option.className = "guardian-rank-option";
-
-	const isCrown = rank.includes("crown");
-	const type = isCrown ? "Crown" : "Star";
-	const count = parseInt(rank.charAt(0));
-
-	const tier = EVOLUTION_TO_TIER[evolution];
-	const basePath = getRankBasePath(type, tier);
-
-	// Create icon container
-	const iconContainer = document.createElement("div");
-	iconContainer.className = "d-flex align-items-center gap-1";
-
-	for (let i = 0; i < count; i++) {
-		const picture = createPicture(basePath, type, "width: 20px; height: 20px; object-fit: contain;");
-		iconContainer.appendChild(picture);
-	}
-
-	option.appendChild(iconContainer);
-	return option;
-}
-
-/**
- * Updates the guardian rank display button
- * @param {HTMLElement} button - Display button
- * @param {string} evolution - Evolution category
- * @param {string} rank - Rank
- */
-function updateGuardianRankDisplay(button, evolution, rank) {
-	button.replaceChildren();
-
-	const isCrown = rank.includes("crown");
-	const type = isCrown ? "Crown" : "Star";
-	const count = parseInt(rank.charAt(0));
-
-	const tier = EVOLUTION_TO_TIER[evolution];
-	const basePath = getRankBasePath(type, tier);
-	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);
-	const evolutionLabel = evolutionConfig ? evolutionConfig.label : evolution.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
-
-	const container = document.createElement("div");
-	container.className = "d-flex align-items-center justify-content-between w-100";
-
-	const iconContainer = document.createElement("div");
-	iconContainer.className = "d-flex align-items-center gap-1";
-
-	for (let i = 0; i < count; i++) {
-		const picture = createPicture(basePath, type, "width: 24px; height: 24px; object-fit: contain;");
-		iconContainer.appendChild(picture);
-	}
-
-	const label = document.createElement("span");
-	label.textContent = evolutionLabel;
-	label.className = "ms-2";
-
-	const caret = document.createElement("i");
-	caret.className = "bi bi-chevron-down ms-auto";
-
-	container.append(iconContainer, label, caret);
-	button.appendChild(container);
-}
-
-/**
- * Parses the combined guardian rank value
- * @param {string} value - Combined value like "bronze|3star"
- * @returns {{evolution: string, rank: string}} Parsed values
- */
-export function parseGuardianRankValue(value) {
-	const [evolution, rank] = value.split("|");
-	return { evolution, rank };
-}
-
-/**
- * Creates guardian rank icon display
- * @param {string} evolution - Evolution category
- * @param {string} rank - Rank (1star-5crown)
- * @param {string} size - Icon size
- * @returns {HTMLElement} Container with rank icons
- */
-export function createGuardianRankDisplay(evolution, rank, size = "medium") {
-	const container = document.createElement("div");
-	container.className = "d-flex align-items-center gap-1";
-
-	const sizeMap = { small: 20, medium: 30, large: 40 };
-	const iconSize = sizeMap[size] || 30;
-
-	// Determine type and count
-	const isCrown = rank.includes("crown");
-	const type = isCrown ? "Crown" : "Star";
-	const count = parseInt(rank.charAt(0));
-
-	const tier = EVOLUTION_TO_TIER[evolution] || "Bronze";
-	const basePath = getRankBasePath(type, tier);
-
-	// Create icons
 	for (let i = 0; i < count; i++) {
 		const picture = createPicture(basePath, type, `width: ${iconSize}px; height: ${iconSize}px; object-fit: contain;`, "rank-icon");
 		picture.setAttribute("aria-hidden", "true");
@@ -460,8 +76,177 @@ export function createGuardianRankDisplay(evolution, rank, size = "medium") {
 			},
 			{ once: true },
 		);
-		container.appendChild(picture);
+		row.appendChild(picture);
 	}
+
+	return row;
+}
+
+// ─────────────────────────────────────────────
+// Machine rank display
+// ─────────────────────────────────────────────
+
+/**
+ * Derives rank type, tier, and icon count from a machine level (1–150+).
+ * @param {number} level
+ * @returns {{type: "Star"|"Crown"|"Wings", tier: string, count: number, displayText: string}}
+ */
+export function getMachineRank(level) {
+	if (level < 1) {
+		return { type: "Star", tier: "Bronze", count: 0, displayText: "No Rank" };
+	}
+
+	let rankConfig;
+	let adjustedLevel;
+
+	if (level <= 50) {
+		rankConfig = AppConfig.MACHINE_RANKS.STARS;
+		adjustedLevel = level;
+	} else if (level <= 100) {
+		rankConfig = AppConfig.MACHINE_RANKS.CROWNS;
+		adjustedLevel = level - 50;
+	} else if (level <= 150) {
+		rankConfig = AppConfig.MACHINE_RANKS.WINGS;
+		adjustedLevel = level - 100;
+	} else {
+		return { type: "Wings", tier: "StarlightPlus", count: 5, displayText: "5 Starlight Plus Wings (Max)" };
+	}
+
+	const count = ((adjustedLevel - 1) % 5) + 1;
+	const tierIndex = Math.floor((adjustedLevel - 1) / 5);
+	const tierConfig = rankConfig.tiers[tierIndex] || rankConfig.tiers[rankConfig.tiers.length - 1];
+	const tier = tierConfig.key.charAt(0).toUpperCase() + tierConfig.key.slice(1);
+
+	return {
+		type: rankConfig.type,
+		tier,
+		count,
+		displayText: `${count} ${tierConfig.label} ${rankConfig.type}${count > 1 ? "s" : ""}`,
+	};
+}
+
+/**
+ * Creates a flex container of rank icons for a machine level.
+ * @param {number} level
+ * @param {"small"|"medium"|"large"} [size="medium"]
+ * @returns {HTMLElement}
+ */
+export function createMachineRankDisplay(level, size = "medium") {
+	const rank = getMachineRank(level);
+	const sizeMap = { small: 20, medium: 30, large: 40 };
+	const iconSize = sizeMap[size] || 30;
+
+	const container = document.createElement("div");
+	container.className = "d-flex align-items-center gap-1";
+	container.setAttribute("title", rank.displayText);
+
+	const basePath = _getRankBasePath(rank.type, rank.tier);
+	if (!basePath) return container;
+
+	container.appendChild(_createIconRow(basePath, rank.type, rank.count, iconSize));
+	return container;
+}
+
+// ─────────────────────────────────────────────
+// Guardian rank selector
+// ─────────────────────────────────────────────
+
+const STAR_RANKS = ["1star", "2star", "3star", "4star", "5star"];
+const CROWN_RANKS = ["1crown", "2crown", "3crown", "4crown", "5crown"];
+
+/**
+ * Creates a custom guardian rank selector (hidden <select> + visual dropdown).
+ * The dropdown uses a single delegated click listener on its container —
+ * no per-option listeners are created.
+ *
+ * @param {string} currentEvolution - e.g. "bronze"
+ * @param {string} currentRank      - e.g. "3star"
+ * @param {string} inputId          - ID for the hidden <select>
+ * @returns {HTMLElement}
+ */
+export function createGuardianRankSelector(currentEvolution, currentRank, inputId) {
+	const container = document.createElement("div");
+	container.className = "guardian-rank-selector-container";
+
+	// Hidden <select> holds the value for form/event purposes
+	const select = _buildHiddenSelect(currentEvolution, currentRank, inputId);
+
+	// Visual trigger button
+	const displayBtn = document.createElement("button");
+	displayBtn.type = "button";
+	displayBtn.className = "btn btn-outline-secondary w-100 text-start guardian-rank-display";
+	displayBtn.id = `${inputId}-display`;
+	_updateDisplayBtn(displayBtn, currentEvolution, currentRank);
+
+	// Dropdown panel
+	const dropdownMenu = document.createElement("div");
+	dropdownMenu.className = "guardian-rank-dropdown";
+	dropdownMenu.style.display = "none";
+	dropdownMenu.appendChild(_buildDropdownContent());
+
+	// Toggle on button click
+	displayBtn.addEventListener("click", (e) => {
+		e.stopPropagation();
+		dropdownMenu.style.display = dropdownMenu.style.display === "none" ? "block" : "none";
+	});
+
+	// Close on outside click
+	document.addEventListener(
+		"click",
+		(e) => {
+			if (!container.contains(e.target)) dropdownMenu.style.display = "none";
+		},
+		true,
+	);
+
+	// Single delegated click handler for all rank options
+	dropdownMenu.addEventListener("click", (e) => {
+		const option = e.target.closest("[data-evolution][data-rank]");
+		if (!option) return;
+
+		const evolution = option.dataset.evolution;
+		const rank = option.dataset.rank;
+
+		select.value = `${evolution}|${rank}`;
+		_updateDisplayBtn(displayBtn, evolution, rank);
+		dropdownMenu.style.display = "none";
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+	});
+
+	container.append(select, displayBtn, dropdownMenu);
+	return container;
+}
+
+/**
+ * Parses a combined guardian rank selector value.
+ * @param {string} value - e.g. "bronze|3star"
+ * @returns {{evolution: string, rank: string}}
+ */
+export function parseGuardianRankValue(value) {
+	const [evolution, rank] = value.split("|");
+	return { evolution, rank };
+}
+
+/**
+ * Creates a standalone guardian rank icon display (no selector UI).
+ * @param {string} evolution
+ * @param {string} rank - e.g. "2crown"
+ * @param {"small"|"medium"|"large"} [size="medium"]
+ * @returns {HTMLElement}
+ */
+export function createGuardianRankDisplay(evolution, rank, size = "medium") {
+	const sizeMap = { small: 20, medium: 30, large: 40 };
+	const iconSize = sizeMap[size] || 30;
+	const isCrown = rank.includes("crown");
+	const type = isCrown ? "Crown" : "Star";
+	const count = parseInt(rank.charAt(0), 10);
+	const tier = _evolutionKeyToTier(evolution);
+	const basePath = _getRankBasePath(type, tier);
+
+	const container = document.createElement("div");
+	container.className = "d-flex align-items-center gap-1";
+
+	if (basePath) container.appendChild(_createIconRow(basePath, type, count, iconSize));
 
 	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);
 	const label = document.createElement("span");
@@ -470,4 +255,137 @@ export function createGuardianRankDisplay(evolution, rank, size = "medium") {
 	container.appendChild(label);
 
 	return container;
+}
+
+// ─────────────────────────────────────────────
+// Private guardian selector helpers
+// ─────────────────────────────────────────────
+
+/**
+ * Builds the hidden <select> element with all evolution × rank options.
+ * @private
+ */
+function _buildHiddenSelect(currentEvolution, currentRank, inputId) {
+	const select = document.createElement("select");
+	select.className = "guardian-rank-select";
+	select.id = inputId;
+	select.style.display = "none";
+
+	for (const evolution of AppConfig.GUARDIAN_EVOLUTIONS) {
+		for (const rank of [...STAR_RANKS, ...CROWN_RANKS]) {
+			const option = document.createElement("option");
+			option.value = `${evolution.key}|${rank}`;
+			option.selected = evolution.key === currentEvolution && rank === currentRank;
+
+			const isCrown = rank.includes("crown");
+			const count = parseInt(rank.charAt(0), 10);
+			option.textContent = `${evolution.label} - ${count} ${isCrown ? "Crown" : "Star"}${count > 1 ? "s" : ""}`;
+
+			select.appendChild(option);
+		}
+	}
+
+	return select;
+}
+
+/**
+ * Builds the full dropdown menu content (Stars section + Crowns section).
+ * Each option button carries `data-evolution` and `data-rank` so the
+ * delegated handler can identify selections without closure captures.
+ * @private
+ */
+function _buildDropdownContent() {
+	const fragment = document.createDocumentFragment();
+
+	for (const [sectionLabel, ranks] of [
+		["Stars", STAR_RANKS],
+		["Crowns", CROWN_RANKS],
+	]) {
+		const header = document.createElement("div");
+		header.className = "guardian-rank-type-header";
+		header.textContent = sectionLabel;
+		fragment.appendChild(header);
+
+		for (const evolution of AppConfig.GUARDIAN_EVOLUTIONS) {
+			const subHeader = document.createElement("div");
+			subHeader.className = "guardian-rank-evolution-subheader";
+			subHeader.textContent = evolution.label;
+			fragment.appendChild(subHeader);
+
+			const ranksContainer = document.createElement("div");
+			ranksContainer.className = "guardian-rank-options";
+
+			for (const rank of ranks) {
+				const btn = _buildOptionButton(evolution.key, rank);
+				ranksContainer.appendChild(btn);
+			}
+
+			fragment.appendChild(ranksContainer);
+		}
+	}
+
+	return fragment;
+}
+
+/**
+ * Creates a single visual rank option button.
+ * Data attributes carry identity for the delegated handler.
+ * @private
+ */
+function _buildOptionButton(evolutionKey, rank) {
+	const btn = document.createElement("button");
+	btn.type = "button";
+	btn.className = "guardian-rank-option";
+	btn.dataset.evolution = evolutionKey;
+	btn.dataset.rank = rank;
+
+	const isCrown = rank.includes("crown");
+	const type = isCrown ? "Crown" : "Star";
+	const count = parseInt(rank.charAt(0), 10);
+	const tier = _evolutionKeyToTier(evolutionKey);
+	const basePath = _getRankBasePath(type, tier);
+
+	const iconRow = document.createElement("div");
+	iconRow.className = "d-flex align-items-center gap-1";
+
+	for (let i = 0; i < count; i++) {
+		iconRow.appendChild(createPicture(basePath, type, "width: 20px; height: 20px; object-fit: contain;"));
+	}
+
+	btn.appendChild(iconRow);
+	return btn;
+}
+
+/**
+ * Replaces the display button content with icons + label for the given selection.
+ * @private
+ */
+function _updateDisplayBtn(button, evolution, rank) {
+	button.replaceChildren();
+
+	const isCrown = rank.includes("crown");
+	const type = isCrown ? "Crown" : "Star";
+	const count = parseInt(rank.charAt(0), 10);
+	const tier = _evolutionKeyToTier(evolution);
+	const basePath = _getRankBasePath(type, tier);
+
+	const wrapper = document.createElement("div");
+	wrapper.className = "d-flex align-items-center justify-content-between w-100";
+
+	const iconRow = document.createElement("div");
+	iconRow.className = "d-flex align-items-center gap-1";
+	for (let i = 0; i < count; i++) {
+		iconRow.appendChild(createPicture(basePath, type, "width: 24px; height: 24px; object-fit: contain;"));
+	}
+
+	const evolutionConfig = AppConfig.GUARDIAN_EVOLUTIONS.find((e) => e.key === evolution);
+	const label = document.createElement("span");
+	label.className = "ms-2";
+	label.textContent = evolutionConfig ? evolutionConfig.label : evolution.replace("_", " ");
+
+	const caret = document.createElement("i");
+	caret.className = "bi bi-chevron-down ms-auto";
+
+	wrapper.append(iconRow, label, caret);
+	button.appendChild(wrapper);
 }

@@ -1,4 +1,4 @@
-// js/utils/upgradeAnalyzer.js
+// utils/upgradeAnalyzer.js
 import { Calculator } from "../calculator.js";
 import { BattleEngine } from "../battleengine.js";
 import { AppConfig } from "../config.js";
@@ -6,37 +6,39 @@ import Decimal from "../vendor/break_eternity.esm.js";
 
 /**
  * @typedef {Object} SingleUpgrade
- * @property {number} machineId - Machine ID to upgrade
- * @property {string} machineName - Machine name
+ * @property {number} machineId
+ * @property {string} machineName
  * @property {string} upgradeType - "level" | "damage" | "health" | "armor"
- * @property {number} currentValue - Current value
- * @property {number} requiredValue - Value needed
+ * @property {number} currentValue
+ * @property {number} requiredValue
  */
 
 /**
  * @typedef {Object} UpgradePath
- * @property {SingleUpgrade[]} upgrades - List of upgrades in this path
- * @property {Decimal} totalPowerGain - Total power gained from all upgrades
- * @property {number} totalUpgradeAmount - Sum of all upgrade amounts (for sorting)
+ * @property {SingleUpgrade[]} upgrades
+ * @property {Decimal}         totalPowerGain
+ * @property {number}          totalUpgradeAmount - Weighted cost (levels count 2×)
  */
 
 /**
  * @typedef {Object} UpgradeAnalysis
- * @property {string} nextDifficulty - Next difficulty to attempt
- * @property {number} nextMission - Next mission number
- * @property {UpgradePath[]} paths - Different upgrade paths that allow passing
- * @property {boolean} canPass - Whether any upgrade path allows passing
+ * @property {string}        nextDifficulty
+ * @property {number}        nextMission
+ * @property {UpgradePath[]} paths
+ * @property {boolean}       canPass
  */
 
+/**
+ * Analyses a formation to find the minimum upgrades needed to earn the next campaign star.
+ */
 export class UpgradeAnalyzer {
 	/**
-	 * Creates an UpgradeAnalyzer instance
 	 * @param {Object} config
-	 * @param {number} config.engineerLevel - Engineer level
-	 * @param {number} config.scarabLevel - Scarab level
-	 * @param {Array} config.artifactArray - Artifact configurations
-	 * @param {number} config.globalRarityLevels - Sum of all machine rarity levels
-	 * @param {string} config.riftRank - Chaos Rift rank
+	 * @param {number} config.engineerLevel
+	 * @param {number} config.scarabLevel
+	 * @param {Array}  config.artifactArray
+	 * @param {number} config.globalRarityLevels
+	 * @param {string} config.riftRank
 	 */
 	constructor({ engineerLevel, scarabLevel, artifactArray, globalRarityLevels, riftRank }) {
 		this.engineerLevel = engineerLevel;
@@ -47,29 +49,25 @@ export class UpgradeAnalyzer {
 		this.battleEngine = new BattleEngine();
 	}
 
+	// ─────────────────────────────────────────────
+	// Public API
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Finds the next star to earn and determines upgrade paths needed
-	 * @param {Array} formation - Current optimized formation
-	 * @param {Object} lastCleared - Last cleared missions by difficulty
-	 * @param {string} mode - "campaign" or "arena"
-	 * @returns {UpgradeAnalysis | null}
+	 * Finds the next uncompleted star and returns upgrade paths that unlock it.
+	 * Returns null when in arena mode, when the formation is empty, or when
+	 * the campaign is fully completed.
+	 * @param {Object[]} formation
+	 * @param {Object}   lastCleared - difficulty → last cleared mission number
+	 * @param {"campaign"|"arena"} [mode="campaign"]
+	 * @returns {UpgradeAnalysis|null}
 	 */
 	analyzeUpgrades(formation, lastCleared, mode = "campaign") {
-		if (mode === "arena") {
-			return null;
-		}
+		if (mode === "arena" || !formation?.length) return null;
 
-		if (!formation || formation.length === 0) {
-			return null;
-		}
-
-		// Find next uncompleted star (weakest enemy)
 		const nextTarget = this.findNextTarget(lastCleared, formation);
-		if (!nextTarget) {
-			return null; // Campaign complete!
-		}
+		if (!nextTarget) return null;
 
-		// Find all upgrade paths that allow passing
 		const paths = this.findUpgradePaths(formation, nextTarget.mission, nextTarget.difficulty);
 
 		return {
@@ -81,452 +79,195 @@ export class UpgradeAnalyzer {
 	}
 
 	/**
-	 * Finds the next uncompleted mission/difficulty by considering both power requirement and enemy power
-	 * Calculates the total power deficit (requirement gap + enemy gap) and picks the lowest
-	 * @param {Object} lastCleared - Last cleared missions by difficulty
-	 * @param {Array} formation - Current formation to calculate our power
-	 * @returns {{difficulty: string, mission: number, requiredPower: Decimal, enemyPower: Decimal, totalDeficit: Decimal} | null}
+	 * Finds the next mission with the smallest total power deficit
+	 * (requirement gap + enemy power gap).
+	 * @param {Object}   lastCleared
+	 * @param {Object[]} formation
+	 * @returns {{difficulty: string, mission: number, requiredPower: Decimal, enemyPower: Decimal, totalDeficit: Decimal}|null}
 	 */
 	findNextTarget(lastCleared, formation) {
+		const ourPower = Calculator.computeSquadPower(formation, "campaign");
 		const candidates = [];
 
-		// Calculate our current power once
-		const ourPower = Calculator.computeSquadPower(formation, "campaign");
-
-		// Collect all next missions across difficulties
-		for (let i = 0; i < AppConfig.DIFFICULTIES.length; i++) {
-			const diff = AppConfig.DIFFICULTIES[i];
+		for (const diff of AppConfig.DIFFICULTIES) {
 			const cleared = lastCleared?.[diff.key] || 0;
+			if (cleared >= AppConfig.MAX_MISSIONS_PER_DIFFICULTY) continue;
 
-			if (cleared < AppConfig.MAX_MISSIONS_PER_DIFFICULTY) {
-				const nextMission = cleared + 1;
+			const mission = cleared + 1;
+			const requiredPower = Calculator.requiredPowerForMission(mission, diff.key);
+			const enemyPower = Calculator.computeSquadPower(Calculator.getEnemyTeamForMission(mission, diff.key), "campaign");
 
-				// Get required power to start the mission
-				const requiredPower = Calculator.requiredPowerForMission(nextMission, diff.key);
+			const requirementDeficit = requiredPower.gt(ourPower) ? requiredPower.sub(ourPower) : new Decimal(0);
+			const enemyDeficit = enemyPower.gt(ourPower) ? enemyPower.sub(ourPower) : new Decimal(0);
 
-				// Get enemy team power
-				const enemyFormation = Calculator.getEnemyTeamForMission(nextMission, diff.key);
-				const enemyPower = Calculator.computeSquadPower(enemyFormation, "campaign");
-
-				// Calculate deficits (how much we're lacking)
-				// If we exceed the requirement/enemy, the deficit is 0
-				const requirementDeficit = requiredPower.gt(ourPower) ? requiredPower.sub(ourPower) : new Decimal(0);
-
-				const enemyDeficit = enemyPower.gt(ourPower) ? enemyPower.sub(ourPower) : new Decimal(0);
-
-				// Total deficit is the sum of both gaps
-				const totalDeficit = requirementDeficit.add(enemyDeficit);
-
-				candidates.push({
-					difficulty: diff.key,
-					mission: nextMission,
-					requiredPower,
-					enemyPower,
-					totalDeficit,
-				});
-			}
+			candidates.push({
+				difficulty: diff.key,
+				mission,
+				requiredPower,
+				enemyPower,
+				totalDeficit: requirementDeficit.add(enemyDeficit),
+			});
 		}
 
-		if (candidates.length === 0) {
-			return null; // Campaign complete
-		}
+		if (candidates.length === 0) return null;
 
-		// Sort by total deficit (lowest first) - this is the easiest to reach
 		candidates.sort((a, b) => a.totalDeficit.cmp(b.totalDeficit));
-
 		return candidates[0];
 	}
 
 	/**
-	 * Finds multiple upgrade paths that allow passing the mission
-	 * @param {Array} formation - Current formation
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
+	 * Returns upgrade paths (up to 4 upgrades) that allow passing the given mission.
+	 * @param {Object[]} formation
+	 * @param {number}   mission
+	 * @param {string}   difficulty
 	 * @returns {UpgradePath[]}
 	 */
 	findUpgradePaths(formation, mission, difficulty) {
-		const paths = [];
 		const topMachines = this.getTopMachines(formation, 2);
+		if (topMachines.length === 0) return [];
 
-		if (topMachines.length === 0) {
-			return paths;
-		}
+		const paths = [];
 
-		// Strategy 1: Single machine, single stat upgrades
+		// Single machine strategies
 		for (const machine of topMachines) {
-			const singlePaths = this.findSingleUpgradePaths(formation, machine, mission, difficulty);
-			paths.push(...singlePaths);
+			paths.push(...this.findSingleUpgradePaths(formation, machine, mission, difficulty));
+			paths.push(...this.findCombinedUpgradePaths(formation, machine, mission, difficulty));
 		}
 
-		// Strategy 2: Single machine, combined stats
-		for (const machine of topMachines) {
-			const combinedPaths = this.findCombinedUpgradePaths(formation, machine, mission, difficulty);
-			paths.push(...combinedPaths);
-		}
-
-		// Strategy 3: Two machines upgraded simultaneously (optimized distribution)
+		// Two-machine strategy — combinatorial spec generation
 		if (topMachines.length >= 2) {
-			const multiPaths = this.findOptimalMultiMachineUpgrades(formation, topMachines.slice(0, 2), mission, difficulty);
-			paths.push(...multiPaths);
+			paths.push(...this.findOptimalMultiMachineUpgrades(formation, topMachines.slice(0, 2), mission, difficulty));
 		}
 
-		// Remove duplicates and sort by total upgrade cost (with levels counting as 2x)
-		const uniquePaths = this.deduplicatePaths(paths);
-		uniquePaths.sort((a, b) => a.totalUpgradeAmount - b.totalUpgradeAmount);
+		const unique = this._deduplicatePaths(paths);
+		unique.sort((a, b) => a.totalUpgradeAmount - b.totalUpgradeAmount);
 
-		// Get best path of each type (1, 2, 3, 4 upgrades)
-		const bestByType = new Map();
-
-		for (const path of uniquePaths) {
-			const upgradeCount = path.upgrades.length;
-
-			// Only consider 1-4 upgrade paths
-			if (upgradeCount >= 1 && upgradeCount <= 4) {
-				if (!bestByType.has(upgradeCount)) {
-					bestByType.set(upgradeCount, path);
-				}
-			}
+		// Keep only the best path per upgrade-count bucket (1–4)
+		const bestByCount = new Map();
+		for (const path of unique) {
+			const n = path.upgrades.length;
+			if (n >= 1 && n <= 4 && !bestByCount.has(n)) bestByCount.set(n, path);
 		}
 
-		// Return in order: single, 2, 3, 4 upgrades
-		const topPaths = [];
-		for (let i = 1; i <= 4; i++) {
-			if (bestByType.has(i)) {
-				topPaths.push(bestByType.get(i));
-			}
-		}
-
-		return topPaths;
+		return Array.from({ length: 4 }, (_, i) => bestByCount.get(i + 1)).filter(Boolean);
 	}
 
-	/**
-	 * Removes duplicate upgrade paths
-	 * @param {UpgradePath[]} paths - Paths to deduplicate
-	 * @returns {UpgradePath[]} Unique paths
-	 */
-	deduplicatePaths(paths) {
-		const seen = new Set();
-		const unique = [];
-
-		for (const path of paths) {
-			// Create signature: sort upgrades by machineId+type, create string
-			const signature = path.upgrades
-				.map((u) => `${u.machineId}:${u.upgradeType}:${u.requiredValue}`)
-				.sort()
-				.join("|");
-
-			if (!seen.has(signature)) {
-				seen.add(signature);
-				unique.push(path);
-			}
-		}
-
-		return unique;
-	}
+	// ─────────────────────────────────────────────
+	// Single-machine strategies
+	// ─────────────────────────────────────────────
 
 	/**
-	 * Finds single upgrade paths (one stat on one machine)
-	 * @param {Array} formation - Current formation
-	 * @param {Object} machine - Machine to upgrade
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
+	 * Finds the cheapest single-stat or single-level upgrade on one machine.
+	 * Delegates to `findMinimumCombinedUpgrade` with a one-element type array,
+	 * avoiding a separate code path.
+	 * @param {Object[]} formation
+	 * @param {Object}   machine
+	 * @param {number}   mission
+	 * @param {string}   difficulty
 	 * @returns {UpgradePath[]}
 	 */
 	findSingleUpgradePaths(formation, machine, mission, difficulty) {
 		const paths = [];
-		const isTank = machine.role === "tank";
-		const upgradeStats = isTank ? ["health", "armor"] : ["damage", "health"];
+		const stats = machine.role === "tank" ? ["health", "armor"] : ["damage", "health"];
 
-		// Test level upgrade
-		const levelUpgrade = this.findMinimumUpgrade(formation, machine, "level", machine.level, mission, difficulty);
-
-		if (levelUpgrade) {
-			const powerGain = this.calculateUpgradePowerGain(machine, { level: levelUpgrade.requiredValue });
-			const levelIncrements = levelUpgrade.requiredValue - levelUpgrade.currentValue;
-			const actualCost = levelIncrements * 2; // Levels cost 2x
-
-			paths.push({
-				upgrades: [levelUpgrade],
-				totalPowerGain: powerGain,
-				totalUpgradeAmount: actualCost,
-			});
-		}
-
-		// Test blueprint upgrades
-		for (const stat of upgradeStats) {
-			const blueprintUpgrade = this.findMinimumUpgrade(formation, machine, stat, machine.blueprints[stat], mission, difficulty);
-
-			if (blueprintUpgrade) {
-				const upgrade = {
-					blueprints: {
-						...machine.blueprints,
-						[stat]: blueprintUpgrade.requiredValue,
-					},
-				};
-				const powerGain = this.calculateUpgradePowerGain(machine, upgrade);
-				const blueprintIncrements = blueprintUpgrade.requiredValue - blueprintUpgrade.currentValue;
-
-				paths.push({
-					upgrades: [blueprintUpgrade],
-					totalPowerGain: powerGain,
-					totalUpgradeAmount: blueprintIncrements, // Blueprints cost 1x
-				});
-			}
+		for (const type of ["level", ...stats]) {
+			const path = this.findMinimumCombinedUpgrade(formation, machine, [type], mission, difficulty);
+			if (path) paths.push(path);
 		}
 
 		return paths;
 	}
 
 	/**
-	 * Finds combined upgrade paths (multiple stats on one machine)
-	 * @param {Array} formation - Current formation
-	 * @param {Object} machine - Machine to upgrade
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
+	 * Finds combined multi-stat upgrades on a single machine.
+	 * @param {Object[]} formation
+	 * @param {Object}   machine
+	 * @param {number}   mission
+	 * @param {string}   difficulty
 	 * @returns {UpgradePath[]}
 	 */
 	findCombinedUpgradePaths(formation, machine, mission, difficulty) {
 		const paths = [];
-		const isTank = machine.role === "tank";
-		const upgradeStats = isTank ? ["health", "armor"] : ["damage", "health"];
+		const stats = machine.role === "tank" ? ["health", "armor"] : ["damage", "health"];
 
-		// Try: Level + one blueprint
-		for (const stat of upgradeStats) {
-			const combined = this.findMinimumCombinedUpgrade(formation, machine, ["level", stat], mission, difficulty);
-
-			if (combined) {
-				paths.push(combined);
-			}
+		// Level + one blueprint
+		for (const stat of stats) {
+			const path = this.findMinimumCombinedUpgrade(formation, machine, ["level", stat], mission, difficulty);
+			if (path) paths.push(path);
 		}
 
-		// Try: Two blueprints together
-		if (upgradeStats.length >= 2) {
-			const combined = this.findMinimumCombinedUpgrade(formation, machine, upgradeStats, mission, difficulty);
-
-			if (combined) {
-				paths.push(combined);
-			}
+		// Both primary blueprints together
+		if (stats.length >= 2) {
+			const path = this.findMinimumCombinedUpgrade(formation, machine, stats, mission, difficulty);
+			if (path) paths.push(path);
 		}
 
 		return paths;
 	}
 
+	// ─────────────────────────────────────────────
+	// Multi-machine strategy
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Finds optimal multi-machine upgrade paths by testing different increment distributions
-	 * Tests 4-upgrade combinations FIRST since they're usually most efficient
-	 * @param {Array} formation - Current formation
-	 * @param {Array} topMachines - Top 2 machines to upgrade
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
+	 * Generates all 2- to 4-upgrade combinations across two machines and finds
+	 * the minimum increment distribution that passes the mission for each.
+	 *
+	 * Combinations are built programmatically to avoid the original hardcoded
+	 * array approach — adding more machines or upgrade types requires no changes here.
+	 *
+	 * @param {Object[]} formation
+	 * @param {Object[]} topMachines - Exactly 2 machines
+	 * @param {number}   mission
+	 * @param {string}   difficulty
 	 * @returns {UpgradePath[]}
 	 */
 	findOptimalMultiMachineUpgrades(formation, topMachines, mission, difficulty) {
+		const [m1, m2] = topMachines;
+		const s1 = m1.role === "tank" ? "health" : "damage";
+		const s2 = m2.role === "tank" ? "health" : "damage";
+
+		// All possible (machine, upgradeType) atoms
+		const atoms = [
+			{ machine: m1, type: "level" },
+			{ machine: m1, type: s1 },
+			{ machine: m2, type: "level" },
+			{ machine: m2, type: s2 },
+		];
+
 		const paths = [];
-		const machine1 = topMachines[0];
-		const machine2 = topMachines[1];
 
-		const isTank1 = machine1.role === "tank";
-		const isTank2 = machine2.role === "tank";
-		const stat1 = isTank1 ? "health" : "damage";
-		const stat2 = isTank2 ? "health" : "damage";
-
-		// TEST 4-UPGRADE COMBINATION FIRST (usually most efficient)
-		const fourCombo = [
-			{ machine: machine1, type: "level" },
-			{ machine: machine1, type: stat1 },
-			{ machine: machine2, type: "level" },
-			{ machine: machine2, type: stat2 },
-		];
-
-		const fourResult = this.findOptimalIncrementDistribution(formation, fourCombo, mission, difficulty);
-
-		if (fourResult) {
-			paths.push(fourResult);
-		}
-
-		// Test 3-upgrade combinations
-		const threeCombos = [
-			// Machine 1: level + blueprint, Machine 2: level
-			[
-				{ machine: machine1, type: "level" },
-				{ machine: machine1, type: stat1 },
-				{ machine: machine2, type: "level" },
-			],
-			// Machine 1: level + blueprint, Machine 2: blueprint
-			[
-				{ machine: machine1, type: "level" },
-				{ machine: machine1, type: stat1 },
-				{ machine: machine2, type: stat2 },
-			],
-			// Machine 1: level, Machine 2: level + blueprint
-			[
-				{ machine: machine1, type: "level" },
-				{ machine: machine2, type: "level" },
-				{ machine: machine2, type: stat2 },
-			],
-			// Machine 1: blueprint, Machine 2: level + blueprint
-			[
-				{ machine: machine1, type: stat1 },
-				{ machine: machine2, type: "level" },
-				{ machine: machine2, type: stat2 },
-			],
-		];
-
-		for (const combo of threeCombos) {
-			const result = this.findOptimalIncrementDistribution(formation, combo, mission, difficulty);
-
-			if (result) {
-				paths.push(result);
-			}
-		}
-
-		// Test 2-upgrade combinations (less efficient but still useful)
-		const twoCombos = [
-			// Both levels
-			[
-				{ machine: machine1, type: "level" },
-				{ machine: machine2, type: "level" },
-			],
-			// Level + Blueprint
-			[
-				{ machine: machine1, type: "level" },
-				{ machine: machine2, type: stat2 },
-			],
-			[
-				{ machine: machine1, type: stat1 },
-				{ machine: machine2, type: "level" },
-			],
-			// Both blueprints
-			[
-				{ machine: machine1, type: stat1 },
-				{ machine: machine2, type: stat2 },
-			],
-		];
-
-		for (const combo of twoCombos) {
-			const result = this.findOptimalIncrementDistribution(formation, combo, mission, difficulty);
-
-			if (result) {
-				paths.push(result);
+		// Generate all unique subsets of size 2–4 from the atom list
+		for (let size = 4; size >= 2; size--) {
+			for (const combo of this._combinations(atoms, size)) {
+				const result = this.findOptimalIncrementDistribution(formation, combo, mission, difficulty);
+				if (result) paths.push(result);
 			}
 		}
 
 		return paths;
 	}
 
+	// ─────────────────────────────────────────────
+	// Increment distribution solver
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Finds the optimal distribution of increments across multiple upgrades
-	 * Tests different distributions to minimize total COST (not increments)
+	 * Finds the cheapest increment distribution across a set of upgrade specs
+	 * that allows the formation to pass the mission.
+	 * @param {Object[]} formation
+	 * @param {Array<{machine: Object, type: string}>} upgradeSpecs
+	 * @param {number}   mission
+	 * @param {string}   difficulty
+	 * @returns {UpgradePath|null}
 	 */
 	findOptimalIncrementDistribution(formation, upgradeSpecs, mission, difficulty) {
-		const maxCost = 200; // Max total COST to test (not increments)
-		const numUpgrades = upgradeSpecs.length;
+		const MAX_COST = 200;
 
-		// Test different total costs (starting from minimum possible)
-		// Minimum cost is numUpgrades (if all are blueprints with 1 increment each)
-		for (let targetCost = numUpgrades; targetCost <= maxCost; targetCost++) {
-			// Generate all possible distributions that achieve this cost
-			const distributions = this.generateDistributionsForCost(targetCost, upgradeSpecs);
-
-			for (const distribution of distributions) {
-				const machineUpgrades = [];
-				const upgradesList = [];
-				let exceedsCap = false;
-
-				// Track upgrades per machine to merge them
-				const machineUpgradeMap = new Map();
-
-				for (let i = 0; i < upgradeSpecs.length; i++) {
-					const spec = upgradeSpecs[i];
-					const increment = distribution[i];
-					const { machine, type } = spec;
-
-					// Get or create upgrade object for this machine
-					let upgradeObj = machineUpgradeMap.get(machine.id);
-					if (!upgradeObj) {
-						upgradeObj = {
-							machine,
-							upgrade: {},
-							upgrades: [],
-						};
-						machineUpgradeMap.set(machine.id, upgradeObj);
-					}
-
-					if (type === "level") {
-						const currentLevel = machine.level;
-						const newLevel = currentLevel + increment;
-
-						upgradeObj.upgrade.level = newLevel;
-						upgradeObj.upgrades.push({
-							machineId: machine.id,
-							machineName: machine.name,
-							upgradeType: "level",
-							currentValue: currentLevel,
-							requiredValue: newLevel,
-						});
-					} else {
-						const currentValue = machine.blueprints[type];
-						const newValue = currentValue + increment;
-
-						// Check blueprint cap (use new level if being upgraded)
-						const checkLevel = upgradeObj.upgrade.level || machine.level;
-						const blueprintCap = Calculator.getMaxBlueprintLevel(checkLevel);
-
-						if (newValue > blueprintCap) {
-							exceedsCap = true;
-							break;
-						}
-
-						if (!upgradeObj.upgrade.blueprints) {
-							upgradeObj.upgrade.blueprints = { ...machine.blueprints };
-						}
-						upgradeObj.upgrade.blueprints[type] = newValue;
-
-						upgradeObj.upgrades.push({
-							machineId: machine.id,
-							machineName: machine.name,
-							upgradeType: type,
-							currentValue,
-							requiredValue: newValue,
-						});
-					}
-				}
-
-				if (exceedsCap) {
-					continue;
-				}
-
-				// Build final arrays
-				for (const [, upgradeObj] of machineUpgradeMap) {
-					machineUpgrades.push({
-						machine: upgradeObj.machine,
-						upgrade: upgradeObj.upgrade,
-					});
-					upgradesList.push(...upgradeObj.upgrades);
-				}
-
-				// Test if this passes
-				if (this.canPassWithUpgrades(formation, machineUpgrades, mission, difficulty)) {
-					let totalPowerGain = new Decimal(0);
-					for (const { machine, upgrade } of machineUpgrades) {
-						const gain = this.calculateUpgradePowerGain(machine, upgrade);
-						totalPowerGain = totalPowerGain.add(gain);
-					}
-
-					// Calculate actual cost
-					const actualCost = upgradesList.reduce((sum, u) => {
-						const increment = u.requiredValue - u.currentValue;
-						const cost = u.upgradeType === "level" ? increment * 2 : increment;
-						return sum + cost;
-					}, 0);
-
-					// Return first solution at this cost level
-					return {
-						upgrades: upgradesList,
-						totalPowerGain,
-						totalUpgradeAmount: actualCost,
-					};
-				}
+		for (let targetCost = upgradeSpecs.length; targetCost <= MAX_COST; targetCost++) {
+			for (const distribution of this._generateDistributions(targetCost, upgradeSpecs)) {
+				const result = this._applyDistribution(formation, upgradeSpecs, distribution, mission, difficulty);
+				if (result) return result;
 			}
 		}
 
@@ -534,166 +275,153 @@ export class UpgradeAnalyzer {
 	}
 
 	/**
-	 * Generates all possible distributions that achieve a target cost
-	 * Accounts for levels costing 2x
-	 * @param {number} targetCost - Target total cost
-	 * @param {Array} upgradeSpecs - Upgrade specifications
-	 * @returns {Array<Array<number>>} All valid distributions
+	 * Applies one increment distribution to the formation, tests it, and returns
+	 * an UpgradePath if it passes — null otherwise.
+	 * @private
 	 */
-	generateDistributionsForCost(targetCost, upgradeSpecs) {
+	_applyDistribution(formation, upgradeSpecs, distribution, mission, difficulty) {
+		const machineUpgradeMap = new Map();
+		const upgradesList = [];
+		let exceedsCap = false;
+
+		for (let i = 0; i < upgradeSpecs.length; i++) {
+			const { machine, type } = upgradeSpecs[i];
+			const increment = distribution[i];
+
+			if (!machineUpgradeMap.has(machine.id)) {
+				machineUpgradeMap.set(machine.id, { machine, upgrade: {}, upgrades: [] });
+			}
+			const entry = machineUpgradeMap.get(machine.id);
+
+			if (type === "level") {
+				const newLevel = machine.level + increment;
+				entry.upgrade.level = newLevel;
+				entry.upgrades.push({ machineId: machine.id, machineName: machine.name, upgradeType: "level", currentValue: machine.level, requiredValue: newLevel });
+			} else {
+				const current = machine.blueprints[type];
+				const newValue = current + increment;
+				const checkLevel = entry.upgrade.level ?? machine.level;
+
+				if (newValue > Calculator.getMaxBlueprintLevel(checkLevel)) {
+					exceedsCap = true;
+					break;
+				}
+
+				if (!entry.upgrade.blueprints) entry.upgrade.blueprints = { ...machine.blueprints };
+				entry.upgrade.blueprints[type] = newValue;
+				entry.upgrades.push({ machineId: machine.id, machineName: machine.name, upgradeType: type, currentValue: current, requiredValue: newValue });
+			}
+		}
+
+		if (exceedsCap) return null;
+
+		const machineUpgrades = [];
+		for (const { machine, upgrade, upgrades } of machineUpgradeMap.values()) {
+			machineUpgrades.push({ machine, upgrade });
+			upgradesList.push(...upgrades);
+		}
+
+		if (!this.canPassWithUpgrades(formation, machineUpgrades, mission, difficulty)) return null;
+
+		let totalPowerGain = new Decimal(0);
+		for (const { machine, upgrade } of machineUpgrades) {
+			totalPowerGain = totalPowerGain.add(this.calculateUpgradePowerGain(machine, upgrade));
+		}
+
+		const actualCost = upgradesList.reduce((sum, u) => {
+			return sum + (u.requiredValue - u.currentValue) * (u.upgradeType === "level" ? 2 : 1);
+		}, 0);
+
+		return { upgrades: upgradesList, totalPowerGain, totalUpgradeAmount: actualCost };
+	}
+
+	/**
+	 * Generates all increment distributions that sum to `targetCost`,
+	 * accounting for the 2× cost of level upgrades.
+	 * Uses backtracking with an in-place array — the array is copied
+	 * on each valid solution push so callers receive independent arrays.
+	 * @param {number} targetCost
+	 * @param {Array<{type: string}>} upgradeSpecs
+	 * @returns {number[][]}
+	 * @private
+	 */
+	_generateDistributions(targetCost, upgradeSpecs) {
 		const distributions = [];
 		const n = upgradeSpecs.length;
+		const multipliers = upgradeSpecs.map((s) => (s.type === "level" ? 2 : 1));
+		const current = new Array(n).fill(0);
 
-		// Calculate cost multipliers (2 for level, 1 for blueprints)
-		const multipliers = upgradeSpecs.map((spec) => (spec.type === "level" ? 2 : 1));
-
-		// Recursive function to generate distributions
-		const generate = (index, remaining, current) => {
+		const recurse = (index, remaining) => {
 			if (index === n) {
-				if (remaining === 0) {
-					distributions.push([...current]);
-				}
+				if (remaining === 0) distributions.push([...current]);
 				return;
 			}
 
-			const multiplier = multipliers[index];
-			const maxIncrement = Math.floor(remaining / multiplier);
-
-			// Try each possible increment for this position
-			for (let increment = 1; increment <= maxIncrement; increment++) {
-				current[index] = increment;
-				generate(index + 1, remaining - increment * multiplier, current);
+			const max = Math.floor(remaining / multipliers[index]);
+			for (let inc = 1; inc <= max; inc++) {
+				current[index] = inc;
+				recurse(index + 1, remaining - inc * multipliers[index]);
 			}
-
-			current[index] = 0;
+			current[index] = 0; // explicit backtrack for clarity
 		};
 
-		generate(0, targetCost, new Array(n).fill(0));
-
+		recurse(0, targetCost);
 		return distributions;
 	}
 
-	/**
-	 * Finds minimum single upgrade needed (respects blueprint caps)
-	 * @param {Array} formation - Current formation
-	 * @param {Object} machine - Machine to upgrade
-	 * @param {string} upgradeType - Type of upgrade
-	 * @param {number} currentValue - Current value
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
-	 * @returns {SingleUpgrade | null}
-	 */
-	findMinimumUpgrade(formation, machine, upgradeType, currentValue, mission, difficulty) {
-		const maxAttempts = 100;
-
-		// Test incrementally from current + 1
-		for (let testValue = currentValue + 1; testValue <= currentValue + maxAttempts; testValue++) {
-			let upgrade;
-
-			if (upgradeType === "level") {
-				upgrade = { level: testValue };
-			} else {
-				// Check blueprint cap for this level
-				const blueprintCap = Calculator.getMaxBlueprintLevel(machine.level);
-
-				if (testValue > blueprintCap) {
-					// Blueprint would exceed cap - skip this upgrade type
-					return null;
-				}
-
-				upgrade = { blueprints: { ...machine.blueprints, [upgradeType]: testValue } };
-			}
-
-			if (this.canPassWithUpgrades(formation, [{ machine, upgrade }], mission, difficulty)) {
-				return {
-					machineId: machine.id,
-					machineName: machine.name,
-					upgradeType,
-					currentValue,
-					requiredValue: testValue,
-				};
-			}
-		}
-
-		return null;
-	}
+	// ─────────────────────────────────────────────
+	// Minimum upgrade search
+	// ─────────────────────────────────────────────
 
 	/**
-	 * Finds minimum combined upgrade (multiple stats on one machine, respects caps)
-	 * @param {Array} formation - Current formation
-	 * @param {Object} machine - Machine to upgrade
-	 * @param {Array<string>} upgradeTypes - Types to upgrade together
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
-	 * @returns {UpgradePath | null}
+	 * Finds the minimum combined increment on a set of upgrade types for one machine
+	 * that allows passing the mission.
+	 * Single-type upgrades call this with a one-element array, eliminating the
+	 * separate `findMinimumUpgrade` function.
+	 * @param {Object[]}  formation
+	 * @param {Object}    machine
+	 * @param {string[]}  upgradeTypes
+	 * @param {number}    mission
+	 * @param {string}    difficulty
+	 * @returns {UpgradePath|null}
 	 */
 	findMinimumCombinedUpgrade(formation, machine, upgradeTypes, mission, difficulty) {
-		const maxAttempts = 50;
-
-		for (let increment = 1; increment <= maxAttempts; increment++) {
+		for (let increment = 1; increment <= 100; increment++) {
 			const upgrades = [];
 			const upgrade = {};
 			let exceedsCap = false;
 
 			for (const type of upgradeTypes) {
 				if (type === "level") {
-					const currentLevel = machine.level;
-					const newLevel = currentLevel + increment;
-
+					const newLevel = machine.level + increment;
 					upgrade.level = newLevel;
-					upgrades.push({
-						machineId: machine.id,
-						machineName: machine.name,
-						upgradeType: "level",
-						currentValue: currentLevel,
-						requiredValue: newLevel,
-					});
+					upgrades.push({ machineId: machine.id, machineName: machine.name, upgradeType: "level", currentValue: machine.level, requiredValue: newLevel });
 				} else {
-					const currentValue = machine.blueprints[type];
-					const newValue = currentValue + increment;
+					const current = machine.blueprints[type];
+					const newValue = current + increment;
+					const checkLevel = upgrade.level ?? machine.level;
 
-					// Check if this would exceed the cap at the NEW level (if level is being upgraded)
-					const checkLevel = upgrade.level || machine.level;
-					const blueprintCap = Calculator.getMaxBlueprintLevel(checkLevel);
-
-					if (newValue > blueprintCap) {
+					if (newValue > Calculator.getMaxBlueprintLevel(checkLevel)) {
 						exceedsCap = true;
 						break;
 					}
 
-					if (!upgrade.blueprints) {
-						upgrade.blueprints = { ...machine.blueprints };
-					}
+					if (!upgrade.blueprints) upgrade.blueprints = { ...machine.blueprints };
 					upgrade.blueprints[type] = newValue;
-
-					upgrades.push({
-						machineId: machine.id,
-						machineName: machine.name,
-						upgradeType: type,
-						currentValue,
-						requiredValue: newValue,
-					});
+					upgrades.push({ machineId: machine.id, machineName: machine.name, upgradeType: type, currentValue: current, requiredValue: newValue });
 				}
 			}
 
-			// Skip this increment if it exceeds caps
-			if (exceedsCap) {
-				continue;
-			}
+			if (exceedsCap) continue;
 
 			if (this.canPassWithUpgrades(formation, [{ machine, upgrade }], mission, difficulty)) {
-				const powerGain = this.calculateUpgradePowerGain(machine, upgrade);
-
-				// Calculate actual cost (levels = 2x, blueprints = 1x)
 				const actualCost = upgrades.reduce((sum, u) => {
-					const increment = u.requiredValue - u.currentValue;
-					const cost = u.upgradeType === "level" ? increment * 2 : increment;
-					return sum + cost;
+					return sum + (u.requiredValue - u.currentValue) * (u.upgradeType === "level" ? 2 : 1);
 				}, 0);
 
 				return {
 					upgrades,
-					totalPowerGain: powerGain,
+					totalPowerGain: this.calculateUpgradePowerGain(machine, upgrade),
 					totalUpgradeAmount: actualCost,
 				};
 			}
@@ -702,113 +430,130 @@ export class UpgradeAnalyzer {
 		return null;
 	}
 
+	// ─────────────────────────────────────────────
+	// Battle test
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Tests if team can pass with upgrades
-	 * First checks power requirement, then runs 200 battle simulations
-	 * @param {Array} formation - Current formation
-	 * @param {Array} machineUpgrades - Array of {machine, upgrade} objects
-	 * @param {number} mission - Mission number
-	 * @param {string} difficulty - Difficulty level
+	 * Returns true if the formation (with upgrades applied) can pass the mission.
+	 * First checks the power requirement; runs up to 50 simulations if it passes.
+	 * @param {Object[]} formation
+	 * @param {Array<{machine: Object, upgrade: Object}>} machineUpgrades
+	 * @param {number}   mission
+	 * @param {string}   difficulty
 	 * @returns {boolean}
 	 */
 	canPassWithUpgrades(formation, machineUpgrades, mission, difficulty) {
-		// Create map of machine IDs to upgrades
-		const upgradeMap = new Map();
-		for (const { machine, upgrade } of machineUpgrades) {
-			upgradeMap.set(machine.id, { machine, upgrade });
-		}
+		const upgradeMap = new Map(machineUpgrades.map(({ machine, upgrade }) => [machine.id, upgrade]));
 
-		// Create upgraded formation
-		const upgradedFormation = formation.map((m) => {
-			const machineUpgrade = upgradeMap.get(m.id);
+		const upgraded = formation.map((m) => {
+			const upg = upgradeMap.get(m.id);
+			if (!upg) return m;
 
-			if (!machineUpgrade) {
-				return m;
-			}
-
-			// Apply upgrade - need to merge level and blueprints properly
-			// CRITICAL: Only update the blueprints that are being upgraded, keep others at current values
 			const upgradedMachine = {
 				...m,
-				level: machineUpgrade.upgrade.level !== undefined ? machineUpgrade.upgrade.level : m.level,
-				blueprints: machineUpgrade.upgrade.blueprints ? { ...m.blueprints, ...machineUpgrade.upgrade.blueprints } : { ...m.blueprints },
+				level: upg.level !== undefined ? upg.level : m.level,
+				blueprints: upg.blueprints !== undefined ? { ...m.blueprints, ...upg.blueprints } : { ...m.blueprints },
 			};
 
-			// Recalculate battle stats with upgraded values
-			const newBattleStats = Calculator.calculateBattleAttributes(upgradedMachine, m.crew || [], this.globalRarityLevels, this.artifactArray, this.engineerLevel);
+			const stats = Calculator.calculateBattleAttributes(upgradedMachine, m.crew || [], this.globalRarityLevels, this.artifactArray, this.engineerLevel);
 
 			return {
 				...upgradedMachine,
-				battleStats: {
-					damage: newBattleStats.damage,
-					health: newBattleStats.health,
-					maxHealth: newBattleStats.health,
-					armor: newBattleStats.armor,
-				},
+				battleStats: { damage: stats.damage, health: stats.health, maxHealth: stats.health, armor: stats.armor },
 			};
 		});
 
-		// CRITICAL: Check power requirement first
-		const ourPower = Calculator.computeSquadPower(upgradedFormation, "campaign");
-		const requiredPower = Calculator.requiredPowerForMission(mission, difficulty);
+		if (Calculator.computeSquadPower(upgraded, "campaign").lt(Calculator.requiredPowerForMission(mission, difficulty))) {
+			return false;
+		}
 
-		if (ourPower.gte(requiredPower)) {
-			// Run 50 battle simulations - need at least one win
-			const enemyFormation = Calculator.getEnemyTeamForMission(mission, difficulty);
-
-			for (let i = 0; i < 50; i++) {
-				const result = this.battleEngine.runBattle(upgradedFormation, enemyFormation, AppConfig.MAX_BATTLE_ROUNDS, true);
-
-				if (result.playerWon) {
-					return true;
-				}
-			}
+		const enemies = Calculator.getEnemyTeamForMission(mission, difficulty);
+		for (let i = 0; i < 50; i++) {
+			if (this.battleEngine.runBattle(upgraded, enemies, AppConfig.MAX_BATTLE_ROUNDS, true).playerWon) return true;
 		}
 
 		return false;
 	}
 
+	// ─────────────────────────────────────────────
+	// Helpers
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Gets top N machines by power
-	 * @param {Array} formation - Formation to analyze
-	 * @param {number} count - Number to return
-	 * @returns {Array}
+	 * Returns the top N machines from the formation by campaign battle power.
+	 * Power is computed here — not re-used from a stale cache on each machine.
+	 * @param {Object[]} formation
+	 * @param {number}   count
+	 * @returns {Object[]}
 	 */
 	getTopMachines(formation, count) {
-		const machinesWithPower = formation.map((machine) => {
-			const stats = {
-				damage: machine.battleStats.damage,
-				health: machine.battleStats.health,
-				armor: machine.battleStats.armor,
-			};
-			const power = Calculator.computeMachinePower(stats);
-
-			return { machine, power };
-		});
-
-		machinesWithPower.sort((a, b) => b.power.cmp(a.power));
-
-		return machinesWithPower.slice(0, count).map((item) => item.machine);
+		return formation
+			.map((machine) => ({
+				machine,
+				power: Calculator.computeMachinePower(machine.battleStats),
+			}))
+			.sort((a, b) => b.power.cmp(a.power))
+			.slice(0, count)
+			.map(({ machine }) => machine);
 	}
 
 	/**
-	 * Calculates power gain from upgrade
-	 * @param {Object} machine - Original machine
-	 * @param {Object} upgrade - Upgrade to apply (may contain level and/or blueprints)
+	 * Calculates the power gain from applying an upgrade to a machine.
+	 * @param {Object} machine
+	 * @param {Object} upgrade - May contain `level` and/or `blueprints`
 	 * @returns {Decimal}
 	 */
 	calculateUpgradePowerGain(machine, upgrade) {
-		const upgradedMachine = {
+		const upgraded = {
 			...machine,
 			level: upgrade.level !== undefined ? upgrade.level : machine.level,
-			blueprints: upgrade.blueprints ? { ...machine.blueprints, ...upgrade.blueprints } : { ...machine.blueprints },
+			blueprints: upgrade.blueprints !== undefined ? { ...machine.blueprints, ...upgrade.blueprints } : { ...machine.blueprints },
 		};
 
-		const upgradedStats = Calculator.calculateBattleAttributes(upgradedMachine, machine.crew || [], this.globalRarityLevels, this.artifactArray, this.engineerLevel);
+		const upgradedStats = Calculator.calculateBattleAttributes(upgraded, machine.crew || [], this.globalRarityLevels, this.artifactArray, this.engineerLevel);
+		return Calculator.computeMachinePower(upgradedStats).sub(Calculator.computeMachinePower(machine.battleStats));
+	}
 
-		const originalPower = Calculator.computeMachinePower(machine.battleStats);
-		const upgradedPower = Calculator.computeMachinePower(upgradedStats);
+	/**
+	 * Removes duplicate paths using a signature based on upgrade details.
+	 * @param {UpgradePath[]} paths
+	 * @returns {UpgradePath[]}
+	 * @private
+	 */
+	_deduplicatePaths(paths) {
+		const seen = new Set();
+		const unique = [];
 
-		return upgradedPower.sub(originalPower);
+		for (const path of paths) {
+			const sig = path.upgrades
+				.map((u) => `${u.machineId}:${u.upgradeType}:${u.requiredValue}`)
+				.sort()
+				.join("|");
+			if (!seen.has(sig)) {
+				seen.add(sig);
+				unique.push(path);
+			}
+		}
+
+		return unique;
+	}
+
+	/**
+	 * Generates all size-k combinations from an array.
+	 * @template T
+	 * @param {T[]}    arr
+	 * @param {number} k
+	 * @returns {T[][]}
+	 * @private
+	 */
+	_combinations(arr, k) {
+		if (k === 0) return [[]];
+		if (arr.length < k) return [];
+
+		const [first, ...rest] = arr;
+		const withFirst = this._combinations(rest, k - 1).map((c) => [first, ...c]);
+		const withoutFirst = this._combinations(rest, k);
+		return [...withFirst, ...withoutFirst];
 	}
 }

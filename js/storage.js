@@ -6,32 +6,124 @@ import { renderMachines } from "./ui/machines.js";
 import { renderTavernCards } from "./ui/tavern.js";
 import { showToast } from "./ui/notifications.js";
 
+// ─────────────────────────────────────────────
+// Canonical store-application helper
+// ─────────────────────────────────────────────
+
 /**
- * Auto-saves store to IndexedDB using Dexie
- * Uses bulk operations for optimal performance
- * @param {import('./app.js').Store} store - Application store
+ * Applies a persisted state object to the live store.
+ * This is the single canonical implementation — saveload.js imports and
+ * calls this function rather than maintaining its own copy.
+ *
+ * Machines and heroes are matched by ID (not array index) so that future
+ * additions to the master list never silently corrupt existing data.
+ *
+ * @param {Object} store - Live application store
+ * @param {Object} state - State object from IndexedDB or save-file load
+ * @param {number}   [state.engineerLevel]
+ * @param {number}   [state.scarabLevel]
+ * @param {string}   [state.riftRank]
+ * @param {Object[]} [state.machines]
+ * @param {Object[]} [state.heroes]
+ * @param {Object}   [state.artifacts]
+ */
+export function applyStateToStore(store, state) {
+	// General settings
+	if (state.engineerLevel !== undefined) store.engineerLevel = state.engineerLevel;
+	if (state.scarabLevel !== undefined) store.scarabLevel = state.scarabLevel;
+	if (state.riftRank !== undefined) store.riftRank = state.riftRank;
+
+	// Machines — match by ID
+	if (state.machines?.length) {
+		const machineMap = new Map(store.machines.map((m) => [m.id, m]));
+
+		for (const saved of state.machines) {
+			const machine = machineMap.get(saved.id);
+			if (!machine) continue;
+			machine.rarity = saved.rarity;
+			machine.level = saved.level;
+			machine.blueprints.damage = saved.blueprints.damage;
+			machine.blueprints.health = saved.blueprints.health;
+			machine.blueprints.armor = saved.blueprints.armor;
+			machine.inscriptionLevel = saved.inscriptionLevel || 0;
+			machine.sacredLevel = saved.sacredLevel || 0;
+		}
+	}
+
+	// Heroes — match by ID
+	if (state.heroes?.length) {
+		const heroMap = new Map(store.heroes.map((h) => [h.id, h]));
+
+		for (const saved of state.heroes) {
+			const hero = heroMap.get(saved.id);
+			if (!hero) continue;
+			hero.percentages.damage = saved.percentages.damage;
+			hero.percentages.health = saved.percentages.health;
+			hero.percentages.armor = saved.percentages.armor;
+		}
+	}
+
+	// Artifacts — store keys are numbers, saved keys may be strings
+	if (state.artifacts && Object.keys(state.artifacts).length) {
+		for (const [stat, percentages] of Object.entries(state.artifacts)) {
+			if (!store.artifacts[stat]) store.artifacts[stat] = {};
+
+			for (const [pct, quantity] of Object.entries(percentages)) {
+				const numKey = Number(pct);
+				if (!isNaN(numKey)) store.artifacts[stat][numKey] = quantity;
+			}
+		}
+	}
+}
+
+// ─────────────────────────────────────────────
+// Shared UI refresh helpers
+// ─────────────────────────────────────────────
+
+/**
+ * Updates the three general-settings inputs from the store.
+ * @param {Object} store
+ */
+export function updateUIInputs(store) {
+	const engineerInput = document.getElementById("engineerLevel");
+	const scarabInput = document.getElementById("scarabLevel");
+	const riftInput = document.getElementById("riftRank");
+	if (engineerInput) engineerInput.value = store.engineerLevel;
+	if (scarabInput) scarabInput.value = store.scarabLevel;
+	if (riftInput) riftInput.value = store.riftRank;
+}
+
+/**
+ * Re-renders all entity panels from the current store state.
+ * @param {Object} store
+ */
+export function renderAllPanels(store) {
+	renderMachines(store.machines);
+	renderHeroes(store.heroes);
+	renderArtifacts(store.artifacts);
+	renderTavernCards(store.machines);
+}
+
+// ─────────────────────────────────────────────
+// Auto-save
+// ─────────────────────────────────────────────
+
+/**
+ * Persists the current store to IndexedDB.
+ * Shows a warning toast on the first failure only, to avoid spam.
+ * @param {Object} store
  */
 export async function autoSave(store) {
 	try {
-		// Verify we have an active profile before saving
 		const activeProfile = await db.getActiveProfile();
 		if (!activeProfile) {
-			console.warn("No active profile - skipping auto-save");
+			console.warn("No active profile — skipping auto-save");
 			return;
 		}
 
-		console.log("Auto-saving to profile:", activeProfile.id, activeProfile.name);
-
-		// Validate data before saving
-		if (!store.machines || !Array.isArray(store.machines)) {
-			throw new Error("Invalid machines data");
-		}
-		if (!store.heroes || !Array.isArray(store.heroes)) {
-			throw new Error("Invalid heroes data");
-		}
-		if (!store.artifacts || typeof store.artifacts !== "object") {
-			throw new Error("Invalid artifacts data");
-		}
+		if (!Array.isArray(store.machines)) throw new Error("Invalid machines data");
+		if (!Array.isArray(store.heroes)) throw new Error("Invalid heroes data");
+		if (typeof store.artifacts !== "object") throw new Error("Invalid artifacts data");
 
 		await db.saveState({
 			engineerLevel: store.engineerLevel,
@@ -42,15 +134,9 @@ export async function autoSave(store) {
 			artifacts: store.artifacts,
 		});
 
-		console.log("Auto-save successful");
-
-		// Reset error flag on success
 		autoSave._hasShownError = false;
 	} catch (error) {
 		console.error("Auto-save failed:", error);
-		console.error("Error details:", error.message, error.stack);
-
-		// Only show toast on first failure to avoid spam
 		if (!autoSave._hasShownError) {
 			showToast(`Auto-save failed: ${error.message}`, "warning");
 			autoSave._hasShownError = true;
@@ -58,113 +144,26 @@ export async function autoSave(store) {
 	}
 }
 
-// Track if we've shown an error to avoid spam
+/** @type {boolean} */
 autoSave._hasShownError = false;
 
-/**
- * Applies loaded state to the store
- * @param {import('./app.js').Store} store - Application store
- * @param {Object} state - Loaded state
- */
-function applyStateToStore(store, state) {
-	// Apply config
-	if (state.engineerLevel !== undefined) store.engineerLevel = state.engineerLevel;
-	if (state.scarabLevel !== undefined) store.scarabLevel = state.scarabLevel;
-	if (state.riftRank !== undefined) store.riftRank = state.riftRank;
-
-	// Apply machines
-	if (state.machines && state.machines.length > 0) {
-		const machineMap = new Map(store.machines.map((m) => [m.id, m]));
-
-		for (let i = 0; i < state.machines.length; i++) {
-			const savedMachine = state.machines[i];
-			const machine = machineMap.get(savedMachine.id);
-
-			if (machine) {
-				machine.rarity = savedMachine.rarity;
-				machine.level = savedMachine.level;
-				machine.blueprints.damage = savedMachine.blueprints.damage;
-				machine.blueprints.health = savedMachine.blueprints.health;
-				machine.blueprints.armor = savedMachine.blueprints.armor;
-				machine.inscriptionLevel = savedMachine.inscriptionLevel || 0;
-				machine.sacredLevel = savedMachine.sacredLevel || 0;
-			}
-		}
-	}
-
-	// Apply heroes
-	if (state.heroes && state.heroes.length > 0) {
-		const heroMap = new Map(store.heroes.map((h) => [h.id, h]));
-
-		for (let i = 0; i < state.heroes.length; i++) {
-			const savedHero = state.heroes[i];
-			const hero = heroMap.get(savedHero.id);
-
-			if (hero) {
-				hero.percentages.damage = savedHero.percentages.damage;
-				hero.percentages.health = savedHero.percentages.health;
-				hero.percentages.armor = savedHero.percentages.armor;
-			}
-		}
-	}
-
-	// Apply artifacts
-	if (state.artifacts && Object.keys(state.artifacts).length > 0) {
-		const stats = Object.keys(state.artifacts);
-		for (let i = 0; i < stats.length; i++) {
-			const stat = stats[i];
-			const percentages = Object.keys(state.artifacts[stat]);
-
-			for (let j = 0; j < percentages.length; j++) {
-				const pct = percentages[j];
-				const numKey = Number(pct);
-				if (!isNaN(numKey)) {
-					store.artifacts[stat][numKey] = state.artifacts[stat][pct];
-				}
-			}
-		}
-	}
-}
+// ─────────────────────────────────────────────
+// Auto-load
+// ─────────────────────────────────────────────
 
 /**
- * Updates UI inputs with loaded values
- * @param {import('./app.js').Store} store - Application store
- */
-function updateUIInputs(store) {
-	const engineerInput = document.getElementById("engineerLevel");
-	const scarabInput = document.getElementById("scarabLevel");
-	const riftInput = document.getElementById("riftRank");
-
-	if (engineerInput) engineerInput.value = store.engineerLevel;
-	if (scarabInput) scarabInput.value = store.scarabLevel;
-	if (riftInput) riftInput.value = store.riftRank;
-}
-
-/**
- * Loads saved data from IndexedDB
- * @param {import('./app.js').Store} store - Application store
- * @returns {Promise<boolean>} True if data was loaded successfully
+ * Loads saved data from IndexedDB and applies it to the store.
+ * @param {Object} store
+ * @returns {Promise<boolean>} True if data was loaded
  */
 export async function autoLoad(store) {
 	try {
 		const state = await db.loadState();
+		if (!state) return false;
 
-		if (!state) {
-			return false;
-		}
-
-		// Apply loaded state to store
 		applyStateToStore(store, state);
-
-		// Update UI
 		updateUIInputs(store);
-
-		// Re-render UI components
-		renderMachines(store.machines);
-		renderHeroes(store.heroes);
-		renderArtifacts(store.artifacts);
-		renderTavernCards(store.machines);
-
+		renderAllPanels(store);
 		return true;
 	} catch (error) {
 		console.error("Auto-load failed:", error);
@@ -173,74 +172,62 @@ export async function autoLoad(store) {
 	}
 }
 
+// ─────────────────────────────────────────────
+// Reset
+// ─────────────────────────────────────────────
+
 /**
- * Resets store to default values
- * @param {import('./app.js').Store} store - Application store
- * @param {Object} defaults - Default values
+ * Resets store fields to match the default store values.
+ * Machines and heroes are matched by array index because the default store
+ * is always created with the same ordering as the live store.
+ * @param {Object} store
+ * @param {Object} defaults - Result of createInitialStore()
+ * @private
  */
-function resetStoreToDefaults(store, defaults) {
+function _resetStoreToDefaults(store, defaults) {
 	store.engineerLevel = defaults.engineerLevel;
 	store.scarabLevel = defaults.scarabLevel;
 	store.riftRank = defaults.riftRank;
 	store.optimizeMode = defaults.optimizeMode;
 
-	// Reset machines
 	for (let i = 0; i < store.machines.length; i++) {
-		const machine = store.machines[i];
-		const defaultMachine = defaults.machines[i];
-		machine.rarity = defaultMachine.rarity;
-		machine.level = defaultMachine.level;
-		machine.blueprints.damage = defaultMachine.blueprints.damage;
-		machine.blueprints.health = defaultMachine.blueprints.health;
-		machine.blueprints.armor = defaultMachine.blueprints.armor;
-		machine.inscriptionLevel = defaultMachine.inscriptionLevel;
-		machine.sacredLevel = defaultMachine.sacredLevel;
+		const m = store.machines[i];
+		const d = defaults.machines[i];
+		m.rarity = d.rarity;
+		m.level = d.level;
+		m.blueprints.damage = d.blueprints.damage;
+		m.blueprints.health = d.blueprints.health;
+		m.blueprints.armor = d.blueprints.armor;
+		m.inscriptionLevel = d.inscriptionLevel;
+		m.sacredLevel = d.sacredLevel;
 	}
 
-	// Reset heroes
 	for (let i = 0; i < store.heroes.length; i++) {
-		const hero = store.heroes[i];
-		const defaultHero = defaults.heroes[i];
-		hero.percentages.damage = defaultHero.percentages.damage;
-		hero.percentages.health = defaultHero.percentages.health;
-		hero.percentages.armor = defaultHero.percentages.armor;
+		const h = store.heroes[i];
+		const d = defaults.heroes[i];
+		h.percentages.damage = d.percentages.damage;
+		h.percentages.health = d.percentages.health;
+		h.percentages.armor = d.percentages.armor;
 	}
 
-	// Reset artifacts
-	const stats = Object.keys(store.artifacts);
-	for (let i = 0; i < stats.length; i++) {
-		const stat = stats[i];
-		const percentages = Object.keys(store.artifacts[stat]);
-		for (let j = 0; j < percentages.length; j++) {
-			const pct = percentages[j];
+	for (const [stat, percentages] of Object.entries(store.artifacts)) {
+		for (const pct of Object.keys(percentages)) {
 			store.artifacts[stat][pct] = 0;
 		}
 	}
 }
 
 /**
- * Clears all saved data and resets to defaults
- * @param {import('./app.js').Store} store - Application store
- * @param {Function} createInitialStore - Function to create default store
+ * Clears all saved data and resets the store and UI to defaults.
+ * @param {Object}   store
+ * @param {Function} createInitialStore - Factory for the default store
  */
 export async function resetAll(store, createInitialStore) {
 	try {
-		// Clear database
 		await db.clearProfileData();
-
-		// Reset store to defaults
-		const defaults = createInitialStore();
-		resetStoreToDefaults(store, defaults);
-
-		// Update UI
+		_resetStoreToDefaults(store, createInitialStore());
 		updateUIInputs(store);
-
-		// Re-render UI components
-		renderMachines(store.machines);
-		renderHeroes(store.heroes);
-		renderArtifacts(store.artifacts);
-		renderTavernCards(store.machines);
-
+		renderAllPanels(store);
 		showToast("All data reset to default values", "success");
 	} catch (error) {
 		console.error("Reset failed:", error);

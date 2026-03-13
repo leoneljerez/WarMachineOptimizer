@@ -1,11 +1,35 @@
 // guardianCalculator.js
 import { AppConfig } from "./config.js";
 
+/**
+ * @typedef {Object} GuardianPosition
+ * @property {string} category  - Evolution category key (e.g. "bronze")
+ * @property {string} rank      - Rank key (e.g. "3star", "2crown")
+ * @property {number} level     - Level within the rank (1–10)
+ * @property {number} [currentExp=0] - EXP already accumulated towards the next level
+ */
+
+/**
+ * @typedef {Object} ExpResult
+ * @property {number}   expNeeded         - Total EXP needed to reach target
+ * @property {number}   strangeDustNeeded - Strange Dust items required
+ * @property {Array<{from: string, to: string, category: string, cost: number}>} evolutionsNeeded
+ */
+
+/**
+ * Pure calculator for guardian EXP, Strange Dust costs, and evolution paths.
+ * All methods are static — no instance state.
+ */
 export class GuardianCalculator {
+	// ─────────────────────────────────────────────
+	// EXP per level
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Gets category base EXP value (for 1-star, level 1)
-	 * @param {string} category - Evolution category
-	 * @returns {number} Base EXP value
+	 * Returns the category base EXP value (used for the formula path).
+	 * Bronze is irregular and uses the lookup table instead.
+	 * @param {string} category
+	 * @returns {number}
 	 */
 	static getCategoryBase(category) {
 		const bases = {
@@ -20,369 +44,365 @@ export class GuardianCalculator {
 			starlight: 9610,
 			starlight_plus: 10210,
 		};
-
 		return bases[category];
 	}
 
 	/**
-	 * Gets rank offset from category base
-	 * @param {number} rankIndex - Rank index (0-9)
-	 * @returns {number} Offset to add to category base
+	 * Returns the rank offset added to the category base.
+	 * Each rank step adds 100 to the per-level EXP cost.
+	 * @param {number} rankIndex - 0-based index into GUARDIAN_RANK_PROGRESSION
+	 * @returns {number}
 	 */
 	static getRankOffset(rankIndex) {
 		return rankIndex * 100;
 	}
 
 	/**
-	 * Calculates EXP required for a specific level upgrade
-	 * @param {string} category - Evolution category
-	 * @param {string} rank - Rank key (1star, 2star, ..., 5crown)
-	 * @param {number} level - Starting level (1-9 for level→level+1)
-	 * @returns {number} EXP required
+	 * Returns the EXP required for one level-up within a rank.
+	 * Bronze stars use the lookup table (irregular pattern);
+	 * all other combinations use the linear formula.
+	 * @param {string} category
+	 * @param {string} rank - e.g. "3star" or "2crown"
+	 * @param {number} level - Starting level (1–9; level→level+1)
+	 * @returns {number}
+	 * @throws {Error} If level is out of range or rank/category are unknown
 	 */
 	static calculateExpForLevel(category, rank, level) {
 		if (level < 1 || level > 9) {
-			throw new Error("Level must be between 1 and 9 (for level→level+1)");
+			throw new Error(`Level must be 1–9 (for level→level+1), got ${level}`);
 		}
 
 		const rankIndex = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === rank);
-		if (rankIndex === -1) {
-			throw new Error(`Unknown rank: ${rank}`);
-		}
+		if (rankIndex === -1) throw new Error(`Unknown rank: ${rank}`);
 
-		// Bronze stars use lookup table (irregular pattern)
+		// Bronze stars: irregular pattern → lookup table
 		if (category === "bronze" && rankIndex < 5) {
 			const expTable = AppConfig.GUARDIAN_EXP_TABLE?.bronze?.[rank];
-			if (!expTable) {
-				throw new Error(`No data for Bronze ${rank}`);
-			}
+			if (!expTable) throw new Error(`No EXP table data for Bronze ${rank}`);
 			return expTable[level - 1];
 		}
 
-		// Bronze crowns and all other categories use formula
-		const categoryBase = this.getCategoryBase(category);
+		// All other combinations: formula
+		return this.getCategoryBase(category) + this.getRankOffset(rankIndex) + (level - 1) * 10;
+	}
 
-		// Standard formula for all other categories
-		const rankOffset = this.getRankOffset(rankIndex);
-		const levelOffset = (level - 1) * 10;
+	// ─────────────────────────────────────────────
+	// Cumulative EXP — private phase helpers
+	// ─────────────────────────────────────────────
 
-		return categoryBase + rankOffset + levelOffset;
+	/**
+	 * Sums EXP for all star ranks from the start of `fromCategory` up to
+	 * (but not including) `toLevel` of `toRank` in `toCategory`.
+	 * Iterates categories from `fromCategoryIdx` to `toCategoryIdx`.
+	 *
+	 * @param {number} fromCategoryIdx - First category index to include
+	 * @param {number} toCategoryIdx   - Last category index to include
+	 * @param {number} toRankIdx       - Target rank index (0–4 for stars)
+	 * @param {number} toLevel         - Stop before this level in the target rank
+	 * @returns {number}
+	 * @private
+	 */
+	static _sumStarExp(fromCategoryIdx, toCategoryIdx, toRankIdx, toLevel) {
+		let total = 0;
+
+		for (let catIdx = fromCategoryIdx; catIdx <= toCategoryIdx; catIdx++) {
+			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+			const isTargetCat = catIdx === toCategoryIdx;
+			const maxRankIdx = isTargetCat ? toRankIdx : 4; // 4 = index of 5star
+
+			for (let rankIdx = 0; rankIdx <= maxRankIdx; rankIdx++) {
+				const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx].key;
+				const isTargetRank = isTargetCat && rankIdx === toRankIdx;
+				const maxLevel = isTargetRank ? toLevel : 10;
+
+				for (let level = 1; level < maxLevel; level++) {
+					total += this.calculateExpForLevel(category, rank, level);
+				}
+			}
+		}
+
+		return total;
 	}
 
 	/**
-	 * Calculates total experience from start to a specific position
-	 * @param {string} toCategory - Target evolution category
-	 * @param {string} toRank - Target rank
-	 * @param {number} toLevel - Target level (1-10)
-	 * @returns {number} Total experience needed from level 1, 1-star Bronze
+	 * Sums EXP for all crown ranks from the start of `fromCategory` up to
+	 * (but not including) `toLevel` of `toCrownRankIdx` in `toCategoryIdx`.
+	 * Crown rank indices within GUARDIAN_RANK_PROGRESSION start at 5.
+	 *
+	 * @param {number} fromCategoryIdx  - First category index to include
+	 * @param {number} toCategoryIdx    - Last category index to include
+	 * @param {number} toCrownRankIdx   - Target crown rank index (0–4, offset +5 for GUARDIAN_RANK_PROGRESSION)
+	 * @param {number} toLevel          - Stop before this level in the target rank
+	 * @returns {number}
+	 * @private
+	 */
+	static _sumCrownExp(fromCategoryIdx, toCategoryIdx, toCrownRankIdx, toLevel) {
+		let total = 0;
+
+		for (let catIdx = fromCategoryIdx; catIdx <= toCategoryIdx; catIdx++) {
+			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+			const isTargetCat = catIdx === toCategoryIdx;
+			const maxCrownIdx = isTargetCat ? toCrownRankIdx : 4; // 4 = index of 5crown within crowns
+
+			for (let crownIdx = 0; crownIdx <= maxCrownIdx; crownIdx++) {
+				const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[crownIdx + 5].key; // +5: crown offset
+				const isTargetRank = isTargetCat && crownIdx === toCrownRankIdx;
+				const maxLevel = isTargetRank ? toLevel : 10;
+
+				for (let level = 1; level < maxLevel; level++) {
+					total += this.calculateExpForLevel(category, rank, level);
+				}
+			}
+		}
+
+		return total;
+	}
+
+	// ─────────────────────────────────────────────
+	// Cumulative EXP — public
+	// ─────────────────────────────────────────────
+
+	/**
+	 * Returns the total EXP from level 1 of Bronze 1-Star to a given position.
+	 * @param {string} toCategory
+	 * @param {string} toRank
+	 * @param {number} toLevel - 1–10
+	 * @returns {number}
+	 * @throws {Error} If category or rank are unknown
 	 */
 	static calculateTotalExpToPosition(toCategory, toRank, toLevel) {
-		let totalExp = 0;
-		const targetCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(toCategory);
-		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === toRank);
+		const catIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(toCategory);
+		const rankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === toRank);
 
-		if (targetCategoryIdx === -1) {
-			throw new Error(`Unknown category: ${toCategory}`);
-		}
-		if (targetRankIdx === -1) {
-			throw new Error(`Unknown rank: ${toRank}`);
-		}
+		if (catIdx === -1) throw new Error(`Unknown category: ${toCategory}`);
+		if (rankIdx === -1) throw new Error(`Unknown rank: ${toRank}`);
 
 		const isCrown = toRank.includes("crown");
+		let total = 0;
 
-		// Process ALL star ranks first (bronze through starlight_plus)
-		if (!isCrown || targetCategoryIdx < AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length) {
-			// Loop through all categories for stars
-			const maxStarCategoryIdx = isCrown ? AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length - 1 : targetCategoryIdx;
+		// Always accumulate all star EXP first
+		const lastStarCatIdx = isCrown ? AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length - 1 : catIdx;
+		const lastStarRankIdx = isCrown ? 4 : rankIdx;
+		const lastStarLevel = isCrown ? 10 : toLevel;
 
-			for (let catIdx = 0; catIdx <= maxStarCategoryIdx; catIdx++) {
-				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const isTargetCategory = !isCrown && catIdx === targetCategoryIdx;
+		total += this._sumStarExp(0, lastStarCatIdx, lastStarRankIdx, lastStarLevel);
 
-				// Process stars (0-4 in GUARDIAN_RANK_PROGRESSION)
-				const maxStarIdx = isTargetCategory ? targetRankIdx : 4; // Stars are indices 0-4
-
-				for (let rankIdx = 0; rankIdx <= maxStarIdx; rankIdx++) {
-					const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx].key;
-					const isTargetRank = isTargetCategory && rankIdx === targetRankIdx;
-
-					const maxLevel = isTargetRank ? toLevel : 10;
-
-					for (let level = 1; level < maxLevel; level++) {
-						totalExp += this.calculateExpForLevel(category, rank, level);
-					}
-				}
-			}
-		}
-
-		// If target is a crown, process crown ranks
+		// Then crown EXP if target is a crown rank
 		if (isCrown) {
-			const crownRankIdx = targetRankIdx - 5; // Crowns start at index 5
-
-			for (let catIdx = 0; catIdx <= targetCategoryIdx; catIdx++) {
-				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const isTargetCategory = catIdx === targetCategoryIdx;
-
-				// Process crowns (5-9 in GUARDIAN_RANK_PROGRESSION)
-				const maxCrownIdx = isTargetCategory ? crownRankIdx : 4; // 0-4 for crown indices
-
-				for (let rankIdx = 0; rankIdx <= maxCrownIdx; rankIdx++) {
-					const rank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx + 5].key; // +5 to get crown indices
-					const isTargetRank = isTargetCategory && rankIdx === crownRankIdx;
-
-					const maxLevel = isTargetRank ? toLevel : 10;
-
-					for (let level = 1; level < maxLevel; level++) {
-						totalExp += this.calculateExpForLevel(category, rank, level);
-					}
-				}
-			}
+			const crownRankIdx = rankIdx - 5; // crowns start at GUARDIAN_RANK_PROGRESSION index 5
+			total += this._sumCrownExp(0, catIdx, crownRankIdx, toLevel);
 		}
 
-		return totalExp;
+		return total;
 	}
 
+	// ─────────────────────────────────────────────
+	// Public API
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Calculates experience needed between two positions
-	 * @param {Object} current - Current position
-	 * @param {string} current.category - Current evolution category
-	 * @param {string} current.rank - Current rank
-	 * @param {number} current.level - Current level (1-10)
-	 * @param {number} current.currentExp - Current exp towards next level
-	 * @param {Object} target - Target position
-	 * @param {string} target.category - Target evolution category
-	 * @param {string} target.rank - Target rank
-	 * @param {number} target.level - Target level (1-10)
-	 * @returns {Object} { expNeeded, strangeDustNeeded, evolutionsNeeded }
+	 * Calculates EXP, Strange Dust, and evolutions needed to reach a target position.
+	 * Throws on invalid level ranges; returns a result object with an `error` field
+	 * for logical impossibilities (target behind current position).
+	 *
+	 * Note on error handling: structural errors (invalid level values) throw because
+	 * they indicate a programming mistake. Logical errors (going backwards) return a
+	 * result with `error` because they are valid user input edge cases.
+	 *
+	 * @param {GuardianPosition} current
+	 * @param {GuardianPosition} target
+	 * @returns {ExpResult & {error?: string}}
 	 */
 	static calculateExpNeeded(current, target) {
-		// Validate inputs
-		if (current.level < 1 || current.level > 10) {
-			throw new Error("Current level must be between 1 and 10");
-		}
-		if (target.level < 1 || target.level > 10) {
-			throw new Error("Target level must be between 1 and 10");
-		}
+		if (current.level < 1 || current.level > 10) throw new Error("Current level must be 1–10");
+		if (target.level < 1 || target.level > 10) throw new Error("Target level must be 1–10");
 
-		const currentCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(current.category);
-		const targetCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(target.category);
+		const currentCatIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(current.category);
+		const targetCatIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(target.category);
 		const currentRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === current.rank);
 		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === target.rank);
 
-		// Check if target is before current
-		if (targetCategoryIdx < currentCategoryIdx) {
-			return { expNeeded: 0, strangeDustNeeded: 0, evolutionsNeeded: [], error: "You cannot go lower in categories" };
-		}
-		if (targetCategoryIdx === currentCategoryIdx && targetRankIdx < currentRankIdx) {
-			return { expNeeded: 0, strangeDustNeeded: 0, evolutionsNeeded: [], error: "You cannot go lower in ranks" };
-		}
-		if (targetCategoryIdx === currentCategoryIdx && targetRankIdx === currentRankIdx && target.level < current.level) {
-			return { expNeeded: 0, strangeDustNeeded: 0, evolutionsNeeded: [], error: "You cannot go lower in levels" };
-		}
-		if (targetCategoryIdx === currentCategoryIdx && targetRankIdx === currentRankIdx && target.level === current.level) {
-			return { expNeeded: 0, strangeDustNeeded: 0, evolutionsNeeded: [], error: "Already at desired level" };
-		}
+		const noProgress = { expNeeded: 0, strangeDustNeeded: 0, evolutionsNeeded: [] };
 
-		// Calculate total exp to both positions
-		const totalExpToCurrent = this.calculateTotalExpToPosition(current.category, current.rank, current.level);
-		const totalExpToTarget = this.calculateTotalExpToPosition(target.category, target.rank, target.level);
+		if (targetCatIdx < currentCatIdx) return { ...noProgress, error: "You cannot go lower in categories" };
+		if (targetCatIdx === currentCatIdx && targetRankIdx < currentRankIdx) return { ...noProgress, error: "You cannot go lower in ranks" };
+		if (targetCatIdx === currentCatIdx && targetRankIdx === currentRankIdx && target.level < current.level) return { ...noProgress, error: "You cannot go lower in levels" };
+		if (targetCatIdx === currentCatIdx && targetRankIdx === currentRankIdx && target.level === current.level) return { ...noProgress, error: "Already at desired level" };
 
-		// Account for current progress
-		const expNeeded = totalExpToTarget - totalExpToCurrent - current.currentExp;
+		const expToCurrent = this.calculateTotalExpToPosition(current.category, current.rank, current.level);
+		const expToTarget = this.calculateTotalExpToPosition(target.category, target.rank, target.level);
+		const rawExpNeeded = expToTarget - expToCurrent - (current.currentExp || 0);
+		const expNeeded = Math.max(0, rawExpNeeded);
 
-		// Calculate Strange Dust needed
-		const strangeDustNeeded = Math.ceil(expNeeded / AppConfig.STRANGE_DUST_EXP);
-
-		// Calculate evolutions needed
-		const evolutionsNeeded = this.calculateEvolutionsNeeded(current, target);
+		const dustItems = Math.ceil(expNeeded / AppConfig.STRANGE_DUST_EXP);
 
 		return {
-			expNeeded: Math.max(0, expNeeded),
-			strangeDustNeeded: Math.max(0, strangeDustNeeded * 20),
-			evolutionsNeeded,
+			expNeeded,
+			strangeDustNeeded: Math.max(0, dustItems * 20),
+			evolutionsNeeded: this.calculateEvolutionsNeeded(current, target),
 		};
 	}
 
+	// ─────────────────────────────────────────────
+	// Evolution path — private phase helpers
+	// ─────────────────────────────────────────────
+
 	/**
-	 * Calculates evolution steps needed between current and target
-	 * @param {Object} current - Current position
-	 * @param {Object} target - Target position
-	 * @returns {Array<{from: string, to: string, category: string, cost: number}>} Evolution steps
+	 * Appends one evolution step to the `evolutions` array and returns true
+	 * if the target has been reached (so the caller can early-return).
+	 * @param {Array}  evolutions   - Mutable output array
+	 * @param {string} fromCategory
+	 * @param {number} fromRankIdx
+	 * @param {string} toCategory
+	 * @param {number} toRankIdx
+	 * @param {number} targetCatIdx
+	 * @param {number} targetRankIdx
+	 * @returns {boolean} True if the target was reached
+	 * @private
+	 */
+	static _addEvolutionStep(evolutions, fromCategory, fromRankIdx, toCategory, toRankIdx, targetCatIdx, targetRankIdx) {
+		const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[fromRankIdx];
+		const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[toRankIdx];
+		const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[fromCategory][fromRank.key];
+
+		evolutions.push({
+			from: `${fromCategory} ${fromRank.label}`,
+			to: `${toCategory} ${toRank.label}`,
+			category: fromCategory,
+			cost,
+		});
+
+		const targetCategoryKey = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[targetCatIdx];
+		return toCategory === targetCategoryKey && toRankIdx === targetRankIdx;
+	}
+
+	/**
+	 * Walks through star ranks from (catIdx, rankIdx) through all categories
+	 * up to targetCatIdx/targetRankIdx, appending steps to `evolutions`.
+	 * Returns early (true) when target is reached.
+	 * @private
+	 */
+	static _walkStarPhase(evolutions, catIdx, rankIdx, targetCatIdx, targetRankIdx) {
+		// Complete remaining stars in current category
+		while (rankIdx < 4) {
+			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+			const reached = this._addEvolutionStep(evolutions, category, rankIdx, category, rankIdx + 1, targetCatIdx, targetRankIdx);
+			rankIdx++;
+			if (reached) return { reached: true };
+		}
+
+		// Walk through subsequent categories
+		catIdx++;
+		while (catIdx < AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length) {
+			const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx - 1];
+			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+
+			// Evolution from 5star of previous category to 1star of this category
+			const crossReached = this._addEvolutionStep(evolutions, prevCategory, 4, category, 0, targetCatIdx, targetRankIdx);
+			if (crossReached) return { reached: true };
+
+			// Progress through stars in this category
+			rankIdx = 0;
+			while (rankIdx < 4) {
+				const reached = this._addEvolutionStep(evolutions, category, rankIdx, category, rankIdx + 1, targetCatIdx, targetRankIdx);
+				rankIdx++;
+				if (reached) return { reached: true };
+			}
+
+			catIdx++;
+		}
+
+		return { reached: false, catIdx, rankIdx };
+	}
+
+	/**
+	 * Walks through crown ranks from (catIdx, rankIdx) up to targetCatIdx/targetRankIdx.
+	 * Crown rankIdx here is the absolute index into GUARDIAN_RANK_PROGRESSION (5–9).
+	 * @private
+	 */
+	static _walkCrownPhase(evolutions, catIdx, rankIdx, targetCatIdx, targetRankIdx) {
+		// Complete crowns in current category
+		while (rankIdx < 9) {
+			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+			const reached = this._addEvolutionStep(evolutions, category, rankIdx, category, rankIdx + 1, targetCatIdx, targetRankIdx);
+			rankIdx++;
+			if (reached) return { reached: true };
+		}
+
+		// Walk through subsequent crown categories
+		catIdx++;
+		while (catIdx <= targetCatIdx) {
+			const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx - 1];
+			const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
+
+			// Evolution from 5crown of previous to 1crown of this
+			const crossReached = this._addEvolutionStep(evolutions, prevCategory, 9, category, 5, targetCatIdx, targetRankIdx);
+			if (crossReached) return { reached: true };
+
+			rankIdx = 5;
+			while (rankIdx < targetRankIdx) {
+				const reached = this._addEvolutionStep(evolutions, category, rankIdx, category, rankIdx + 1, targetCatIdx, targetRankIdx);
+				rankIdx++;
+				if (reached) return { reached: true };
+			}
+
+			catIdx++;
+		}
+
+		return { reached: false };
+	}
+
+	// ─────────────────────────────────────────────
+	// Evolution path — public
+	// ─────────────────────────────────────────────
+
+	/**
+	 * Returns the ordered list of evolution steps needed to move from `current`
+	 * to `target`. Returns an empty array when no evolutions are required.
+	 * @param {GuardianPosition} current
+	 * @param {GuardianPosition} target
+	 * @returns {Array<{from: string, to: string, category: string, cost: number}>}
 	 */
 	static calculateEvolutionsNeeded(current, target) {
 		const evolutions = [];
-		const currentCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(current.category);
-		const targetCategoryIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(target.category);
+		const currentCatIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(current.category);
+		const targetCatIdx = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.indexOf(target.category);
 		const currentRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === current.rank);
 		const targetRankIdx = AppConfig.GUARDIAN_RANK_PROGRESSION.findIndex((r) => r.key === target.rank);
+
+		if (currentCatIdx === targetCatIdx && currentRankIdx === targetRankIdx) return evolutions;
 
 		const currentIsCrown = current.rank.includes("crown");
 		const targetIsCrown = target.rank.includes("crown");
 
-		// If same category and rank, no evolutions needed
-		if (currentCategoryIdx === targetCategoryIdx && currentRankIdx === targetRankIdx) {
-			return evolutions;
-		}
-
-		let catIdx = currentCategoryIdx;
-		let rankIdx = currentRankIdx;
-
-		// Phase 1: Complete current star progression (if in stars)
+		// Phase 1: Star progression (only when current position is in stars)
 		if (!currentIsCrown) {
-			// Continue through stars in current category
-			while (rankIdx < 4) {
-				// 4 is the index of 5star
-				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
+			const starResult = this._walkStarPhase(evolutions, currentCatIdx, currentRankIdx, targetCatIdx, targetRankIdx);
+			if (starResult.reached) return evolutions;
 
-				rankIdx++;
-				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-				evolutions.push({
-					from: `${category} ${fromRank.label}`,
-					to: `${category} ${toRank.label}`,
-					category,
-					cost,
-				});
-
-				// Check if we've reached target
-				if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
-					return evolutions;
-				}
-			}
-
-			// Complete remaining star categories
-			catIdx++;
-			while (catIdx < AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length) {
-				const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx - 1];
-				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[4]; // 5star
-				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[0]; // 1star of next category
-				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[prevCategory][fromRank.key];
-
-				evolutions.push({
-					from: `${prevCategory} ${fromRank.label}`,
-					to: `${category} ${toRank.label}`,
-					category: prevCategory,
-					cost,
-				});
-
-				// Check if we've reached target
-				if (catIdx === targetCategoryIdx && 0 === targetRankIdx) {
-					return evolutions;
-				}
-
-				// Progress through stars in this category
-				rankIdx = 0;
-				while (rankIdx < 4) {
-					const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-					const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
-
-					rankIdx++;
-					const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-					evolutions.push({
-						from: `${category} ${fromRank.label}`,
-						to: `${category} ${toRank.label}`,
-						category,
-						cost,
-					});
-
-					// Check if we've reached target
-					if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
-						return evolutions;
-					}
-				}
-
-				catIdx++;
-			}
-
-			// If target is crowns, transition from 5star starlight_plus to 1crown bronze
+			// If target is crowns, bridge from last star category to first crown
 			if (targetIsCrown) {
-				const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length - 1];
-				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[4]; // 5star
-				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[5]; // 1crown
-				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[prevCategory][fromRank.key];
+				const lastCat = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[AppConfig.GUARDIAN_EVOLUTION_CATEGORIES.length - 1];
+				const bronzeName = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[0];
+				const from5star = AppConfig.GUARDIAN_RANK_PROGRESSION[4];
+				const to1crown = AppConfig.GUARDIAN_RANK_PROGRESSION[5];
 
 				evolutions.push({
-					from: `${prevCategory} ${fromRank.label}`,
-					to: `bronze ${toRank.label}`,
-					category: prevCategory,
-					cost,
+					from: `${lastCat} ${from5star.label}`,
+					to: `${bronzeName} ${to1crown.label}`,
+					category: lastCat,
+					cost: AppConfig.GUARDIAN_EVOLUTION_COSTS[lastCat][from5star.key],
 				});
-
-				catIdx = 0; // Start at bronze for crowns
-				rankIdx = 5; // 1crown
 			}
 		}
 
-		// Phase 2: Crown progression (if needed)
-		if (targetIsCrown && (catIdx < targetCategoryIdx || rankIdx < targetRankIdx)) {
-			// Continue through crowns in current category
-			while (rankIdx < 9) {
-				// 9 is the index of 5crown
-				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
+		// Phase 2: Crown progression (only when target is a crown rank)
+		if (targetIsCrown) {
+			const crownStartCatIdx = currentIsCrown ? currentCatIdx : 0;
+			const crownStartRankIdx = currentIsCrown ? currentRankIdx : 5; // 5 = 1crown index
 
-				rankIdx++;
-				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-				evolutions.push({
-					from: `${category} ${fromRank.label}`,
-					to: `${category} ${toRank.label}`,
-					category,
-					cost,
-				});
-
-				// Check if we've reached target
-				if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
-					return evolutions;
-				}
-			}
-
-			// Progress through remaining crown categories
-			catIdx++;
-			while (catIdx <= targetCategoryIdx) {
-				const prevCategory = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx - 1];
-				const category = AppConfig.GUARDIAN_EVOLUTION_CATEGORIES[catIdx];
-				const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[9]; // 5crown
-				const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[5]; // 1crown of next category
-				const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[prevCategory][fromRank.key];
-
-				evolutions.push({
-					from: `${prevCategory} ${fromRank.label}`,
-					to: `${category} ${toRank.label}`,
-					category: prevCategory,
-					cost,
-				});
-
-				// Check if we've reached target
-				if (catIdx === targetCategoryIdx && 5 === targetRankIdx) {
-					return evolutions;
-				}
-
-				// Progress through crowns in this category
-				rankIdx = 5;
-				while (rankIdx < targetRankIdx) {
-					const fromRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-					const cost = AppConfig.GUARDIAN_EVOLUTION_COSTS[category][fromRank.key];
-
-					rankIdx++;
-					const toRank = AppConfig.GUARDIAN_RANK_PROGRESSION[rankIdx];
-					evolutions.push({
-						from: `${category} ${fromRank.label}`,
-						to: `${category} ${toRank.label}`,
-						category,
-						cost,
-					});
-
-					// Check if we've reached target
-					if (catIdx === targetCategoryIdx && rankIdx === targetRankIdx) {
-						return evolutions;
-					}
-				}
-
-				catIdx++;
-			}
+			const crownResult = this._walkCrownPhase(evolutions, crownStartCatIdx, crownStartRankIdx, targetCatIdx, targetRankIdx);
+			if (crownResult.reached) return evolutions;
 		}
 
 		return evolutions;

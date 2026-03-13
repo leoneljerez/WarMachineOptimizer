@@ -3,22 +3,60 @@ import { db } from "./db.js";
 import { AppConfig } from "./config.js";
 import { showToast } from "./ui/notifications.js";
 import { autoLoad } from "./storage.js";
+import { createInitialStore } from "./app.js";
+import { renderMachines } from "./ui/machines.js";
+import { renderHeroes } from "./ui/heroes.js";
+import { renderArtifacts } from "./ui/artifacts.js";
+import { renderTavernCards } from "./ui/tavern.js";
+
+// ─────────────────────────────────────────────
+// Private helpers
+// ─────────────────────────────────────────────
 
 /**
- * Renders the profile dropdown in the header
- * @param {import('./app.js').Store} store - Application store
+ * Resets the store to defaults and refreshes all UI panels.
+ * Used when switching to an empty profile.
+ * @param {Object} store
+ * @private
+ */
+function _resetStoreUI(store) {
+	Object.assign(store, createInitialStore());
+	document.getElementById("engineerLevel").value = store.engineerLevel;
+	document.getElementById("scarabLevel").value = store.scarabLevel;
+	document.getElementById("riftRank").value = store.riftRank;
+	renderMachines(store.machines);
+	renderHeroes(store.heroes);
+	renderArtifacts(store.artifacts);
+	renderTavernCards(store.machines);
+}
+
+/**
+ * Refreshes both the header profile selector and the management modal list.
+ * Called after every profile mutation to keep both views consistent.
+ * @param {Object} store
+ * @private
+ */
+async function _refreshProfileUI(store) {
+	await renderProfileSelector(store);
+	// Re-render management list only when it is visible
+	const container = document.getElementById("profileManagementList");
+	if (container) await renderProfileManagement();
+}
+
+// ─────────────────────────────────────────────
+// Rendering
+// ─────────────────────────────────────────────
+
+/**
+ * Renders the profile dropdown in the header.
+ * @param {Object} store - Application store
  */
 export async function renderProfileSelector(store) {
 	const container = document.getElementById("profileSelector");
 	if (!container) return;
 
-	const profiles = await db.getAllProfiles();
-	const activeProfile = await db.getActiveProfile();
+	const [profiles, activeProfile] = await Promise.all([db.getAllProfiles(), db.getActiveProfile()]);
 
-	// Clear existing content
-	container.replaceChildren();
-
-	// Create dropdown button
 	const dropdownBtn = document.createElement("button");
 	dropdownBtn.className = "btn btn-outline-primary dropdown-toggle d-flex align-items-center gap-2";
 	dropdownBtn.type = "button";
@@ -30,26 +68,20 @@ export async function renderProfileSelector(store) {
 
 	const text = document.createElement("span");
 	text.textContent = activeProfile ? activeProfile.name : "No Profile";
-
 	dropdownBtn.append(icon, text);
 
-	// Create dropdown menu
 	const dropdownMenu = document.createElement("ul");
 	dropdownMenu.className = "dropdown-menu";
 
-	// Add existing profiles
-	for (let i = 0; i < profiles.length; i++) {
-		const profile = profiles[i];
+	for (const profile of profiles) {
 		const li = document.createElement("li");
 
 		if (profile.isActive) {
-			// Active profile - show as active
 			const activeItem = document.createElement("span");
 			activeItem.className = "dropdown-item active";
 			activeItem.textContent = profile.name;
 			li.appendChild(activeItem);
 		} else {
-			// Inactive profile - make clickable
 			const link = document.createElement("a");
 			link.className = "dropdown-item";
 			link.href = "#";
@@ -64,7 +96,6 @@ export async function renderProfileSelector(store) {
 		dropdownMenu.appendChild(li);
 	}
 
-	// Add divider if there are profiles
 	if (profiles.length > 0) {
 		const divider = document.createElement("li");
 		const hr = document.createElement("hr");
@@ -73,7 +104,6 @@ export async function renderProfileSelector(store) {
 		dropdownMenu.appendChild(divider);
 	}
 
-	// Add "New Profile" option if under limit
 	if (profiles.length < AppConfig.MAX_PROFILES) {
 		const newProfileLi = document.createElement("li");
 		const newProfileLink = document.createElement("a");
@@ -87,7 +117,6 @@ export async function renderProfileSelector(store) {
 		newProfileLi.appendChild(newProfileLink);
 		dropdownMenu.appendChild(newProfileLi);
 	} else {
-		// Show max reached message
 		const maxLi = document.createElement("li");
 		const maxItem = document.createElement("span");
 		maxItem.className = "dropdown-item text-muted";
@@ -96,7 +125,6 @@ export async function renderProfileSelector(store) {
 		dropdownMenu.appendChild(maxLi);
 	}
 
-	// Add "Manage Profiles" option
 	const manageLi = document.createElement("li");
 	const manageLink = document.createElement("a");
 	manageLink.className = "dropdown-item";
@@ -107,115 +135,31 @@ export async function renderProfileSelector(store) {
 	manageLi.appendChild(manageLink);
 	dropdownMenu.appendChild(manageLi);
 
-	container.appendChild(dropdownBtn);
-	container.appendChild(dropdownMenu);
+	container.replaceChildren(dropdownBtn, dropdownMenu);
 }
 
 /**
- * Switches to a different profile
- * @param {number} profileId - Profile ID to switch to
- * @param {import('./app.js').Store} store - Application store
+ * Renders the profile management modal content.
+ * @param {Object} store - Application store (needed for rename/delete actions)
  */
-async function switchToProfile(profileId, store) {
-	try {
-		await db.switchProfile(profileId);
-
-		// Get the new profile
-		const profile = await db.getActiveProfile();
-
-		// Check if the new profile has any data
-		const state = await db.loadState();
-
-		if (state) {
-			// Profile has data - load it
-			await autoLoad(store);
-			showToast(`Switched to profile: ${profile.name}`, "success");
-		} else {
-			// Profile is empty - reset to defaults and show empty state
-			const { createInitialStore } = await import("./app.js");
-			const defaults = createInitialStore();
-
-			// Reset store to defaults
-			Object.assign(store, defaults);
-
-			// Update UI inputs
-			document.getElementById("engineerLevel").value = store.engineerLevel;
-			document.getElementById("scarabLevel").value = store.scarabLevel;
-			document.getElementById("riftRank").value = store.riftRank;
-
-			// Re-render UI
-			const { renderMachines } = await import("./ui/machines.js");
-			const { renderHeroes } = await import("./ui/heroes.js");
-			const { renderArtifacts } = await import("./ui/artifacts.js");
-			const { renderTavernCards } = await import("./ui/tavern.js");
-
-			renderMachines(store.machines);
-			renderHeroes(store.heroes);
-			renderArtifacts(store.artifacts);
-			renderTavernCards(store.machines);
-
-			showToast(`Switched to new profile: ${profile.name}`, "success");
-		}
-
-		// Update profile selector
-		await renderProfileSelector(store);
-	} catch (error) {
-		console.error("Failed to switch profile:", error);
-		showToast("Failed to switch profile", "danger");
-	}
-}
-
-/**
- * Creates a new profile
- * @param {import('./app.js').Store} store - Application store
- */
-async function createNewProfile(store) {
-	const name = prompt(`Enter name for new profile (${AppConfig.MAX_PROFILES} max):`, `Profile ${(await db.getAllProfiles()).length + 1}`);
-
-	if (!name || !name.trim()) {
-		return;
-	}
-
-	try {
-		const profileId = await db.createProfile(name.trim());
-		showToast(`Created profile: ${name}`, "success");
-
-		// Refresh profile selector
-		await renderProfileSelector(store);
-        await switchToProfile(profileId, store);
-        
-	} catch (error) {
-		console.error("Failed to create profile:", error);
-		showToast(error.message || "Failed to create profile", "danger");
-	}
-}
-
-/**
- * Renders the profile management modal content
- */
-export async function renderProfileManagement() {
+export async function renderProfileManagement(store) {
 	const container = document.getElementById("profileManagementList");
 	if (!container) return;
 
 	const profiles = await db.getAllProfiles();
-	//const activeProfile = await db.getActiveProfile();
-
-	container.replaceChildren();
 
 	if (profiles.length === 0) {
-		const emptyMessage = document.createElement("p");
-		emptyMessage.className = "text-secondary text-center";
-		emptyMessage.textContent = "No profiles found. Create one to get started!";
-		container.appendChild(emptyMessage);
+		const msg = document.createElement("p");
+		msg.className = "text-secondary text-center";
+		msg.textContent = "No profiles found. Create one to get started!";
+		container.replaceChildren(msg);
 		return;
 	}
 
 	const list = document.createElement("div");
 	list.className = "list-group";
 
-	for (let i = 0; i < profiles.length; i++) {
-		const profile = profiles[i];
-
+	for (const profile of profiles) {
 		const item = document.createElement("div");
 		item.className = `list-group-item d-flex justify-content-between align-items-center ${profile.isActive ? "active" : ""}`;
 
@@ -236,59 +180,97 @@ export async function renderProfileManagement() {
 		const buttonSection = document.createElement("div");
 		buttonSection.className = "btn-group btn-group-sm";
 
-		// Rename button
 		const renameBtn = document.createElement("button");
 		renameBtn.className = "btn btn-outline-secondary";
 		renameBtn.innerHTML = '<i class="bi bi-pencil"></i>';
 		renameBtn.title = "Rename";
-		renameBtn.addEventListener("click", async () => {
-			await renameProfile(profile.id);
-		});
+		renameBtn.addEventListener("click", () => renameProfile(profile.id, store));
 		buttonSection.appendChild(renameBtn);
 
-		// Delete button (can't delete active profile if it's the only one)
 		const canDelete = profiles.length > 1;
 		const deleteBtn = document.createElement("button");
 		deleteBtn.className = "btn btn-outline-danger";
 		deleteBtn.innerHTML = '<i class="bi bi-trash"></i>';
 		deleteBtn.title = canDelete ? "Delete" : "Cannot delete only profile";
 		deleteBtn.disabled = !canDelete;
-		deleteBtn.addEventListener("click", async () => {
-			if (canDelete) {
-				await deleteProfile(profile.id, profile.name);
-			}
+		deleteBtn.addEventListener("click", () => {
+			if (canDelete) deleteProfile(profile.id, profile.name, store);
 		});
 		buttonSection.appendChild(deleteBtn);
 
-		item.appendChild(nameSection);
-		item.appendChild(buttonSection);
+		item.append(nameSection, buttonSection);
 		list.appendChild(item);
 	}
 
-	container.appendChild(list);
+	container.replaceChildren(list);
+}
+
+// ─────────────────────────────────────────────
+// Profile mutations
+// ─────────────────────────────────────────────
+
+/**
+ * Switches the active profile and refreshes the UI.
+ * Loads saved data if the profile has any; resets to defaults otherwise.
+ * @param {number} profileId
+ * @param {Object} store
+ */
+async function switchToProfile(profileId, store) {
+	try {
+		await db.switchProfile(profileId);
+		const profile = await db.getActiveProfile();
+		const state = await db.loadState();
+
+		if (state) {
+			await autoLoad(store);
+			showToast(`Switched to profile: ${profile.name}`, "success");
+		} else {
+			_resetStoreUI(store);
+			showToast(`Switched to new profile: ${profile.name}`, "success");
+		}
+
+		await _refreshProfileUI(store);
+	} catch (error) {
+		console.error("Failed to switch profile:", error);
+		showToast("Failed to switch profile", "danger");
+	}
 }
 
 /**
- * Renames a profile
- * @param {number} profileId - Profile ID
+ * Prompts for a name and creates a new profile, then switches to it.
+ * @param {Object} store
  */
-async function renameProfile(profileId) {
+async function createNewProfile(store) {
+	const existingCount = (await db.getAllProfiles()).length;
+	const name = prompt(`Enter name for new profile (${AppConfig.MAX_PROFILES} max):`, `Profile ${existingCount + 1}`);
+
+	if (!name?.trim()) return;
+
+	try {
+		const profileId = await db.createProfile(name.trim());
+		showToast(`Created profile: ${name}`, "success");
+		await switchToProfile(profileId, store);
+	} catch (error) {
+		console.error("Failed to create profile:", error);
+		showToast(error.message || "Failed to create profile", "danger");
+	}
+}
+
+/**
+ * Prompts for a new name and renames the given profile.
+ * @param {number} profileId
+ * @param {Object} store
+ */
+async function renameProfile(profileId, store) {
 	const profile = await db.profiles.get(profileId);
 	const newName = prompt("Enter new profile name:", profile.name);
 
-	if (!newName || !newName.trim() || newName.trim() === profile.name) {
-		return;
-	}
+	if (!newName?.trim() || newName.trim() === profile.name) return;
 
 	try {
 		await db.renameProfile(profileId, newName.trim());
 		showToast("Profile renamed successfully", "success");
-
-		// Refresh management list
-		await renderProfileManagement();
-        const store = window.appStore; // Access global store
-		await renderProfileSelector(store);
-
+		await _refreshProfileUI(store);
 	} catch (error) {
 		console.error("Failed to rename profile:", error);
 		showToast("Failed to rename profile", "danger");
@@ -296,60 +278,49 @@ async function renameProfile(profileId) {
 }
 
 /**
- * Deletes a profile
- * @param {number} profileId - Profile ID
- * @param {string} profileName - Profile name (for confirmation)
+ * Confirms and deletes a profile, then loads the newly active profile.
+ * @param {number} profileId
+ * @param {string} profileName
+ * @param {Object} store
  */
-async function deleteProfile(profileId, profileName) {
-	const confirmed = confirm(`Delete profile "${profileName}"? This cannot be undone.`);
-
-	if (!confirmed) {
-		return;
-	}
+async function deleteProfile(profileId, profileName, store) {
+	if (!confirm(`Delete profile "${profileName}"? This cannot be undone.`)) return;
 
 	try {
-		//const wasActive = (await db.profiles.get(profileId)).isActive;
-
 		await db.deleteProfile(profileId);
 		showToast("Profile deleted successfully", "success");
-
-		// Refresh management list
-		await renderProfileManagement();
-        const store = window.appStore; // Access global store
 		await autoLoad(store);
-		await renderProfileSelector(store);
+		await _refreshProfileUI(store);
 	} catch (error) {
 		console.error("Failed to delete profile:", error);
 		showToast(error.message || "Failed to delete profile", "danger");
 	}
 }
 
+// ─────────────────────────────────────────────
+// Initialization
+// ─────────────────────────────────────────────
+
 /**
- * Initializes profile system on app startup
- * Creates default profile if none exist
- * @param {import('./app.js').Store} store - Application store
+ * Bootstraps the profile system on app startup.
+ * Creates a default profile if none exist, ensures an active profile is set,
+ * then renders the selector.
+ * @param {Object} store
  */
 export async function initializeProfiles(store) {
 	try {
 		let profiles = await db.getAllProfiles();
 
-		// Create default profile if none exist
 		if (profiles.length === 0) {
-			console.log("No profiles found, creating default profile");
 			await db.createProfile(AppConfig.DEFAULT_PROFILE_NAME);
-
-			// Re-fetch profiles after creation to ensure we have the new profile
 			profiles = await db.getAllProfiles();
 		}
 
-		// Verify we have an active profile
-		const activeProfile = await db.getActiveProfile();
-		if (!activeProfile && profiles.length > 0) {
-			// Shouldn't happen, but fail-safe: activate first profile
+		const active = await db.getActiveProfile();
+		if (!active && profiles.length > 0) {
 			await db.switchProfile(profiles[0].id);
 		}
 
-		// Render profile selector
 		await renderProfileSelector(store);
 	} catch (error) {
 		console.error("Failed to initialize profiles:", error);

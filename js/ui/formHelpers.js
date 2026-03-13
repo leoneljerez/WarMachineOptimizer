@@ -2,61 +2,84 @@
 
 /**
  * @typedef {Object} ListItemConfig
- * @property {string} image - Image source URL
- * @property {string} name - Display name
- * @property {string} statsText - Stats text to display
- * @property {boolean} isConfigured - Whether item is configured
- * @property {string} id - Unique identifier
+ * @property {string}  image       - Image base path (without extension)
+ * @property {string}  name        - Display name
+ * @property {string}  statsText   - Multi-line stats string (supports \n)
+ * @property {boolean} isConfigured - Whether the item has non-default values
+ * @property {string}  id          - Unique identifier (used as data-item-id)
+ */
+
+/**
+ * @typedef {Object} BadgeConfig
+ * @property {string} text  - Badge label
+ * @property {string} [color="secondary"] - Bootstrap colour name
  */
 
 /**
  * @typedef {Object} DetailHeaderConfig
- * @property {string} image - Image source URL
- * @property {string} name - Display name
- * @property {string} [subtitle] - Optional subtitle (e.g., "Epic • Lv.25")
- * @property {string} [badgeText] - Optional badge text (e.g., "Tank")
- * @property {string} [badgeColor] - Optional badge color (primary, danger, success, etc)
+ * @property {string}        image    - Image base path
+ * @property {string}        name     - Display name
+ * @property {string}        [subtitle]
+ * @property {BadgeConfig[]} [badges] - Array of badge configs (replaces single-badge API)
  */
 
 /**
- * Creates a <picture> element with AVIF, WEBP, JXL, PNG fallbacks
- * @param {string} baseSrc - Image path without extension
- * @param {string} alt - Alt text
- * @param {string} cssText - Inline styles to apply to the <img>
- * @param {string} [className] - CSS class(es) for the <img>
+ * @typedef {Object} NumberInputConfig
+ * @property {number}  value   - Initial value
+ * @property {number}  [min=0] - Minimum value
+ * @property {number}  [step=1]
+ * @property {string}  id      - Input ID (required — use explicit IDs everywhere)
+ * @property {string}  dataKey - data-key attribute for delegation identification
+ * @property {number}  [max]   - Optional maximum
+ * @property {boolean} [isAtMax=false]
+ */
+
+// ─────────────────────────────────────────────
+// Media
+// ─────────────────────────────────────────────
+
+/**
+ * Creates a <picture> element with JXL → AVIF → WebP → PNG fallback chain.
+ * @param {string} baseSrc  - Image path without extension
+ * @param {string} alt      - Alt text for the <img>
+ * @param {string} [cssText=""]  - Inline styles for the <img>
+ * @param {string} [className=""] - CSS class(es) for the <img>
  * @returns {HTMLPictureElement}
  */
 export function createPicture(baseSrc, alt, cssText = "", className = "") {
 	const picture = document.createElement("picture");
 
-	const sources = [
+	for (const { type, ext } of [
 		{ type: "image/jxl", ext: ".jxl" },
 		{ type: "image/avif", ext: ".avif" },
 		{ type: "image/webp", ext: ".webp" },
-	];
-
-	sources.forEach(({ type, ext }) => {
+	]) {
 		const source = document.createElement("source");
 		source.type = type;
 		source.srcset = baseSrc + ext;
 		picture.appendChild(source);
-	});
+	}
 
 	const img = document.createElement("img");
-	img.src = baseSrc + ".png"; // PNG fallback on the <img>
+	img.src = baseSrc + ".png";
 	img.alt = alt;
 	if (cssText) img.style.cssText = cssText;
 	if (className) img.className = className;
-
 	picture.appendChild(img);
+
 	return picture;
 }
 
+// ─────────────────────────────────────────────
+// Layout helpers
+// ─────────────────────────────────────────────
+
 /**
- * Creates a section with title and rows
- * @param {string} title - Section title
- * @param {HTMLElement[]} rows - Array of row elements
- * @returns {HTMLElement} Section element
+ * Creates a labelled <section> containing a Bootstrap row of child elements.
+ * @param {string}        title   - Section heading text
+ * @param {HTMLElement[]} rows    - Child elements placed in the row
+ * @param {string|null}   [spacing=null] - Override for the section's margin class
+ * @returns {HTMLElement}
  */
 export function createSection(title, rows, spacing = null) {
 	const section = document.createElement("section");
@@ -79,14 +102,22 @@ export function createSection(title, rows, spacing = null) {
 }
 
 /**
- * Creates a form row with label and input
- * @param {string} labelText - Label text
- * @param {HTMLElement} input - Input element
- * @param {string} colClass - Bootstrap column class
- * @param {string|null} inputId - Optional input ID
- * @returns {HTMLElement} Column element
+ * Wraps a label and input in a Bootstrap column div.
+ * The `inputId` parameter is required — random fallback IDs are not generated
+ * because they make accessibility auditing and testing unreliable.
+ * @param {string}      labelText
+ * @param {HTMLElement} input
+ * @param {string}      [colClass="col-12"]
+ * @param {string}      inputId   - Must be provided explicitly
+ * @returns {HTMLElement}
  */
-export function createFormRow(labelText, input, colClass = "col-12", inputId = null) {
+export function createFormRow(labelText, input, colClass = "col-12", inputId) {
+	if (!inputId && !input.id) {
+		console.warn("createFormRow: inputId is required — provide an explicit ID.");
+	}
+
+	const id = inputId || input.id;
+
 	const col = document.createElement("div");
 	col.className = colClass;
 
@@ -96,29 +127,24 @@ export function createFormRow(labelText, input, colClass = "col-12", inputId = n
 	const labelEl = document.createElement("label");
 	labelEl.className = "form-label";
 	labelEl.textContent = labelText;
-
-	const id = inputId || input.id || `input-${Math.random().toString(36).substr(2, 9)}`;
 	labelEl.htmlFor = id;
 	input.id = id;
 
 	formGroup.append(labelEl, input);
 	col.appendChild(formGroup);
-
 	return col;
 }
 
+// ─────────────────────────────────────────────
+// Input factories
+// ─────────────────────────────────────────────
+
 /**
- * Creates a number input element (no event listeners - use delegation)
- * @param {number} value - Initial value
- * @param {number} min - Minimum value
- * @param {number} step - Step value
- * @param {string} id - Input ID
- * @param {string} dataKey - Data attribute key for identification
- * @param {number} [max] - Optional maximum value
- * @param {boolean} [isAtMax=false] - Whether the value is at maximum (for visual feedback)
- * @returns {HTMLInputElement} Input element
+ * Creates a number input element (no event listeners — use delegation).
+ * @param {NumberInputConfig} config
+ * @returns {HTMLInputElement}
  */
-export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "", max = null, isAtMax = false) {
+export function createNumberInput({ value, min = 0, step = 1, id, dataKey, max = null, isAtMax = false }) {
 	const input = document.createElement("input");
 	input.type = "number";
 	input.className = "form-control";
@@ -131,10 +157,9 @@ export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "
 	if (dataKey) input.dataset.key = dataKey;
 	if (max !== null) {
 		input.max = max;
-		input.dataset.dynamicMax = max; // Store for later updates
+		input.dataset.dynamicMax = max;
 	}
 
-	// Apply visual feedback if at max
 	if (isAtMax && max !== null && value >= max) {
 		input.classList.add("border-success", "border-2");
 	}
@@ -143,21 +168,17 @@ export function createNumberInput(value, min = 0, step = 1, id = "", dataKey = "
 }
 
 /**
- * Updates the visual state of a blueprint input based on its value and max
- * @param {HTMLInputElement} input - The input element to update
- * @param {number} value - Current value
- * @param {number} max - Maximum allowed value
+ * Updates a blueprint input's max and applies/removes the at-max highlight.
+ * @param {HTMLInputElement} input
+ * @param {number}           value
+ * @param {number}           max
  */
 export function updateBlueprintInputState(input, value, max) {
 	if (!input) return;
-
-	// Update max attribute
 	input.max = max;
 	input.dataset.dynamicMax = max;
 
-	// Update visual feedback
-	const isAtMax = value >= max;
-	if (isAtMax) {
+	if (value >= max) {
 		input.classList.add("border-success", "border-2");
 	} else {
 		input.classList.remove("border-success", "border-2");
@@ -165,39 +186,41 @@ export function updateBlueprintInputState(input, value, max) {
 }
 
 /**
- * Creates a select dropdown element (no event listeners - use delegation)
- * @param {string[]} options - Array of option values
- * @param {string} currentValue - Currently selected value
- * @param {string} id - Select ID
- * @param {string} dataKey - Data attribute key for identification
- * @returns {HTMLSelectElement} Select element
+ * Creates a select dropdown element (no event listeners — use delegation).
+ * @param {string[]} options      - Option value strings
+ * @param {string}   currentValue - Initially selected value
+ * @param {string}   [id=""]
+ * @param {string}   [dataKey=""]
+ * @returns {HTMLSelectElement}
  */
 export function createSelect(options, currentValue, id = "", dataKey = "") {
 	const select = document.createElement("select");
 	select.className = "form-select";
-
 	if (id) select.id = id;
 	if (dataKey) select.dataset.key = dataKey;
 
 	const fragment = document.createDocumentFragment();
-
-	options.forEach((option) => {
-		const optionEl = document.createElement("option");
-		optionEl.value = option;
-		optionEl.textContent = option;
-		optionEl.selected = currentValue === option;
-		fragment.appendChild(optionEl);
-	});
+	for (const value of options) {
+		const opt = document.createElement("option");
+		opt.value = value;
+		opt.textContent = value;
+		opt.selected = value === currentValue;
+		fragment.appendChild(opt);
+	}
 
 	select.appendChild(fragment);
 	return select;
 }
 
+// ─────────────────────────────────────────────
+// List item
+// ─────────────────────────────────────────────
+
 /**
- * Creates a list item button (no click handler - use delegation)
- * NOW: Uses status icon instead of badge, supports multi-line stats
- * @param {ListItemConfig} config - List item configuration
- * @returns {HTMLButtonElement} Button element
+ * Creates a list-group-item button for the entity list.
+ * No click handler — use event delegation on the parent list.
+ * @param {ListItemConfig} config
+ * @returns {HTMLButtonElement}
  */
 export function createListItem({ image, name, statsText, isConfigured, id }) {
 	const btn = document.createElement("button");
@@ -209,15 +232,12 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 	const container = document.createElement("div");
 	container.className = "d-flex align-items-start gap-3";
 
-	// Image (slightly larger)
 	const thumb = createPicture(image, "", "width: 48px; height: 48px; object-fit: scale-down; object-position: left center;", "rounded");
 	thumb.setAttribute("aria-hidden", "true");
 
-	// Content wrapper
 	const textWrap = document.createElement("div");
 	textWrap.className = "flex-grow-1 min-width-0";
 
-	// Name row with status icon (CHANGED: badge → icon)
 	const nameRow = document.createElement("div");
 	nameRow.className = "d-flex justify-content-between align-items-start mb-1";
 
@@ -225,7 +245,6 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 	nameDiv.className = "fw-semibold fs-6 text-truncate";
 	nameDiv.textContent = name;
 
-	// Status icon (CHANGED)
 	const statusIcon = document.createElement("i");
 	statusIcon.className = `bi ${isConfigured ? "bi-check-circle-fill text-success" : "bi-circle text-secondary"}`;
 	statusIcon.setAttribute("aria-label", isConfigured ? "Configured" : "Default");
@@ -233,10 +252,9 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 
 	nameRow.append(nameDiv, statusIcon);
 
-	// Stats text (secondary line, preserve line breaks)
 	const statsDiv = document.createElement("div");
 	statsDiv.className = "text-secondary small";
-	statsDiv.style.whiteSpace = "pre-line"; // Preserve \n line breaks
+	statsDiv.style.whiteSpace = "pre-line";
 	statsDiv.textContent = statsText;
 	statsDiv.setAttribute("aria-label", `Stats: ${statsText}`);
 
@@ -248,10 +266,11 @@ export function createListItem({ image, name, statsText, isConfigured, id }) {
 }
 
 /**
- * Updates an existing list item
- * @param {HTMLButtonElement} btn - Button element to update
- * @param {string} statsText - New stats text
- * @param {boolean} isConfigured - New configuration state
+ * Updates the stats text and configured indicator on an existing list item.
+ * Only mutates the DOM if values have actually changed.
+ * @param {HTMLButtonElement} btn
+ * @param {string}            statsText
+ * @param {boolean}           isConfigured
  */
 export function updateListItem(btn, statsText, isConfigured) {
 	const statsDiv = btn.querySelector(".text-secondary.small");
@@ -265,64 +284,52 @@ export function updateListItem(btn, statsText, isConfigured) {
 	if (statusIcon) {
 		const newClass = `bi ${isConfigured ? "bi-check-circle-fill text-success" : "bi-circle text-secondary"}`;
 		const newLabel = isConfigured ? "Configured" : "Default";
-
-		if (statusIcon.className !== newClass) {
-			statusIcon.className = newClass;
-		}
-		if (statusIcon.getAttribute("aria-label") !== newLabel) {
-			statusIcon.setAttribute("aria-label", newLabel);
-		}
+		if (statusIcon.className !== newClass) statusIcon.className = newClass;
+		if (statusIcon.getAttribute("aria-label") !== newLabel) statusIcon.setAttribute("aria-label", newLabel);
 	}
 }
 
+// ─────────────────────────────────────────────
+// Detail header
+// ─────────────────────────────────────────────
+
 /**
- * Creates a detail header - PROFESSIONAL: Left-aligned with reset on far right
- * @param {DetailHeaderConfig} config - Header configuration
- * @returns {HTMLElement} Header element
+ * Creates the standard detail-panel header with image, name, badges, and reset button.
+ *
+ * Only the `badges` array API is supported. The old `badgeText`/`badgeColor`
+ * single-badge parameters have been removed — callers should pass
+ * `badges: [{ text: "Tank", color: "danger" }]` instead.
+ *
+ * @param {DetailHeaderConfig} config
+ * @returns {HTMLElement}
  */
-export function createDetailHeader({ image, name, subtitle = null, badgeText = null, badgeColor = "primary", badges = [] }) {
+export function createDetailHeader({ image, name, subtitle = null, badges = [] }) {
 	const header = document.createElement("div");
 	header.className = "d-flex align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom";
 
-	// Left side: Image + Name/Badges
+	// Left: image + name/badges
 	const leftSide = document.createElement("div");
 	leftSide.className = "d-flex align-items-center gap-3";
 
-	// Image
 	const img = createPicture(image, name, "width: 80px; height: 80px; object-fit: scale-down; object-position: left center;", "rounded flex-shrink-0");
 
-	// Content area (name + badges)
 	const content = document.createElement("div");
 
-	// Name
 	const nameEl = document.createElement("h4");
 	nameEl.className = "mb-2";
 	nameEl.textContent = name;
-
 	content.appendChild(nameEl);
 
-	// Badges container
 	const badgesContainer = document.createElement("div");
 	badgesContainer.className = "d-flex flex-wrap gap-2 align-items-center";
 
-	// Add badges from array (supports multiple badges)
-	if (badges && badges.length > 0) {
-		badges.forEach((badge) => {
-			const badgeEl = document.createElement("span");
-			badgeEl.className = `badge bg-${badge.color || "secondary"}`;
-			badgeEl.textContent = badge.text;
-			badgesContainer.appendChild(badgeEl);
-		});
-	}
-	// Fallback to single badge for backwards compatibility
-	else if (badgeText) {
-		const badge = document.createElement("span");
-		badge.className = `badge bg-${badgeColor}`;
-		badge.textContent = badgeText;
-		badgesContainer.appendChild(badge);
+	for (const { text, color = "secondary" } of badges) {
+		const badgeEl = document.createElement("span");
+		badgeEl.className = `badge bg-${color}`;
+		badgeEl.textContent = text;
+		badgesContainer.appendChild(badgeEl);
 	}
 
-	// Optional subtitle
 	if (subtitle) {
 		const subtitleEl = document.createElement("span");
 		subtitleEl.className = "text-secondary small";
@@ -331,10 +338,9 @@ export function createDetailHeader({ image, name, subtitle = null, badgeText = n
 	}
 
 	content.appendChild(badgesContainer);
-
 	leftSide.append(img, content);
 
-	// Right side: Reset button
+	// Right: reset button
 	const resetBtn = document.createElement("button");
 	resetBtn.type = "button";
 	resetBtn.className = "btn btn-sm btn-outline-danger flex-shrink-0";
@@ -343,6 +349,5 @@ export function createDetailHeader({ image, name, subtitle = null, badgeText = n
 	resetBtn.dataset.action = "reset";
 
 	header.append(leftSide, resetBtn);
-
 	return header;
 }

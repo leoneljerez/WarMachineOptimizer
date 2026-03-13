@@ -14,7 +14,7 @@ async function init() {
 		console.log("Guardian Calculator ready");
 	} catch (error) {
 		console.error("Initialization failed:", error);
-		
+
 		// Show error toast if available
 		const toastRoot = document.getElementById("toastRoot");
 		if (toastRoot) {
