@@ -224,7 +224,7 @@ export class GuardianCalculator {
 
 		const noProgress = { expNeeded: 0, strangeDustNeeded: 0, evolutionsNeeded: [] };
 
-		if (targetCatIdx < currentCatIdx) return { ...noProgress, error: "You cannot go lower in categories" };
+		//if (targetCatIdx < currentCatIdx) return { ...noProgress, error: "You cannot go lower in categories" };
 		if (targetCatIdx === currentCatIdx && targetRankIdx < currentRankIdx) return { ...noProgress, error: "You cannot go lower in ranks" };
 		if (targetCatIdx === currentCatIdx && targetRankIdx === currentRankIdx && target.level < current.level) return { ...noProgress, error: "You cannot go lower in levels" };
 		if (targetCatIdx === currentCatIdx && targetRankIdx === currentRankIdx && target.level === current.level) return { ...noProgress, error: "Already at desired level" };
